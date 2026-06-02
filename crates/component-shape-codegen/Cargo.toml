@@ -21,6 +21,7 @@ syn = { features = [
   "full",
   "parsing",
   "printing",
+  "visit-mut",
 ], workspace = true }
 
 [lints]

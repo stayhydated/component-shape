@@ -5,6 +5,7 @@ pub mod imports;
 use heck::ToSnakeCase as _;
 use proc_macro2::{Group, Span, TokenStream, TokenTree};
 use quote::{format_ident, quote, quote_spanned};
+use syn::visit_mut::{self, VisitMut as _};
 use syn::{Expr, Path, Type, TypePath, parse::ParseStream, spanned::Spanned as _};
 
 /// Replace every token span in `value` with `span`.
@@ -126,6 +127,66 @@ pub fn shape_path_from_expr(expr: &Expr, expected: &'static str) -> syn::Result<
     Ok(normalize_shape_path(expr_path.path.clone()))
 }
 
+/// Extract a shape path from a path or configured constructor expression.
+///
+/// A plain path, such as `crate::Input::<_>`, is treated as the component shape
+/// itself. An associated function call, such as
+/// `crate::Select::<_>::searchable(true)`, is treated as a configured
+/// constructor expression for the base shape `crate::Select<_>`.
+pub fn shape_path_from_constructor_expr(expr: &Expr, expected: &'static str) -> syn::Result<Path> {
+    component_shape_expression_parts(expr, expected).map(|parts| parts.shape)
+}
+
+struct ComponentShapeExpressionParts {
+    shape: Path,
+    configured: bool,
+}
+
+fn component_shape_expression_parts(
+    expr: &Expr,
+    expected: &'static str,
+) -> syn::Result<ComponentShapeExpressionParts> {
+    match expr {
+        Expr::Path(expr_path) => Ok(ComponentShapeExpressionParts {
+            shape: normalize_shape_path(expr_path.path.clone()),
+            configured: false,
+        }),
+        Expr::Call(call) => {
+            let Expr::Path(func) = &*call.func else {
+                return Err(syn::Error::new(call.func.span(), expected));
+            };
+
+            Ok(ComponentShapeExpressionParts {
+                shape: shape_path_from_associated_constructor(&func.path, expected)?,
+                configured: true,
+            })
+        },
+        Expr::Group(group) => component_shape_expression_parts(&group.expr, expected),
+        Expr::Paren(paren) => component_shape_expression_parts(&paren.expr, expected),
+        _ => Err(syn::Error::new(expr.span(), expected)),
+    }
+}
+
+fn shape_path_from_associated_constructor(
+    func_path: &Path,
+    expected: &'static str,
+) -> syn::Result<Path> {
+    let mut shape = func_path.clone();
+    let Some(associated_fn) = shape.segments.pop() else {
+        return Err(syn::Error::new(func_path.span(), expected));
+    };
+    shape.segments.pop_punct();
+
+    if shape.segments.is_empty() {
+        return Err(syn::Error::new_spanned(
+            associated_fn.into_value(),
+            expected,
+        ));
+    }
+
+    Ok(normalize_shape_path(shape))
+}
+
 /// Extract a shape path from a parsed type path.
 pub fn shape_path_from_type_path(type_path: TypePath) -> syn::Result<Path> {
     if let Some(qself) = type_path.qself {
@@ -221,6 +282,32 @@ pub fn substitute_infer_in_type(ty: &Type, replacement: &Type) -> Type {
     }
 }
 
+/// Substitute a field type for every `_` occurrence inside an expression.
+///
+/// This is primarily useful for configured component shape expressions such as
+/// `crate::Select::<_>::searchable(true)`, where the expression must retain
+/// expression-position turbofish syntax while its base shape metadata uses a
+/// type-position path.
+pub fn substitute_infer_in_expr(expr: &Expr, replacement: &Type) -> Expr {
+    let mut expr = expr.clone();
+    InferSubstitutor { replacement }.visit_expr_mut(&mut expr);
+    expr
+}
+
+struct InferSubstitutor<'a> {
+    replacement: &'a Type,
+}
+
+impl visit_mut::VisitMut for InferSubstitutor<'_> {
+    fn visit_type_mut(&mut self, node: &mut Type) {
+        *node = substitute_infer_in_type(node, self.replacement);
+    }
+
+    fn visit_path_mut(&mut self, node: &mut Path) {
+        *node = substitute_infer_in_path(node, self.replacement);
+    }
+}
+
 fn substitute_infer_in_return_type(return_type: &mut syn::ReturnType, replacement: &Type) {
     if let syn::ReturnType::Type(_, ty) = return_type {
         **ty = substitute_infer_in_type(ty, replacement);
@@ -295,7 +382,34 @@ fn substitute_infer_in_angle_bracketed_arguments(
 #[derive(Clone, Debug)]
 pub struct ShapeOptions {
     pub shape: Path,
+    constructor: ComponentShapeConstructor,
     span: Span,
+}
+
+/// Optional configured construction expression attached to a component shape.
+#[derive(Clone, Debug)]
+pub enum ComponentShapeConstructor {
+    /// Construct the shape with the consumer's normal/default constructor.
+    Default,
+    /// Construct the shape with a user-supplied expression, such as
+    /// `Select::<_>::searchable(true)`.
+    Expr(Expr),
+}
+
+impl ComponentShapeConstructor {
+    pub fn expr(&self) -> Option<&Expr> {
+        match self {
+            Self::Default => None,
+            Self::Expr(expr) => Some(expr),
+        }
+    }
+
+    fn resolved(&self, field_type: &Type) -> Self {
+        match self {
+            Self::Default => Self::Default,
+            Self::Expr(expr) => Self::Expr(substitute_infer_in_expr(expr, field_type)),
+        }
+    }
 }
 
 impl ShapeOptions {
@@ -306,7 +420,39 @@ impl ShapeOptions {
 
     pub fn from_shape_with_span(shape: Path, span: Span) -> Self {
         let shape = normalize_shape_path(shape);
-        Self { shape, span }
+        Self {
+            shape,
+            constructor: ComponentShapeConstructor::Default,
+            span,
+        }
+    }
+
+    /// Build shape options from either a plain shape path expression or a
+    /// configured constructor expression.
+    pub fn from_constructor_expr(expr: Expr, expected: &'static str) -> syn::Result<Self> {
+        let span = expr.span();
+        Self::from_constructor_expr_with_span(expr, span, expected)
+    }
+
+    /// Build shape options from either a plain shape path expression or a
+    /// configured constructor expression, using `span` for later diagnostics.
+    pub fn from_constructor_expr_with_span(
+        expr: Expr,
+        span: Span,
+        expected: &'static str,
+    ) -> syn::Result<Self> {
+        let parts = component_shape_expression_parts(&expr, expected)?;
+        let constructor = if parts.configured {
+            ComponentShapeConstructor::Expr(expr)
+        } else {
+            ComponentShapeConstructor::Default
+        };
+
+        Ok(Self {
+            shape: parts.shape,
+            constructor,
+            span,
+        })
     }
 
     pub fn span(&self) -> Span {
@@ -319,10 +465,12 @@ impl ShapeOptions {
 
     pub fn resolve(&self, field_name: String, field_type: Type) -> ResolvedComponentShape {
         let shape = self.resolved_shape(&field_type);
+        let constructor = self.constructor.resolved(&field_type);
         let component_suffix = component_suffix_for_shape(&shape, &field_name);
 
         ResolvedComponentShape {
             shape,
+            constructor,
             field_name,
             field_type,
             component_suffix,
@@ -334,6 +482,7 @@ impl ShapeOptions {
 #[derive(Clone, Debug)]
 pub struct ResolvedComponentShape {
     pub shape: Path,
+    constructor: ComponentShapeConstructor,
     pub field_name: String,
     pub field_type: Type,
     component_suffix: String,
@@ -343,6 +492,14 @@ pub struct ResolvedComponentShape {
 impl ResolvedComponentShape {
     pub fn shape(&self) -> &Path {
         &self.shape
+    }
+
+    pub fn constructor(&self) -> &ComponentShapeConstructor {
+        &self.constructor
+    }
+
+    pub fn constructor_expr(&self) -> Option<&Expr> {
+        self.constructor.expr()
     }
 
     pub fn field_name(&self) -> &str {
@@ -580,6 +737,96 @@ mod tests {
             "crate::EmailInputShape<String>"
         );
         assert_eq!(resolved.component_suffix(), "input");
+    }
+
+    #[test]
+    fn shape_options_resolve_plain_constructor_expr_as_default_shape() {
+        let expr: Expr = parse_quote!(crate::Input::<_>);
+        let options = ShapeOptions::from_constructor_expr(expr, "expected component shape")
+            .expect("plain shape expression should parse");
+        let field_type: Type = syn::parse_quote!(crate::types::AccountCode);
+
+        let resolved = options.resolve("account".to_string(), field_type);
+
+        assert_eq!(
+            compact_path(resolved.shape()),
+            "crate::Input<crate::types::AccountCode>"
+        );
+        assert!(resolved.constructor_expr().is_none());
+    }
+
+    #[test]
+    fn shape_options_resolve_associated_constructor_expr() {
+        let expr: Expr = parse_quote!(crate::select::Select::<_>::searchable(true));
+        let options = ShapeOptions::from_constructor_expr(expr, "expected component shape")
+            .expect("configured shape expression should parse");
+        let field_type: Type = syn::parse_quote!(String);
+
+        let resolved = options.resolve("country".to_string(), field_type);
+
+        assert_eq!(
+            compact_path(resolved.shape()),
+            "crate::select::Select<String>"
+        );
+        assert_eq!(resolved.component_suffix(), "select");
+        assert_eq!(
+            compact_tokens(
+                resolved
+                    .constructor_expr()
+                    .expect("configured constructor should be retained")
+                    .to_token_stream()
+            ),
+            "crate::select::Select::<String>::searchable(true)"
+        );
+    }
+
+    #[test]
+    fn shape_options_resolve_from_constructor_expr() {
+        let expr: Expr = parse_quote!(crate::select::Select::<_>::from(
+            crate::select::SelectArgs::builder()
+                .searchable(true)
+                .placeholder("Country")
+                .build()
+        ));
+        let options = ShapeOptions::from_constructor_expr(expr, "expected component shape")
+            .expect("configured shape expression should parse");
+        let field_type: Type = syn::parse_quote!(String);
+
+        let resolved = options.resolve("country".to_string(), field_type);
+
+        assert_eq!(
+            compact_path(resolved.shape()),
+            "crate::select::Select<String>"
+        );
+        assert_eq!(
+            compact_tokens(
+                resolved
+                    .constructor_expr()
+                    .expect("configured constructor should be retained")
+                    .to_token_stream()
+            ),
+            "crate::select::Select::<String>::from(crate::select::SelectArgs::builder().searchable(true).placeholder(\"Country\").build())"
+        );
+    }
+
+    #[test]
+    fn shape_path_from_constructor_expr_rejects_method_chains() {
+        let expr: Expr = parse_quote!(crate::select::Select::<_>::args().searchable(true));
+
+        let error = shape_path_from_constructor_expr(&expr, "expected component shape")
+            .expect_err("method chain should fail");
+
+        assert_eq!(error.to_string(), "expected component shape");
+    }
+
+    #[test]
+    fn shape_path_from_constructor_expr_rejects_unanchored_call() {
+        let expr: Expr = parse_quote!(searchable(true));
+
+        let error = shape_path_from_constructor_expr(&expr, "expected component shape")
+            .expect_err("unanchored call should fail");
+
+        assert_eq!(error.to_string(), "expected component shape");
     }
 
     #[test]

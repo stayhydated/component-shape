@@ -2,6 +2,7 @@
 fn component_shape_macro_compile_tests() {
     let t = trybuild::TestCases::new();
     t.pass("tests/ui/basic_shape.rs");
+    t.pass("tests/ui/builder_shape.rs");
     t.pass("tests/ui/generic_shape.rs");
     t.pass("tests/ui/render_component.rs");
     t.pass("tests/ui/value_binding_shape.rs");

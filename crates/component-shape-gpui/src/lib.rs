@@ -35,6 +35,44 @@ pub trait GpuiComponentShape: component_shape::ComponentShapeMetadata {
     fn new(window: &mut gpui::Window, cx: &mut gpui::Context<'_, Self::State>) -> Self::State;
 }
 
+/// Configured builder for a GPUI component shape.
+///
+/// Generated code can use this contract when a field selects a component shape
+/// with a configuration expression, such as `Select::<_>::searchable(true)`.
+/// The configured value decides how to initialize the same shape state that the
+/// plain [`GpuiComponentShape::new`] path would otherwise construct.
+pub trait GpuiComponentShapeBuilder<Shape: GpuiComponentShape> {
+    /// Build the configured component state.
+    fn build(
+        self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<'_, Shape::State>,
+    ) -> Shape::State;
+}
+
+/// Default builder for a shape's normal [`GpuiComponentShape::new`] behavior.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DefaultGpuiComponentShapeBuilder<Shape>(core::marker::PhantomData<fn() -> Shape>);
+
+impl<Shape> DefaultGpuiComponentShapeBuilder<Shape> {
+    pub const fn new() -> Self {
+        Self(core::marker::PhantomData)
+    }
+}
+
+impl<Shape> GpuiComponentShapeBuilder<Shape> for DefaultGpuiComponentShapeBuilder<Shape>
+where
+    Shape: GpuiComponentShape,
+{
+    fn build(
+        self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<'_, Shape::State>,
+    ) -> Shape::State {
+        Shape::new(window, cx)
+    }
+}
+
 /// Marker for component shapes declared through component-shape GPUI macros.
 #[diagnostic::on_unimplemented(
     message = "GPUI component shape `{Self}` must be declared with `component_shape_gpui::component_shape!` or `#[derive(component_shape_gpui::GpuiComponentShape)]`",
@@ -106,6 +144,19 @@ pub type GpuiComponentStateOf<Shape> = <Shape as GpuiComponentShape>::State;
 
 /// Event type for a value-bound GPUI component shape and value.
 pub type GpuiComponentEventOf<Shape, Value> = <Shape as GpuiComponentValueBinding<Value>>::Event;
+
+/// Build component state from a configured shape builder.
+pub fn build_component_shape<Shape, Builder>(
+    builder: Builder,
+    window: &mut gpui::Window,
+    cx: &mut gpui::Context<'_, GpuiComponentStateOf<Shape>>,
+) -> GpuiComponentStateOf<Shape>
+where
+    Shape: GpuiComponentShape,
+    Builder: GpuiComponentShapeBuilder<Shape>,
+{
+    builder.build(window, cx)
+}
 
 /// Seed component state from the current value without spelling out the
 /// associated-type projection at every generated call site.
