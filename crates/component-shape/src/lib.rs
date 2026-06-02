@@ -1,6 +1,7 @@
 //! Framework-neutral component shape metadata and naming utilities.
 
 mod component_suffix;
+mod field_component;
 mod metadata;
 mod rust_syntax;
 mod value_change;
@@ -8,6 +9,7 @@ mod value_change;
 pub use component_suffix::{
     ComponentSuffix, ComponentSuffixError, is_valid_component_suffix, validate_component_suffix,
 };
+pub use field_component::ComponentShapeUse;
 pub use metadata::{
     ComponentCapabilities, ComponentPrototyping, RenderCapability, ValueBindingCapability,
 };
