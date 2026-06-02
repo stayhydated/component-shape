@@ -7,7 +7,8 @@ mod rust_syntax;
 mod value_change;
 
 pub use component_suffix::{
-    ComponentSuffix, ComponentSuffixError, is_valid_component_suffix, validate_component_suffix,
+    ComponentSuffix, ComponentSuffixError, component_suffix_from_suffix, is_valid_component_suffix,
+    validate_component_suffix,
 };
 pub use field_component::ComponentShapeUse;
 pub use metadata::{
@@ -21,3 +22,17 @@ pub trait ComponentShapeMetadata {
     const PROTOTYPING: ComponentPrototyping = ComponentPrototyping::new();
     const CAPABILITIES: ComponentCapabilities = ComponentCapabilities::new();
 }
+
+/// Marker for component shapes declared through a trusted declaration surface.
+///
+/// Backend crates implement this for shapes declared by their public macros or
+/// other trusted declaration APIs. Hand-written runtime implementations should
+/// not automatically satisfy this marker unless that backend explicitly accepts
+/// them as declared shapes.
+pub trait DeclaredComponentShape: ComponentShapeMetadata {}
+
+/// Marker that a component shape supports a value or field type.
+///
+/// Backend-specific compatibility traits can extend or pair with this marker
+/// while keeping backend-owned methods and diagnostics on their own traits.
+pub trait ComponentShapeFor<Value>: ComponentShapeMetadata {}

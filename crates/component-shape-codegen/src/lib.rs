@@ -2,7 +2,6 @@
 
 pub mod imports;
 
-use heck::ToSnakeCase as _;
 use proc_macro2::{Group, Span, TokenStream, TokenTree};
 use quote::{format_ident, quote, quote_spanned};
 use syn::visit_mut::{self, VisitMut as _};
@@ -74,19 +73,7 @@ pub fn validate_shape_field_suffix(value: &str) -> Result<(), String> {
 
 /// Derive a helper suffix from `field_name` and a shape/component suffix source.
 pub fn component_suffix_from_suffix(field_name: &str, suffix: &str) -> Option<String> {
-    let mut suffix = suffix.to_snake_case();
-    let field_name = field_name.to_snake_case();
-
-    if suffix == field_name {
-        return None;
-    }
-
-    let field_prefix = format!("{field_name}_");
-    if let Some(rest) = suffix.strip_prefix(&field_prefix) {
-        suffix = rest.to_string();
-    }
-
-    (!suffix.is_empty()).then_some(suffix)
+    component_shape::component_suffix_from_suffix(field_name, suffix)
 }
 
 /// Extract a suffix source from a path's final segment.

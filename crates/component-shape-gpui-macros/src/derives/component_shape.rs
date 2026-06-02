@@ -196,8 +196,12 @@ fn expand(input: ComponentShapeInput) -> TokenStream {
         )
         .to_compile_error();
     }
-    let component_shape_for_impls =
-        metadata.value_impl_tokens(&component_shape_gpui_crate, &ident, &generics);
+    let component_shape_for_impls = metadata.value_impl_tokens(
+        &component_shape_crate,
+        &component_shape_gpui_crate,
+        &ident,
+        &generics,
+    );
 
     quote! {
         #(#attrs)*
@@ -228,6 +232,12 @@ fn expand(input: ComponentShapeInput) -> TokenStream {
         }
 
         #render_component_adapter
+
+        impl #impl_generics #component_shape_crate::DeclaredComponentShape
+            for #ident #ty_generics
+            #where_clause
+        {
+        }
 
         impl #impl_generics #component_shape_gpui_crate::DeclaredGpuiComponentShape
             for #ident #ty_generics
@@ -272,12 +282,18 @@ mod tests {
             compact.contains("impl::component_shape::ComponentShapeMetadataforLocalInputShape")
         );
         assert!(
+            compact.contains("impl::component_shape::DeclaredComponentShapeforLocalInputShape")
+        );
+        assert!(
             compact.contains("impl::component_shape_gpui::GpuiComponentShapeforLocalInputShape")
         );
         assert!(
             compact.contains(
                 "impl::component_shape_gpui::DeclaredGpuiComponentShapeforLocalInputShape"
             )
+        );
+        assert!(
+            compact.contains("impl::component_shape::ComponentShapeFor<String>forLocalInputShape")
         );
         assert!(compact.contains(
             "impl::component_shape_gpui::GpuiComponentShapeFor<String>forLocalInputShape"

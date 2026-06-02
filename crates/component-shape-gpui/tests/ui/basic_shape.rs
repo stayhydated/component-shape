@@ -1,4 +1,6 @@
-use component_shape::ComponentShapeMetadata as _;
+use component_shape::{
+    ComponentShapeFor, ComponentShapeMetadata as _, DeclaredComponentShape,
+};
 use component_shape_gpui::{
     DeclaredGpuiComponentShape, GpuiComponentShape, GpuiComponentShapeFor, component_shape,
 };
@@ -21,7 +23,11 @@ component_shape! {
 
 fn assert_shape<Shape>()
 where
-    Shape: GpuiComponentShape + DeclaredGpuiComponentShape + GpuiComponentShapeFor<String>,
+    Shape: GpuiComponentShape
+        + DeclaredComponentShape
+        + DeclaredGpuiComponentShape
+        + ComponentShapeFor<String>
+        + GpuiComponentShapeFor<String>,
 {
 }
 

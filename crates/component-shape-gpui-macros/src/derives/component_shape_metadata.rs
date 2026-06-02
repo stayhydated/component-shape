@@ -278,6 +278,7 @@ impl ComponentShapeMetadata {
 
     pub(super) fn value_impl_tokens(
         &self,
+        component_shape_crate: &Path,
         gpui_crate: &Path,
         ident: &Ident,
         generics: &syn::Generics,
@@ -285,6 +286,12 @@ impl ComponentShapeMetadata {
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
         let value_impls = self.values.iter().map(|value| {
             quote! {
+                impl #impl_generics #component_shape_crate::ComponentShapeFor<#value>
+                    for #ident #ty_generics
+                    #where_clause
+                {
+                }
+
                 impl #impl_generics #gpui_crate::GpuiComponentShapeFor<#value>
                     for #ident #ty_generics
                     #where_clause

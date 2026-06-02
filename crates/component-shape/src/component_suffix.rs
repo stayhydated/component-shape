@@ -1,3 +1,5 @@
+use heck::ToSnakeCase as _;
+
 /// Returns whether a component/prototyping suffix is a non-empty ASCII
 /// identifier suffix.
 pub const fn is_valid_ascii_identifier_suffix(value: &str) -> bool {
@@ -58,6 +60,28 @@ pub fn validate_component_suffix(value: &str) -> Result<(), ComponentSuffixError
     }
 }
 
+/// Derive a generated helper suffix from a field name and shape suffix source.
+///
+/// Both inputs are normalized to snake_case. If the suffix is the same as the
+/// field name, this returns `None` so callers can use their own fallback. If the
+/// suffix repeats the field name as a prefix, the duplicate prefix is removed:
+/// `("email", "email_input")` becomes `Some("input")`.
+pub fn component_suffix_from_suffix(field_name: &str, suffix: &str) -> Option<String> {
+    let mut suffix = suffix.to_snake_case();
+    let field_name = field_name.to_snake_case();
+
+    if suffix == field_name {
+        return None;
+    }
+
+    let field_prefix = format!("{field_name}_");
+    if let Some(rest) = suffix.strip_prefix(&field_prefix) {
+        suffix = rest.to_string();
+    }
+
+    (!suffix.is_empty()).then_some(suffix)
+}
+
 impl ComponentSuffix {
     pub const fn new(value: &'static str) -> Self {
         assert!(
@@ -81,7 +105,10 @@ impl ComponentSuffix {
 
 #[cfg(test)]
 mod tests {
-    use super::{ComponentSuffix, is_valid_component_suffix, validate_component_suffix};
+    use super::{
+        ComponentSuffix, component_suffix_from_suffix, is_valid_component_suffix,
+        validate_component_suffix,
+    };
 
     #[test]
     fn component_suffix_validation_accepts_identifier_suffixes() {
@@ -115,5 +142,18 @@ mod tests {
     #[should_panic(expected = "component suffix must be a non-empty ASCII identifier suffix")]
     fn component_suffix_new_rejects_invalid_suffixes() {
         let _ = ComponentSuffix::new("input-field");
+    }
+
+    #[test]
+    fn component_suffix_from_suffix_normalizes_suffixes() {
+        assert_eq!(
+            component_suffix_from_suffix("country", "CountrySelect"),
+            Some("select".to_string())
+        );
+        assert_eq!(
+            component_suffix_from_suffix("email", "email_input"),
+            Some("input".to_string())
+        );
+        assert_eq!(component_suffix_from_suffix("tags", "tags"), None);
     }
 }

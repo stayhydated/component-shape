@@ -34,8 +34,12 @@ fn expand(input: DeriveInput) -> Result<TokenStream> {
     let component_shape_gpui_crate = paths.component_shape_gpui;
     let gpui_crate = paths.gpui;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-    let component_shape_for_impls =
-        meta.value_impl_tokens(&component_shape_gpui_crate, ident, &input.generics);
+    let component_shape_for_impls = meta.value_impl_tokens(
+        &component_shape_crate,
+        &component_shape_gpui_crate,
+        ident,
+        &input.generics,
+    );
     let inferred_component_type: Type = if input.generics.params.is_empty() {
         syn::parse_quote!(#ident)
     } else {
@@ -130,6 +134,12 @@ fn expand(input: DeriveInput) -> Result<TokenStream> {
 
         #render_component_adapter
 
+        impl #impl_generics #component_shape_crate::DeclaredComponentShape
+            for #ident #ty_generics
+            #where_clause
+        {
+        }
+
         impl #impl_generics #component_shape_gpui_crate::DeclaredGpuiComponentShape
             for #ident #ty_generics
             #where_clause
@@ -190,7 +200,11 @@ mod tests {
         let compact = compact_tokens(&expanded.to_string());
 
         assert!(compact.contains("impl::component_shape::ComponentShapeMetadataforTagsInput"));
+        assert!(compact.contains("impl::component_shape::DeclaredComponentShapeforTagsInput"));
         assert!(compact.contains("impl::component_shape_gpui::GpuiComponentShapeforTagsInput"));
+        assert!(
+            compact.contains("impl::component_shape::ComponentShapeFor<Vec<String>>forTagsInput")
+        );
         assert!(compact.contains(
             "impl::component_shape_gpui::GpuiComponentShapeFor<Vec<String>>forTagsInput"
         ));

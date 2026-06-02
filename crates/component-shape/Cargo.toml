@@ -11,6 +11,7 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+heck.workspace = true
 syn = { default-features = false, features = [
   "clone-impls",
   "full",

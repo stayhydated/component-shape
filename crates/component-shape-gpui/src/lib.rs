@@ -78,7 +78,10 @@ where
     message = "GPUI component shape `{Self}` must be declared with `component_shape_gpui::component_shape!` or `#[derive(component_shape_gpui::GpuiComponentShape)]`",
     note = "hand-written `GpuiComponentShape` implementations are not accepted by consumers that require declared shapes"
 )]
-pub trait DeclaredGpuiComponentShape: GpuiComponentShape {}
+pub trait DeclaredGpuiComponentShape:
+    GpuiComponentShape + component_shape::DeclaredComponentShape
+{
+}
 
 /// Marker that a GPUI component shape supports a value type.
 #[diagnostic::on_unimplemented(
