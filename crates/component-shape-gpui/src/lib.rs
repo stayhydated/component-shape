@@ -86,14 +86,14 @@ pub trait DeclaredGpuiComponentShape:
 /// Marker that a GPUI component shape supports a value type.
 #[diagnostic::on_unimplemented(
     message = "GPUI component shape `{Self}` is not compatible with value `{Value}`",
-    note = "declare `value = {Value}` or include `{Value}` in `values(...)`, or choose a component shape whose value type matches the field"
+    note = "declare `value = {Value}`, include `{Value}` in `values(...)`, or publish value compatibility through a value-binding impl"
 )]
 pub trait GpuiComponentShapeFor<Value>: GpuiComponentShape {}
 
 /// Optional value-binding contract for GPUI component shapes.
 #[diagnostic::on_unimplemented(
     message = "GPUI component shape `{Self}` does not implement value binding for `{Value}`",
-    note = "add `value_binding` shape metadata with a `GpuiComponentValueBinding<T>` impl"
+    note = "add a `GpuiComponentValueBinding<T>` impl inside `component_shape!`, or derive with `value_binding` and a matching state binding"
 )]
 pub trait GpuiComponentValueBinding<Value>: GpuiComponentShape
 where

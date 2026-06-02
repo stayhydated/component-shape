@@ -2,8 +2,8 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{
-    Attribute, GenericParam, Generics, Ident, ItemImpl, Result, Token, Type, Visibility, braced,
-    parse_macro_input,
+    Attribute, GenericArgument, GenericParam, Generics, Ident, ItemImpl, PathArguments, Result,
+    Token, Type, Visibility, braced, parse_macro_input,
 };
 
 use super::component_shape_metadata::{
@@ -56,7 +56,17 @@ impl Parse for ComponentShapeInput {
                 parse_option_separator(&content)?;
             } else if is_shape_option_start(&content) {
                 let option = content.call(ShapeOption::parse_function)?;
-                option.apply(&mut metadata)?;
+                match option {
+                    ShapeOption::State { ty, span } => {
+                        if state.replace(ty).is_some() {
+                            return Err(syn::Error::new_spanned(
+                                Ident::new("state", span),
+                                "duplicate state metadata; use only one of `type State = ...;` or `state = ...;`",
+                            ));
+                        }
+                    },
+                    option => option.apply(&mut metadata)?,
+                }
                 parse_option_separator(&content)?;
             } else if content.peek(Token![impl]) || content.peek(Token![#]) {
                 let impl_item: ItemImpl = content.parse()?;
@@ -73,7 +83,8 @@ impl Parse for ComponentShapeInput {
             vis,
             ident,
             generics,
-            state: state.ok_or_else(|| input.error("missing `type State = ...;`"))?,
+            state: state
+                .ok_or_else(|| input.error("missing `type State = ...;` or `state = ...;`"))?,
             metadata,
             impls,
         })
@@ -82,6 +93,7 @@ impl Parse for ComponentShapeInput {
 
 fn is_shape_option_start(input: ParseStream<'_>) -> bool {
     input.peek(kw::new)
+        || input.peek(kw::state)
         || input.peek(kw::component)
         || input.peek(kw::value)
         || input.peek(kw::values)
@@ -143,6 +155,23 @@ fn classify_nested_shape_impl(impl_item: &ItemImpl) -> NestedShapeImplKind {
     }
 }
 
+fn nested_value_binding_value(impl_item: &ItemImpl) -> Option<Type> {
+    let (_, path, _) = impl_item.trait_.as_ref()?;
+    let last = path.segments.last()?;
+    if last.ident != "GpuiComponentValueBinding" {
+        return None;
+    }
+
+    let PathArguments::AngleBracketed(arguments) = &last.arguments else {
+        return None;
+    };
+
+    arguments.args.iter().find_map(|argument| match argument {
+        GenericArgument::Type(value) => Some(value.clone()),
+        _ => None,
+    })
+}
+
 fn expand(input: ComponentShapeInput) -> TokenStream {
     let ComponentShapeInput {
         attrs,
@@ -153,6 +182,7 @@ fn expand(input: ComponentShapeInput) -> TokenStream {
         metadata,
         impls,
     } = input;
+    let mut metadata = metadata;
 
     let paths = crate_paths();
     let component_shape_crate = paths.component_shape;
@@ -175,15 +205,22 @@ fn expand(input: ComponentShapeInput) -> TokenStream {
             Ok(tokens) => tokens,
             Err(error) => return error.to_compile_error(),
         };
-    let metadata_impl_items = metadata.metadata_impl_tokens(&component_shape_crate);
     let nested_impl_kinds = impls
         .iter()
         .map(classify_nested_shape_impl)
         .collect::<Vec<_>>();
+    let nested_value_binding_values = impls
+        .iter()
+        .filter_map(nested_value_binding_value)
+        .collect::<Vec<_>>();
+    if !metadata.has_value_metadata() && !nested_value_binding_values.is_empty() {
+        metadata.add_inferred_values(nested_value_binding_values);
+        metadata.infer_value_binding();
+    }
     if !metadata.has_value_metadata() {
         return syn::Error::new_spanned(
             ident,
-            "`component_shape!` requires value metadata; add `value = ...` or `values(...)`",
+            "`component_shape!` requires value metadata; add `value = ...`, `values(...)`, or a nested `GpuiComponentValueBinding<T>` impl",
         )
         .to_compile_error();
     }
@@ -196,6 +233,7 @@ fn expand(input: ComponentShapeInput) -> TokenStream {
         )
         .to_compile_error();
     }
+    let metadata_impl_items = metadata.metadata_impl_tokens(&component_shape_crate);
     let component_shape_for_impls = metadata.value_impl_tokens(
         &component_shape_crate,
         &component_shape_gpui_crate,
@@ -257,7 +295,10 @@ pub fn function(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 #[cfg(test)]
 mod tests {
-    use super::{ComponentShapeInput, NestedShapeImplKind, classify_nested_shape_impl, expand};
+    use super::{
+        ComponentShapeInput, NestedShapeImplKind, classify_nested_shape_impl, expand,
+        nested_value_binding_value,
+    };
     use quote::quote;
 
     fn compact_tokens(tokens: &str) -> String {
@@ -302,6 +343,22 @@ mod tests {
     }
 
     #[test]
+    fn function_macro_accepts_state_option() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct LocalInputShape {
+                state = crate::InputState;
+                value = String;
+            }
+        })
+        .unwrap();
+
+        let expanded = expand(input);
+        let compact = compact_tokens(&expanded.to_string());
+
+        assert!(compact.contains("typeState=crate::InputState"));
+    }
+
+    #[test]
     fn classify_nested_value_binding_impl() {
         let impl_item: syn::ItemImpl = syn::parse2(quote! {
             impl component_shape_gpui::GpuiComponentValueBinding<String> for Input {
@@ -320,6 +377,61 @@ mod tests {
         assert_eq!(
             classify_nested_shape_impl(&impl_item),
             NestedShapeImplKind::GpuiComponentValueBinding
+        );
+    }
+
+    #[test]
+    fn nested_value_binding_value_extracts_bound_value_type() {
+        let impl_item: syn::ItemImpl = syn::parse2(quote! {
+            impl<T> component_shape_gpui::GpuiComponentValueBinding<Vec<T>> for Input<T> {
+                type Event = InputEvent;
+
+                fn value_change(
+                    _state: &Self::State,
+                    _event: &Self::Event,
+                ) -> component_shape::ValueChange<Vec<T>> {
+                    component_shape::ValueChange::Unchanged
+                }
+            }
+        })
+        .unwrap();
+
+        let value = nested_value_binding_value(&impl_item).expect("value type should be inferred");
+
+        assert_eq!(compact_tokens(&quote! { #value }.to_string()), "Vec<T>");
+    }
+
+    #[test]
+    fn function_macro_infers_value_metadata_from_nested_value_binding_impl() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct LocalInputShape<T> {
+                type State = crate::InputState;
+
+                impl<T> component_shape_gpui::GpuiComponentValueBinding<T>
+                    for LocalInputShape<T>
+                {
+                    type Event = InputEvent;
+
+                    fn value_change(
+                        _state: &Self::State,
+                        _event: &Self::Event,
+                    ) -> component_shape::ValueChange<T> {
+                        component_shape::ValueChange::Unchanged
+                    }
+                }
+            }
+        })
+        .unwrap();
+
+        let expanded = expand(input);
+        let compact = compact_tokens(&expanded.to_string());
+
+        assert!(compact.contains("ComponentShapeFor<T>forLocalInputShape<T>"));
+        assert!(compact.contains("GpuiComponentShapeFor<T>forLocalInputShape<T>"));
+        assert!(
+            compact.contains(
+                ".with_value_binding(::component_shape::ValueBindingCapability::Inherited)"
+            )
         );
     }
 

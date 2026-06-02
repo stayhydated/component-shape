@@ -1,4 +1,4 @@
-error: `component_shape!` requires value metadata; add `value = ...` or `values(...)`
+error: `component_shape!` requires value metadata; add `value = ...`, `values(...)`, or a nested `GpuiComponentValueBinding<T>` impl
  --> tests/ui/missing_value.rs:6:16
   |
 6 |     pub struct MissingValue {

@@ -4,29 +4,46 @@ use syn::{DeriveInput, Result, Type, parse_macro_input};
 
 use super::component_shape_metadata::{ComponentShapeMetadata, ShapeOption, crate_paths};
 
-fn parse_meta(attrs: &[syn::Attribute]) -> Result<ComponentShapeMetadata> {
+fn parse_meta(attrs: &[syn::Attribute]) -> Result<(ComponentShapeMetadata, bool)> {
     let mut shape = ComponentShapeMetadata::default();
+    let mut has_shape_attr = false;
 
     for attr in attrs
         .iter()
         .filter(|attr| attr.path().is_ident("gpui_component_shape"))
     {
+        has_shape_attr = true;
         attr.parse_nested_meta(|meta| ShapeOption::from_nested_meta(&meta)?.apply(&mut shape))?;
     }
 
-    Ok(shape)
+    Ok((shape, has_shape_attr))
+}
+
+fn inferred_state_type(input: &DeriveInput) -> Result<Type> {
+    let state_ident = format_ident!("{}State", input.ident);
+    let (_, ty_generics, _) = input.generics.split_for_impl();
+
+    if input.generics.params.is_empty() {
+        Ok(syn::parse_quote!(#state_ident))
+    } else {
+        syn::parse2(quote! { #state_ident #ty_generics })
+    }
 }
 
 fn expand(input: DeriveInput) -> Result<TokenStream> {
     let ident = &input.ident;
-    let meta = parse_meta(&input.attrs)?;
-    let state = meta.state().cloned().ok_or_else(|| {
-        syn::Error::new_spanned(
-            ident,
-            "`#[derive(GpuiComponentShape)]` requires `#[gpui_component_shape(state = ...)]`; \
+    let (meta, has_shape_attr) = parse_meta(&input.attrs)?;
+    let state = match meta.state().cloned() {
+        Some(state) => state,
+        None if has_shape_attr => inferred_state_type(&input)?,
+        None => {
+            return Err(syn::Error::new_spanned(
+                ident,
+                "`#[derive(GpuiComponentShape)]` requires `#[gpui_component_shape(state = ...)]`; \
              use `component_shape_gpui::component_shape!` for wrapper shapes",
-        )
-    })?;
+            ));
+        },
+    };
     let default_constructor = quote! { <#state>::new(window, cx) };
     let constructor_body = meta.constructor_body_or(default_constructor);
     let paths = crate_paths();
@@ -39,6 +56,13 @@ fn expand(input: DeriveInput) -> Result<TokenStream> {
         &component_shape_gpui_crate,
         ident,
         &input.generics,
+    );
+    let state_value_binding_value_impls = meta.state_value_binding_value_impl_tokens(
+        &component_shape_crate,
+        &component_shape_gpui_crate,
+        ident,
+        &input.generics,
+        &state,
     );
     let inferred_component_type: Type = if input.generics.params.is_empty() {
         syn::parse_quote!(#ident)
@@ -148,6 +172,7 @@ fn expand(input: DeriveInput) -> Result<TokenStream> {
 
         #binding_impl
 
+        #state_value_binding_value_impls
         #component_shape_for_impls
     })
 }
@@ -208,5 +233,60 @@ mod tests {
         assert!(compact.contains(
             "impl::component_shape_gpui::GpuiComponentShapeFor<Vec<String>>forTagsInput"
         ));
+    }
+
+    #[test]
+    fn derive_infers_state_when_shape_attribute_is_present() {
+        let input: DeriveInput = syn::parse2(quote! {
+            #[derive(GpuiComponentShape)]
+            #[gpui_component_shape(value = Vec<String>)]
+            struct TagsInput;
+        })
+        .unwrap();
+
+        let expanded = expand(input).unwrap();
+        let compact = compact_tokens(&expanded.to_string());
+
+        assert!(compact.contains("typeState=TagsInputState"));
+    }
+
+    #[test]
+    fn derive_infers_generic_state_with_component_generics() {
+        let input: DeriveInput = syn::parse2(quote! {
+            #[derive(GpuiComponentShape)]
+            #[gpui_component_shape(value = T)]
+            struct Input<T>
+            where
+                T: 'static,
+            {
+                value: T,
+            }
+        })
+        .unwrap();
+
+        let expanded = expand(input).unwrap();
+        let compact = compact_tokens(&expanded.to_string());
+
+        assert!(compact.contains("typeState=InputState<T>"));
+    }
+
+    #[test]
+    fn derive_infers_value_markers_from_state_value_binding() {
+        let input: DeriveInput = syn::parse2(quote! {
+            #[derive(GpuiComponentShape)]
+            #[gpui_component_shape(state = crate::state::TagsState, value_binding)]
+            struct TagsInput;
+        })
+        .unwrap();
+
+        let expanded = expand(input).unwrap();
+        let compact = compact_tokens(&expanded.to_string());
+
+        assert!(
+            compact.contains("ComponentShapeFor<__GpuiComponentValueBindingValue>forTagsInput")
+        );
+        assert!(
+            compact.contains("GpuiComponentStateValueBinding<__GpuiComponentValueBindingValue>")
+        );
     }
 }

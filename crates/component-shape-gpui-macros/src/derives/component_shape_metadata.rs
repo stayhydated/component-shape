@@ -11,7 +11,7 @@ use super::crate_paths::CratePaths;
 pub(super) const SHAPE_METADATA_OPTIONS: &str = "`new = ...`, `state = ...`, `component = ...`, `value = ...`, `values(...)`, \
      `value_binding`, or `field_suffix = ...`";
 
-pub(super) const FUNCTION_SHAPE_OPTIONS: &str = "`new = ...`, `component = ...`, `value = ...`, `values(...)`, \
+pub(super) const FUNCTION_SHAPE_OPTIONS: &str = "`state = ...`, `new = ...`, `component = ...`, `value = ...`, `values(...)`, \
      `value_binding`, or `field_suffix = ...`";
 
 pub(super) mod kw {
@@ -79,6 +79,14 @@ impl ShapeOption {
             input.parse::<Token![=]>()?;
             return Ok(Self::New {
                 expr: input.parse()?,
+                span: key.span,
+            });
+        }
+        if input.peek(kw::state) {
+            let key = input.parse::<kw::state>()?;
+            input.parse::<Token![=]>()?;
+            return Ok(Self::State {
+                ty: input.parse()?,
                 span: key.span,
             });
         }
@@ -229,12 +237,7 @@ impl ComponentShapeMetadata {
     }
 
     pub(super) fn add_value<T: quote::ToTokens>(&mut self, value: Type, _span: T) -> Result<()> {
-        let value_key = rust_type_key(&value);
-        if self
-            .values
-            .iter()
-            .any(|existing| rust_type_key(existing) == value_key)
-        {
+        if self.has_value(&value) {
             return Err(syn::Error::new_spanned(
                 value,
                 "duplicate value metadata; remove the duplicate `value = ...` or `values(...)` entry",
@@ -266,6 +269,17 @@ impl ComponentShapeMetadata {
         Ok(())
     }
 
+    pub(super) fn add_inferred_values<I>(&mut self, values: I)
+    where
+        I: IntoIterator<Item = Type>,
+    {
+        for value in values {
+            if !self.has_value(&value) {
+                self.values.push(value);
+            }
+        }
+    }
+
     pub(super) fn parse_values(input: ParseStream<'_>) -> Result<Vec<Type>> {
         Ok(Punctuated::<Type, Token![,]>::parse_terminated(input)?
             .into_iter()
@@ -274,6 +288,13 @@ impl ComponentShapeMetadata {
 
     pub(super) fn has_value_metadata(&self) -> bool {
         !self.values.is_empty()
+    }
+
+    fn has_value(&self, value: &Type) -> bool {
+        let value_key = rust_type_key(value);
+        self.values
+            .iter()
+            .any(|existing| rust_type_key(existing) == value_key)
     }
 
     pub(super) fn value_impl_tokens(
@@ -305,6 +326,51 @@ impl ComponentShapeMetadata {
         }
     }
 
+    pub(super) fn state_value_binding_value_impl_tokens(
+        &self,
+        component_shape_crate: &Path,
+        component_shape_gpui_crate: &Path,
+        ident: &Ident,
+        generics: &syn::Generics,
+        state: &Type,
+    ) -> Option<TokenStream> {
+        if self.has_value_metadata() || !self.has_value_binding() {
+            return None;
+        }
+
+        let mut binding_generics = generics.clone();
+        binding_generics
+            .params
+            .push(syn::parse_quote!(__GpuiComponentValueBindingValue));
+        binding_generics
+            .make_where_clause()
+            .predicates
+            .push(syn::parse_quote! {
+                #state: #component_shape_gpui_crate::GpuiComponentStateValueBinding<
+                    __GpuiComponentValueBindingValue
+                >
+            });
+
+        let (impl_generics, _, where_clause) = binding_generics.split_for_impl();
+        let (_, ty_generics, _) = generics.split_for_impl();
+
+        Some(quote! {
+            impl #impl_generics #component_shape_crate::ComponentShapeFor<
+                __GpuiComponentValueBindingValue
+            > for #ident #ty_generics
+                #where_clause
+            {
+            }
+
+            impl #impl_generics #component_shape_gpui_crate::GpuiComponentShapeFor<
+                __GpuiComponentValueBindingValue
+            > for #ident #ty_generics
+                #where_clause
+            {
+            }
+        })
+    }
+
     pub(super) fn enable_value_binding<T: quote::ToTokens>(&mut self, span: T) -> Result<()> {
         if self.value_binding {
             return Err(syn::Error::new_spanned(
@@ -315,6 +381,10 @@ impl ComponentShapeMetadata {
 
         self.value_binding = true;
         Ok(())
+    }
+
+    pub(super) fn infer_value_binding(&mut self) {
+        self.value_binding = true;
     }
 
     pub(super) fn has_value_binding(&self) -> bool {
