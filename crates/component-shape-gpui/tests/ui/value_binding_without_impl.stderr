@@ -1,0 +1,5 @@
+error: `value_binding` requires a nested `GpuiComponentValueBinding<T>` impl in the `component_shape!` block
+ --> tests/ui/value_binding_without_impl.rs:6:16
+  |
+6 |     pub struct MissingValueBindingImpl {
+  |                ^^^^^^^^^^^^^^^^^^^^^^^

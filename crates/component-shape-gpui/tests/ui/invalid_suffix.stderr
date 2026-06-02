@@ -1,0 +1,5 @@
+error: `field_suffix` must be a non-empty ASCII identifier suffix, got `input-field`
+ --> tests/ui/invalid_suffix.rs:9:24
+  |
+9 |         field_suffix = "input-field";
+  |                        ^^^^^^^^^^^^^

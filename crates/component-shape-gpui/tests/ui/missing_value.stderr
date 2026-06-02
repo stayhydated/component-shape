@@ -1,0 +1,5 @@
+error: `component_shape!` requires explicit value compatibility; add `value = ...`, `values(...)`, or `compatibility<Value> where ...;`
+ --> tests/ui/missing_value.rs:6:16
+  |
+6 |     pub struct MissingValue {
+  |                ^^^^^^^^^^^^

@@ -1,0 +1,22 @@
+[package]
+name = "component-shape-gpui"
+description = """
+GPUI component shape runtime contracts and macros.
+"""
+version.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+component-shape = { workspace = true }
+component-shape-gpui-macros = { workspace = true }
+gpui = { workspace = true }
+
+[dev-dependencies]
+trybuild = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,22 @@
+[package]
+name = "component-shape"
+description = """
+Framework-neutral component shape metadata and naming utilities.
+"""
+version.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+syn = { default-features = false, features = [
+  "clone-impls",
+  "full",
+  "parsing",
+], workspace = true }
+thiserror.workspace = true
+
+[lints]
+workspace = true
