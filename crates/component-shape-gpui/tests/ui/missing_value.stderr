@@ -1,4 +1,4 @@
-error: `component_shape!` requires explicit value compatibility; add `value = ...`, `values(...)`, or `compatibility<Value> where ...;`
+error: `component_shape!` requires value metadata; add `value = ...` or `values(...)`
  --> tests/ui/missing_value.rs:6:16
   |
 6 |     pub struct MissingValue {

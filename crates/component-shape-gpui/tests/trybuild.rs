@@ -8,7 +8,6 @@ fn component_shape_macro_compile_tests() {
     t.compile_fail("tests/ui/incompatible_value.rs");
     t.compile_fail("tests/ui/missing_state.rs");
     t.compile_fail("tests/ui/invalid_suffix.rs");
-    t.compile_fail("tests/ui/manual_compatibility_impl.rs");
     t.compile_fail("tests/ui/missing_value.rs");
     t.compile_fail("tests/ui/value_binding_without_impl.rs");
 }

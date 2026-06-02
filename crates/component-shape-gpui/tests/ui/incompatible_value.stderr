@@ -4,7 +4,7 @@ error[E0277]: GPUI component shape `StringShape` is not compatible with value `u
 25 |     assert_shape_for_u64::<StringShape>();
    |                            ^^^^^^^^^^^ unsatisfied trait bound
    |
-   = note: implement `GpuiComponentShapeFor<u64>` for `StringShape`, or choose a component shape whose value type matches the field
+   = note: declare `value = u64` or include `u64` in `values(...)`, or choose a component shape whose value type matches the field
 help: the trait `GpuiComponentShapeFor<u64>` is not implemented for `StringShape`
       but trait `GpuiComponentShapeFor<std::string::String>` is implemented for it
   --> tests/ui/incompatible_value.rs:11:1

@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::{ToTokens as _, format_ident, quote};
+use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{
     Attribute, GenericParam, Generics, Ident, ItemImpl, Result, Token, Type, Visibility, braced,
@@ -85,7 +85,6 @@ fn is_shape_option_start(input: ParseStream<'_>) -> bool {
         || input.peek(kw::component)
         || input.peek(kw::value)
         || input.peek(kw::values)
-        || input.peek(kw::compatibility)
         || input.peek(kw::value_binding)
         || input.peek(kw::field_suffix)
 }
@@ -126,7 +125,6 @@ fn phantom_type_tokens(generics: &Generics) -> TokenStream {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum NestedShapeImplKind {
     GpuiComponentValueBinding,
-    GpuiComponentShapeFor,
     Other,
 }
 
@@ -138,9 +136,7 @@ fn classify_nested_shape_impl(impl_item: &ItemImpl) -> NestedShapeImplKind {
         return NestedShapeImplKind::Other;
     };
 
-    if last.ident == "GpuiComponentShapeFor" {
-        NestedShapeImplKind::GpuiComponentShapeFor
-    } else if last.ident == "GpuiComponentValueBinding" {
+    if last.ident == "GpuiComponentValueBinding" {
         NestedShapeImplKind::GpuiComponentValueBinding
     } else {
         NestedShapeImplKind::Other
@@ -184,24 +180,10 @@ fn expand(input: ComponentShapeInput) -> TokenStream {
         .iter()
         .map(classify_nested_shape_impl)
         .collect::<Vec<_>>();
-    if let Some(impl_item) = impls.iter().find(|impl_item| {
-        classify_nested_shape_impl(impl_item) == NestedShapeImplKind::GpuiComponentShapeFor
-    }) {
-        let path = impl_item
-            .trait_
-            .as_ref()
-            .map(|(_, path, _)| path.to_token_stream())
-            .expect("component shape compatibility impls always have a trait path");
-        return syn::Error::new_spanned(
-            path,
-            "`component_shape!` does not accept manual `GpuiComponentShapeFor` impls inside the macro block; use `value = ...`, `values(...)`, or `compatibility<Value> where ...;` metadata",
-        )
-        .to_compile_error();
-    }
-    if !metadata.has_value_compatibility() {
+    if !metadata.has_value_metadata() {
         return syn::Error::new_spanned(
             ident,
-            "`component_shape!` requires explicit value compatibility; add `value = ...`, `values(...)`, or `compatibility<Value> where ...;`",
+            "`component_shape!` requires value metadata; add `value = ...` or `values(...)`",
         )
         .to_compile_error();
     }
@@ -326,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    fn function_macro_requires_value_compatibility() {
+    fn function_macro_requires_value_metadata() {
         let input: ComponentShapeInput = syn::parse2(quote! {
             struct MissingValueShape {
                 type State = crate::InputState;
@@ -336,6 +318,6 @@ mod tests {
 
         let expanded = expand(input).to_string();
 
-        assert!(expanded.contains("requires explicit value compatibility"));
+        assert!(expanded.contains("requires value metadata"));
     }
 }
