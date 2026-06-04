@@ -20,7 +20,7 @@ component-shape = { path = "crates/component-shape", version = "0.1.0" }
 component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.1.0" }
 component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.1.0" }
 component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", version = "0.1.0" }
-gpui = { git = "https://github.com/zed-industries/zed", rev = "4bee412118dafea3bbd491cd044d354f16b3d665" }
+gpui = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
 heck = "0.5"
 prettyplease = "0.2"
 proc-macro-crate = "3.2"
@@ -32,7 +32,7 @@ thiserror = "2.0"
 trybuild = "1.0"
 
 [replace]
-"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "4bee412118dafea3bbd491cd044d354f16b3d665" }
+"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
 
 [profile.dev]
 codegen-units = 16
