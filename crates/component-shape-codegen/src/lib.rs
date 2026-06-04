@@ -563,6 +563,7 @@ pub fn shape_type_assertion_tokens_with_suffixes(
 
     quote_spanned! {span=>
         const _: () = {
+            #[allow(non_snake_case)]
             const fn #declared_assertion_ident<Shape>()
             where
                 #(
@@ -572,6 +573,7 @@ pub fn shape_type_assertion_tokens_with_suffixes(
             }
             #declared_assertion_ident::<#shape_path>();
 
+            #[allow(non_snake_case)]
             const fn #compatibility_assertion_ident<Shape, Field>()
             where
                 Shape: #compatibility_trait_path<Field>,
@@ -615,6 +617,7 @@ pub fn shape_type_assertion_block_tokens_with_suffixes(
 
     quote_spanned! {span=>
         {
+            #[allow(non_snake_case)]
             fn #declared_assertion_ident<Shape>()
             where
                 #(
@@ -624,6 +627,7 @@ pub fn shape_type_assertion_block_tokens_with_suffixes(
             }
             #declared_assertion_ident::<#shape_path>();
 
+            #[allow(non_snake_case)]
             fn #compatibility_assertion_ident<Shape, Field>()
             where
                 Shape: #compatibility_trait_path<Field>,
