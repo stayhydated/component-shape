@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Component Shape"
+  short_description: "Framework-neutral shape metadata"
+  default_prompt: "Use $use-component-shape to review framework-neutral component metadata, suffixes, and generator-facing shape contracts."

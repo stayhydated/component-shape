@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Component Shape GPUI"
+  short_description: "GPUI component shape macros"
+  default_prompt: "Use $use-component-shape-gpui to declare or review GPUI component shapes, macro metadata, and value binding."
