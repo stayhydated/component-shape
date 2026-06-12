@@ -224,15 +224,31 @@ mod tests {
         let expanded = expand(input).unwrap();
         let compact = compact_tokens(&expanded.to_string());
 
-        assert!(compact.contains("impl::component_shape::ComponentShapeMetadataforTagsInput"));
-        assert!(compact.contains("impl::component_shape::DeclaredComponentShapeforTagsInput"));
+        assert!(compact.contains("impl::component_shape_gpui::ComponentShapeMetadataforTagsInput"));
+        assert!(compact.contains("impl::component_shape_gpui::DeclaredComponentShapeforTagsInput"));
         assert!(compact.contains("impl::component_shape_gpui::GpuiComponentShapeforTagsInput"));
         assert!(
-            compact.contains("impl::component_shape::ComponentShapeFor<Vec<String>>forTagsInput")
+            compact
+                .contains("impl::component_shape_gpui::ComponentShapeFor<Vec<String>>forTagsInput")
         );
         assert!(compact.contains(
             "impl::component_shape_gpui::GpuiComponentShapeFor<Vec<String>>forTagsInput"
         ));
+    }
+
+    #[test]
+    fn derive_infers_mcp_input_from_value_metadata() {
+        let input: DeriveInput = syn::parse2(quote! {
+            #[derive(GpuiComponentShape)]
+            #[gpui_component_shape(state = crate::state::TagsState, value = Vec<String>)]
+            struct TagsInput;
+        })
+        .unwrap();
+
+        let expanded = expand(input).unwrap();
+        let compact = compact_tokens(&expanded.to_string());
+
+        assert!(compact.contains("McpInput::string_list"));
     }
 
     #[test]

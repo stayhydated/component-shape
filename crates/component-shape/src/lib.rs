@@ -1,7 +1,11 @@
 //! Framework-neutral component shape metadata and naming utilities.
+//!
+//! `McpInput` describes model-controlled structured input at the metadata
+//! level. Protocol handling and JSON Schema helpers live in `component-shape-mcp`.
 
 mod component_suffix;
 mod field_component;
+mod mcp;
 mod metadata;
 mod rust_syntax;
 mod value_change;
@@ -11,6 +15,10 @@ pub use component_suffix::{
     validate_component_suffix,
 };
 pub use field_component::ComponentShapeUse;
+pub use mcp::{
+    McpInput, McpInputShape, McpPrimitiveKind, McpToolMetadataError,
+    validate_mcp_tool_metadata_text, validate_mcp_tool_name,
+};
 pub use metadata::{
     ComponentCapabilities, ComponentPrototyping, RenderCapability, ValueBindingCapability,
 };
@@ -21,6 +29,7 @@ pub use value_change::ValueChange;
 pub trait ComponentShapeMetadata {
     const PROTOTYPING: ComponentPrototyping = ComponentPrototyping::new();
     const CAPABILITIES: ComponentCapabilities = ComponentCapabilities::new();
+    const MCP_INPUT: McpInput = McpInput::unsupported();
 }
 
 /// Marker for component shapes declared through a trusted declaration surface.
@@ -35,4 +44,8 @@ pub trait DeclaredComponentShape: ComponentShapeMetadata {}
 ///
 /// Backend-specific compatibility traits can extend or pair with this marker
 /// while keeping backend-owned methods and diagnostics on their own traits.
-pub trait ComponentShapeFor<Value>: ComponentShapeMetadata {}
+/// The value-specific MCP input defaults to unsupported and may be inferred by
+/// declaration macros for simple JSON-compatible value shapes.
+pub trait ComponentShapeFor<Value>: ComponentShapeMetadata {
+    const MCP_INPUT: McpInput = McpInput::unsupported();
+}

@@ -1,4 +1,4 @@
-use crate::{ComponentCapabilities, ComponentPrototyping, RustPath, RustType};
+use crate::{ComponentCapabilities, ComponentPrototyping, McpInput, RustPath, RustType};
 
 /// Framework-neutral metadata describing a field's component shape use.
 ///
@@ -14,6 +14,7 @@ pub struct ComponentShapeUse {
     shape_path: RustPath,
     capabilities: ComponentCapabilities,
     prototyping: ComponentPrototyping,
+    mcp_input: McpInput,
 }
 
 impl ComponentShapeUse {
@@ -25,6 +26,7 @@ impl ComponentShapeUse {
             shape_path,
             capabilities: ComponentCapabilities::new(),
             prototyping: ComponentPrototyping::new(),
+            mcp_input: McpInput::unsupported(),
         }
     }
 
@@ -43,6 +45,12 @@ impl ComponentShapeUse {
     /// Replaces the shape prototyping metadata.
     pub const fn with_prototyping(mut self, prototyping: ComponentPrototyping) -> Self {
         self.prototyping = prototyping;
+        self
+    }
+
+    /// Replaces the shape's model-controlled MCP input metadata.
+    pub const fn with_mcp_input(mut self, mcp_input: McpInput) -> Self {
+        self.mcp_input = mcp_input;
         self
     }
 
@@ -70,14 +78,19 @@ impl ComponentShapeUse {
     pub const fn prototyping(self) -> ComponentPrototyping {
         self.prototyping
     }
+
+    /// Shape metadata for model-controlled MCP input.
+    pub const fn mcp_input(self) -> McpInput {
+        self.mcp_input
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::ComponentShapeUse;
     use crate::{
-        ComponentCapabilities, ComponentPrototyping, RenderCapability, RustPath, RustType,
-        ValueBindingCapability,
+        ComponentCapabilities, ComponentPrototyping, McpInput, McpInputShape, McpPrimitiveKind,
+        RenderCapability, RustPath, RustType, ValueBindingCapability,
     };
 
     #[test]
@@ -89,6 +102,7 @@ mod tests {
 
         assert_eq!(shape_use.capabilities(), ComponentCapabilities::new());
         assert_eq!(shape_use.prototyping(), ComponentPrototyping::new());
+        assert_eq!(shape_use.mcp_input(), McpInput::unsupported());
     }
 
     #[test]
@@ -134,6 +148,23 @@ mod tests {
                 .field_suffix
                 .map(crate::ComponentSuffix::as_str),
             Some("title_input")
+        );
+    }
+
+    #[test]
+    fn component_shape_use_preserves_mcp_input_metadata() {
+        let input = McpInput::string();
+
+        let shape_use = ComponentShapeUse::new(
+            "title",
+            RustPath::from_macro_tokens_unchecked("crate::fields::TitleInput"),
+        )
+        .with_mcp_input(input);
+
+        assert_eq!(shape_use.mcp_input(), input);
+        assert_eq!(
+            shape_use.mcp_input().input_shape(),
+            McpInputShape::Scalar(McpPrimitiveKind::String)
         );
     }
 }

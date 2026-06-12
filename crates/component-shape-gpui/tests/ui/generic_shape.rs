@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
-use component_shape::ComponentShapeFor;
-use component_shape_gpui::{GpuiComponentShapeFor, component_shape};
+use component_shape_gpui::{ComponentShapeFor, GpuiComponentShapeFor, component_shape};
 
 pub struct InputState;
 

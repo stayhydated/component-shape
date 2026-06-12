@@ -1,6 +1,5 @@
-use component_shape::ValueChange;
 use component_shape_gpui::{
-    GpuiComponentValueBinding, GpuiComponentShapeFor, component_shape,
+    GpuiComponentShapeFor, GpuiComponentValueBinding, ValueChange, component_shape,
 };
 
 pub struct InputState;

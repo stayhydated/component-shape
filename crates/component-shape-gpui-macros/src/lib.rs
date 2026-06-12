@@ -13,6 +13,12 @@ use proc_macro_error2::proc_macro_error;
 /// `value = ...` or `values(...)` publish exact supported value types. For
 /// `value_binding` shapes, value compatibility may also be inferred from
 /// `State: GpuiComponentStateValueBinding<T>`.
+///
+/// Common MCP input metadata is inferred from declared value metadata when the
+/// shape has unambiguous string, boolean, numeric, date, date-time, array, or
+/// range value shapes. Each generated `ComponentShapeFor<Value>` impl carries
+/// the value-specific metadata; the shape-level metadata is emitted only when
+/// all declared values agree.
 #[proc_macro_derive(GpuiComponentShape, attributes(gpui_component_shape))]
 #[proc_macro_error]
 pub fn derive_gpui_component_shape(input: TokenStream) -> TokenStream {
@@ -26,6 +32,12 @@ pub fn derive_gpui_component_shape(input: TokenStream) -> TokenStream {
 /// When no explicit `value = ...` or `values(...)` metadata is present, a
 /// nested `GpuiComponentValueBinding<T>` impl publishes `T` as a supported value
 /// and enables value-binding metadata.
+///
+/// Common MCP input metadata is inferred from declared value metadata when the
+/// shape has unambiguous string, boolean, numeric, date, date-time, array, or
+/// range value shapes. Each generated `ComponentShapeFor<Value>` impl carries
+/// the value-specific metadata; the shape-level metadata is emitted only when
+/// all declared values agree.
 #[proc_macro]
 #[proc_macro_error]
 pub fn component_shape(input: TokenStream) -> TokenStream {

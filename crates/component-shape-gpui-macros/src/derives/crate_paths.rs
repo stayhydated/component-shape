@@ -10,12 +10,11 @@ pub struct CratePaths {
 
 impl CratePaths {
     pub fn resolve() -> Self {
+        let component_shape_gpui =
+            resolve_crate_path("component-shape-gpui", "::component_shape_gpui");
         Self {
-            component_shape: resolve_crate_path("component-shape", "::component_shape"),
-            component_shape_gpui: resolve_crate_path(
-                "component-shape-gpui",
-                "::component_shape_gpui",
-            ),
+            component_shape: component_shape_gpui.clone(),
+            component_shape_gpui,
             gpui: resolve_crate_path("gpui", "::gpui"),
         }
     }

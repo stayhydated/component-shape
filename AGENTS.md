@@ -129,8 +129,8 @@ may depend on `component-shape`; `component-shape` must not depend on GPUI.
   Role: framework-neutral component shape metadata, capability flags,
   component suffix validation, Rust syntax wrappers, and normalized value-change
   primitives. This crate owns shared contracts such as `ComponentShapeMetadata`,
-  `ComponentCapabilities`, `ComponentPrototyping`, `ComponentSuffix`, and
-  `ValueChange`.
+  `ComponentCapabilities`, `ComponentPrototyping`, `McpInput`,
+  `ComponentSuffix`, and `ValueChange`.
 
 - `crates/component-shape-gpui`
   Audience: **User-facing**
@@ -146,6 +146,13 @@ may depend on `component-shape`; `component-shape` must not depend on GPUI.
   Role: shared code generation helpers for component-shape consumers. It owns
   token span rewriting, shape path normalization, suffix derivation,
   `_`-type substitution, and import helpers used by macro or generator crates.
+
+- `crates/component-shape-mcp`
+  Audience: **Public integration**
+  Docs: [Architecture](crates/component-shape-mcp/docs/ARCHITECTURE.md)
+  Role: shared MCP tool server, `rmcp` stdio serving, and JSON Schema helpers
+  for crates that consume `McpInput` metadata. It does not own downstream
+  form or table decoding policy.
 
 - `crates/component-shape-gpui-macros`
   Audience: **Public integration**

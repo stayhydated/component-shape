@@ -1,5 +1,14 @@
 //! GPUI-specific component shape runtime contracts.
+//!
+//! This crate is also the GPUI facade for shared component-shape metadata such
+//! as `ComponentShapeMetadata`, `ValueChange`, and `McpInput`.
 
+pub use component_shape::{
+    ComponentCapabilities, ComponentPrototyping, ComponentShapeFor, ComponentShapeMetadata,
+    ComponentSuffix, DeclaredComponentShape, McpInput, McpInputShape, McpPrimitiveKind,
+    RenderCapability, ValueBindingCapability, ValueChange, component_suffix_from_suffix,
+    is_valid_component_suffix, validate_component_suffix,
+};
 pub use component_shape_gpui_macros::{GpuiComponentShape, component_shape};
 
 /// Renders a component UI value from a component state entity.
@@ -24,7 +33,7 @@ impl<State: 'static> GpuiComponentRender<State> for NoGpuiRenderComponent {
 }
 
 /// Shape contract for GPUI components.
-pub trait GpuiComponentShape: component_shape::ComponentShapeMetadata {
+pub trait GpuiComponentShape: ComponentShapeMetadata {
     /// Backing GPUI component state type.
     type State: 'static;
 
@@ -78,10 +87,7 @@ where
     message = "GPUI component shape `{Self}` must be declared with `component_shape_gpui::component_shape!` or `#[derive(component_shape_gpui::GpuiComponentShape)]`",
     note = "hand-written `GpuiComponentShape` implementations are not accepted by consumers that require declared shapes"
 )]
-pub trait DeclaredGpuiComponentShape:
-    GpuiComponentShape + component_shape::DeclaredComponentShape
-{
-}
+pub trait DeclaredGpuiComponentShape: GpuiComponentShape + DeclaredComponentShape {}
 
 /// Marker that a GPUI component shape supports a value type.
 #[diagnostic::on_unimplemented(
@@ -112,10 +118,7 @@ where
     }
 
     /// Convert an emitted component event into a normalized value change.
-    fn value_change(
-        state: &Self::State,
-        event: &Self::Event,
-    ) -> component_shape::ValueChange<Value>;
+    fn value_change(state: &Self::State, event: &Self::Event) -> ValueChange<Value>;
 }
 
 /// Value-binding contract implemented by backing component state.
@@ -139,7 +142,7 @@ pub trait GpuiComponentStateValueBinding<Value>: gpui::EventEmitter<Self::Event>
     }
 
     /// Convert an emitted component event into a normalized value change.
-    fn value_change(state: &Self, event: &Self::Event) -> component_shape::ValueChange<Value>;
+    fn value_change(state: &Self, event: &Self::Event) -> ValueChange<Value>;
 }
 
 /// State type for a GPUI component shape.
@@ -180,7 +183,7 @@ pub fn seed_value_binding_state<Shape, Value>(
 pub fn value_change<Shape, Value>(
     state: &GpuiComponentStateOf<Shape>,
     event: &GpuiComponentEventOf<Shape, Value>,
-) -> component_shape::ValueChange<Value>
+) -> ValueChange<Value>
 where
     Shape: GpuiComponentValueBinding<Value>,
     GpuiComponentStateOf<Shape>: gpui::EventEmitter<GpuiComponentEventOf<Shape, Value>>,

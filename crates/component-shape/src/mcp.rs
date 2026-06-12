@@ -1,0 +1,378 @@
+/// Primitive value kinds a component shape can expose to model-controlled tools.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum McpPrimitiveKind {
+    Any,
+    Boolean,
+    Integer,
+    Number,
+    Decimal,
+    String,
+    Date,
+    DateTime,
+}
+
+/// Framework-neutral shape of structured MCP input accepted by a component.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum McpInputShape {
+    Unsupported,
+    Scalar(McpPrimitiveKind),
+    List(McpPrimitiveKind),
+    Set(McpPrimitiveKind),
+    Range(McpPrimitiveKind),
+    Object,
+}
+
+/// Validation error for generated MCP tool metadata.
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum McpToolMetadataError {
+    #[error("tool name cannot be empty")]
+    EmptyName,
+    #[error("tool name must start with an ASCII letter or number")]
+    InvalidNameStart,
+    #[error("tool name may only contain ASCII letters, digits, '_' '-' '.'")]
+    InvalidNameCharacter,
+    #[error("tool {label} cannot be empty")]
+    EmptyText { label: String },
+}
+
+/// Validate the MCP tool-name subset used by generated integrations.
+pub fn validate_mcp_tool_name(name: &str) -> Result<(), McpToolMetadataError> {
+    if name.trim().is_empty() {
+        return Err(McpToolMetadataError::EmptyName);
+    }
+
+    let mut chars = name.chars();
+    let Some(first) = chars.next() else {
+        return Err(McpToolMetadataError::EmptyName);
+    };
+
+    if !first.is_ascii_alphanumeric() {
+        return Err(McpToolMetadataError::InvalidNameStart);
+    }
+
+    if chars.any(|ch| !is_mcp_tool_name_char(ch)) {
+        return Err(McpToolMetadataError::InvalidNameCharacter);
+    }
+
+    Ok(())
+}
+
+fn is_mcp_tool_name_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.'
+}
+
+/// Validate human-readable MCP tool metadata text.
+pub fn validate_mcp_tool_metadata_text(
+    label: &str,
+    value: &str,
+) -> Result<(), McpToolMetadataError> {
+    if value.trim().is_empty() {
+        Err(McpToolMetadataError::EmptyText {
+            label: label.to_string(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
+impl McpInputShape {
+    pub const fn supported(self) -> bool {
+        !matches!(self, Self::Unsupported)
+    }
+}
+
+/// Shape-owned metadata for model-controlled MCP input.
+///
+/// This is metadata only. Protocol handling, JSON decoding, validation, and
+/// application authorization stay in MCP integration crates.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct McpInput {
+    input_shape: McpInputShape,
+}
+
+impl McpInput {
+    /// No model-controlled MCP input is supported.
+    pub const fn unsupported() -> Self {
+        Self {
+            input_shape: McpInputShape::Unsupported,
+        }
+    }
+
+    /// Accept any JSON value.
+    pub const fn any() -> Self {
+        Self::scalar(McpPrimitiveKind::Any)
+    }
+
+    /// Accept a boolean scalar.
+    pub const fn boolean() -> Self {
+        Self::scalar(McpPrimitiveKind::Boolean)
+    }
+
+    /// Accept an integer scalar.
+    pub const fn integer() -> Self {
+        Self::scalar(McpPrimitiveKind::Integer)
+    }
+
+    /// Accept a number scalar.
+    pub const fn number() -> Self {
+        Self::scalar(McpPrimitiveKind::Number)
+    }
+
+    /// Accept a decimal scalar encoded as a JSON number or string.
+    pub const fn decimal() -> Self {
+        Self::scalar(McpPrimitiveKind::Decimal)
+    }
+
+    /// Accept a string scalar.
+    pub const fn string() -> Self {
+        Self::scalar(McpPrimitiveKind::String)
+    }
+
+    /// Accept an RFC 3339 full-date string.
+    pub const fn date() -> Self {
+        Self::scalar(McpPrimitiveKind::Date)
+    }
+
+    /// Accept an RFC 3339 date-time string.
+    pub const fn date_time() -> Self {
+        Self::scalar(McpPrimitiveKind::DateTime)
+    }
+
+    /// Accept a scalar of the given primitive kind.
+    pub const fn scalar(kind: McpPrimitiveKind) -> Self {
+        Self {
+            input_shape: McpInputShape::Scalar(kind),
+        }
+    }
+
+    /// Accept an ordered array of strings.
+    pub const fn string_list() -> Self {
+        Self::list(McpPrimitiveKind::String)
+    }
+
+    /// Accept an ordered array of booleans.
+    pub const fn boolean_list() -> Self {
+        Self::list(McpPrimitiveKind::Boolean)
+    }
+
+    /// Accept an ordered array of integers.
+    pub const fn integer_list() -> Self {
+        Self::list(McpPrimitiveKind::Integer)
+    }
+
+    /// Accept an ordered array of numbers.
+    pub const fn number_list() -> Self {
+        Self::list(McpPrimitiveKind::Number)
+    }
+
+    /// Accept an ordered array of decimals encoded as JSON numbers or strings.
+    pub const fn decimal_list() -> Self {
+        Self::list(McpPrimitiveKind::Decimal)
+    }
+
+    /// Accept an ordered array of RFC 3339 full-date strings.
+    pub const fn date_list() -> Self {
+        Self::list(McpPrimitiveKind::Date)
+    }
+
+    /// Accept an ordered array of RFC 3339 date-time strings.
+    pub const fn date_time_list() -> Self {
+        Self::list(McpPrimitiveKind::DateTime)
+    }
+
+    /// Accept an ordered array of primitive values.
+    pub const fn list(items: McpPrimitiveKind) -> Self {
+        Self {
+            input_shape: McpInputShape::List(items),
+        }
+    }
+
+    /// Accept a unique array of strings.
+    pub const fn string_set() -> Self {
+        Self::set(McpPrimitiveKind::String)
+    }
+
+    /// Accept a unique array of booleans.
+    pub const fn boolean_set() -> Self {
+        Self::set(McpPrimitiveKind::Boolean)
+    }
+
+    /// Accept a unique array of integers.
+    pub const fn integer_set() -> Self {
+        Self::set(McpPrimitiveKind::Integer)
+    }
+
+    /// Accept a unique array of numbers.
+    pub const fn number_set() -> Self {
+        Self::set(McpPrimitiveKind::Number)
+    }
+
+    /// Accept a unique array of decimals encoded as JSON numbers or strings.
+    pub const fn decimal_set() -> Self {
+        Self::set(McpPrimitiveKind::Decimal)
+    }
+
+    /// Accept a unique array of RFC 3339 full-date strings.
+    pub const fn date_set() -> Self {
+        Self::set(McpPrimitiveKind::Date)
+    }
+
+    /// Accept a unique array of RFC 3339 date-time strings.
+    pub const fn date_time_set() -> Self {
+        Self::set(McpPrimitiveKind::DateTime)
+    }
+
+    /// Accept a unique array of primitive values.
+    pub const fn set(items: McpPrimitiveKind) -> Self {
+        Self {
+            input_shape: McpInputShape::Set(items),
+        }
+    }
+
+    /// Accept a decimal `{ "min": ..., "max": ... }` range object.
+    pub const fn decimal_range() -> Self {
+        Self::range(McpPrimitiveKind::Decimal)
+    }
+
+    /// Accept an integer `{ "min": ..., "max": ... }` range object.
+    pub const fn integer_range() -> Self {
+        Self::range(McpPrimitiveKind::Integer)
+    }
+
+    /// Accept a number `{ "min": ..., "max": ... }` range object.
+    pub const fn number_range() -> Self {
+        Self::range(McpPrimitiveKind::Number)
+    }
+
+    /// Accept a date `{ "min": ..., "max": ... }` range object.
+    pub const fn date_range() -> Self {
+        Self::range(McpPrimitiveKind::Date)
+    }
+
+    /// Accept a date-time `{ "min": ..., "max": ... }` range object.
+    pub const fn date_time_range() -> Self {
+        Self::range(McpPrimitiveKind::DateTime)
+    }
+
+    /// Accept a `{ "min": ..., "max": ... }` range object of the given kind.
+    pub const fn range(bound: McpPrimitiveKind) -> Self {
+        Self {
+            input_shape: McpInputShape::Range(bound),
+        }
+    }
+
+    /// Accept an object with integration-defined structure.
+    pub const fn object() -> Self {
+        Self {
+            input_shape: McpInputShape::Object,
+        }
+    }
+
+    /// Return the structured input shape exposed to MCP integrations.
+    pub const fn input_shape(self) -> McpInputShape {
+        self.input_shape
+    }
+
+    /// Whether this metadata describes any supported input shape.
+    pub const fn supported(self) -> bool {
+        self.input_shape.supported()
+    }
+}
+
+impl Default for McpInput {
+    fn default() -> Self {
+        Self::unsupported()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        McpInput, McpInputShape, McpPrimitiveKind, validate_mcp_tool_metadata_text,
+        validate_mcp_tool_name,
+    };
+
+    #[test]
+    fn mcp_input_defaults_to_unsupported() {
+        let input = McpInput::default();
+
+        assert!(!input.supported());
+        assert_eq!(input.input_shape(), McpInputShape::Unsupported);
+    }
+
+    #[test]
+    fn mcp_input_records_shape() {
+        let input = McpInput::range(McpPrimitiveKind::Date);
+
+        assert!(input.supported());
+        assert_eq!(
+            input.input_shape(),
+            McpInputShape::Range(McpPrimitiveKind::Date)
+        );
+    }
+
+    #[test]
+    fn mcp_input_convenience_constructors_match_common_shapes() {
+        assert_eq!(
+            McpInput::string().input_shape(),
+            McpInputShape::Scalar(McpPrimitiveKind::String)
+        );
+        assert_eq!(
+            McpInput::string_list().input_shape(),
+            McpInputShape::List(McpPrimitiveKind::String)
+        );
+        assert_eq!(
+            McpInput::string_set().input_shape(),
+            McpInputShape::Set(McpPrimitiveKind::String)
+        );
+        assert_eq!(
+            McpInput::date_range().input_shape(),
+            McpInputShape::Range(McpPrimitiveKind::Date)
+        );
+        assert_eq!(
+            McpInput::decimal_range().input_shape(),
+            McpInputShape::Range(McpPrimitiveKind::Decimal)
+        );
+        assert_eq!(
+            McpInput::integer_range().input_shape(),
+            McpInputShape::Range(McpPrimitiveKind::Integer)
+        );
+        assert_eq!(
+            McpInput::date_time_range().input_shape(),
+            McpInputShape::Range(McpPrimitiveKind::DateTime)
+        );
+        assert_eq!(
+            McpInput::decimal_list().input_shape(),
+            McpInputShape::List(McpPrimitiveKind::Decimal)
+        );
+        assert_eq!(
+            McpInput::decimal_set().input_shape(),
+            McpInputShape::Set(McpPrimitiveKind::Decimal)
+        );
+    }
+
+    #[test]
+    fn mcp_tool_name_validation_matches_generated_tool_contract() {
+        assert!(validate_mcp_tool_name("query.users-1").is_ok());
+        assert_eq!(
+            validate_mcp_tool_name(""),
+            Err(super::McpToolMetadataError::EmptyName)
+        );
+        assert_eq!(
+            validate_mcp_tool_name("_query"),
+            Err(super::McpToolMetadataError::InvalidNameStart)
+        );
+        assert_eq!(
+            validate_mcp_tool_name("query users"),
+            Err(super::McpToolMetadataError::InvalidNameCharacter)
+        );
+    }
+
+    #[test]
+    fn mcp_tool_metadata_text_validation_rejects_blank_text() {
+        let error =
+            validate_mcp_tool_metadata_text("title", "  ").expect_err("blank title should fail");
+
+        assert_eq!(error.to_string(), "tool title cannot be empty");
+    }
+}

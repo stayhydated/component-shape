@@ -1,8 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens as _, quote};
 use syn::{
-    Expr, Ident, LitStr, Path, Result, Token, Type, Visibility, parse::ParseStream,
-    punctuated::Punctuated, spanned::Spanned as _,
+    Expr, GenericArgument, Ident, LitStr, Path, PathArguments, Result, Token, Type, Visibility,
+    parse::ParseStream, punctuated::Punctuated, spanned::Spanned as _,
 };
 
 use super::component_shape_constructor::constructor_body_tokens;
@@ -40,6 +40,69 @@ pub(super) struct ComponentShapeMetadata {
     values: Vec<Type>,
     value_binding: bool,
     field_suffix: Option<LitStr>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum InferredMcpInput {
+    Boolean,
+    Integer,
+    Number,
+    Decimal,
+    String,
+    Date,
+    DateTime,
+    BooleanList,
+    IntegerList,
+    NumberList,
+    DecimalList,
+    StringList,
+    DateList,
+    DateTimeList,
+    BooleanSet,
+    IntegerSet,
+    NumberSet,
+    DecimalSet,
+    StringSet,
+    DateSet,
+    DateTimeSet,
+    IntegerRange,
+    NumberRange,
+    DecimalRange,
+    DateRange,
+    DateTimeRange,
+}
+
+impl InferredMcpInput {
+    fn tokens(self, component_shape_crate: &Path) -> TokenStream {
+        match self {
+            Self::Boolean => quote! { #component_shape_crate::McpInput::boolean() },
+            Self::Integer => quote! { #component_shape_crate::McpInput::integer() },
+            Self::Number => quote! { #component_shape_crate::McpInput::number() },
+            Self::Decimal => quote! { #component_shape_crate::McpInput::decimal() },
+            Self::String => quote! { #component_shape_crate::McpInput::string() },
+            Self::Date => quote! { #component_shape_crate::McpInput::date() },
+            Self::DateTime => quote! { #component_shape_crate::McpInput::date_time() },
+            Self::BooleanList => quote! { #component_shape_crate::McpInput::boolean_list() },
+            Self::IntegerList => quote! { #component_shape_crate::McpInput::integer_list() },
+            Self::NumberList => quote! { #component_shape_crate::McpInput::number_list() },
+            Self::DecimalList => quote! { #component_shape_crate::McpInput::decimal_list() },
+            Self::StringList => quote! { #component_shape_crate::McpInput::string_list() },
+            Self::DateList => quote! { #component_shape_crate::McpInput::date_list() },
+            Self::DateTimeList => quote! { #component_shape_crate::McpInput::date_time_list() },
+            Self::BooleanSet => quote! { #component_shape_crate::McpInput::boolean_set() },
+            Self::IntegerSet => quote! { #component_shape_crate::McpInput::integer_set() },
+            Self::NumberSet => quote! { #component_shape_crate::McpInput::number_set() },
+            Self::DecimalSet => quote! { #component_shape_crate::McpInput::decimal_set() },
+            Self::StringSet => quote! { #component_shape_crate::McpInput::string_set() },
+            Self::DateSet => quote! { #component_shape_crate::McpInput::date_set() },
+            Self::DateTimeSet => quote! { #component_shape_crate::McpInput::date_time_set() },
+            Self::IntegerRange => quote! { #component_shape_crate::McpInput::integer_range() },
+            Self::NumberRange => quote! { #component_shape_crate::McpInput::number_range() },
+            Self::DecimalRange => quote! { #component_shape_crate::McpInput::decimal_range() },
+            Self::DateRange => quote! { #component_shape_crate::McpInput::date_range() },
+            Self::DateTimeRange => quote! { #component_shape_crate::McpInput::date_time_range() },
+        }
+    }
 }
 
 pub(super) enum ShapeOption {
@@ -306,11 +369,19 @@ impl ComponentShapeMetadata {
     ) -> TokenStream {
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
         let value_impls = self.values.iter().map(|value| {
+            let mcp_input_const = inferred_mcp_input_for_type(value)
+                .map(|input| input.tokens(component_shape_crate))
+                .map(|input| {
+                    quote! {
+                        const MCP_INPUT: #component_shape_crate::McpInput = #input;
+                    }
+                });
             quote! {
                 impl #impl_generics #component_shape_crate::ComponentShapeFor<#value>
                     for #ident #ty_generics
                     #where_clause
                 {
+                    #mcp_input_const
                 }
 
                 impl #impl_generics #gpui_crate::GpuiComponentShapeFor<#value>
@@ -475,14 +546,209 @@ impl ComponentShapeMetadata {
         } else {
             quote! { #component_shape_crate::ValueBindingCapability::None }
         };
+        let mcp_input_const =
+            self.inferred_mcp_input_tokens(component_shape_crate)
+                .map(|mcp_input| {
+                    quote! {
+                        const MCP_INPUT: #component_shape_crate::McpInput = #mcp_input;
+                    }
+                });
 
         quote! {
             #prototyping_const
+            #mcp_input_const
 
             const CAPABILITIES: #component_shape_crate::ComponentCapabilities =
                 #component_shape_crate::ComponentCapabilities::new()
                     .with_render(#render_capability)
                     .with_value_binding(#value_binding_capability);
+        }
+    }
+
+    fn inferred_mcp_input_tokens(&self, component_shape_crate: &Path) -> Option<TokenStream> {
+        let mut inferred = None;
+        for value in &self.values {
+            let value_input = inferred_mcp_input_for_type(value)?;
+            match inferred {
+                Some(existing) if existing != value_input => return None,
+                Some(_) => {},
+                None => inferred = Some(value_input),
+            }
+        }
+
+        inferred.map(|input| input.tokens(component_shape_crate))
+    }
+}
+
+fn inferred_mcp_input_for_type(ty: &Type) -> Option<InferredMcpInput> {
+    match peel_type_wrappers(ty) {
+        Type::Path(path) if path.qself.is_none() => inferred_mcp_input_for_path(path),
+        Type::Array(array) => primitive_kind_for_type(&array.elem).and_then(list_input),
+        Type::Tuple(tuple) if tuple.elems.len() == 2 => {
+            let mut elems = tuple.elems.iter();
+            let first = range_bound_kind(elems.next()?)?;
+            let second = range_bound_kind(elems.next()?)?;
+            if first != second {
+                return None;
+            }
+            range_input(first)
+        },
+        _ => None,
+    }
+}
+
+fn inferred_mcp_input_for_path(path: &syn::TypePath) -> Option<InferredMcpInput> {
+    let segment = path.path.segments.last()?;
+    let ident = segment.ident.to_string();
+
+    if ident == "Option" {
+        return single_type_argument(&segment.arguments).and_then(inferred_mcp_input_for_type);
+    }
+
+    if is_list_wrapper_ident(&ident) {
+        let item = single_type_argument(&segment.arguments)?;
+        return primitive_kind_for_type(item).and_then(list_input);
+    }
+
+    if is_set_wrapper_ident(&ident) {
+        let item = single_type_argument(&segment.arguments)?;
+        return primitive_kind_for_type(item).and_then(set_input);
+    }
+
+    if ident == "McpRange" {
+        let item = single_type_argument(&segment.arguments)?;
+        return primitive_kind_for_type(item).and_then(range_input);
+    }
+
+    primitive_kind_for_path_ident(&ident).and_then(scalar_input)
+}
+
+fn is_list_wrapper_ident(ident: &str) -> bool {
+    matches!(ident, "Vec" | "VecDeque")
+}
+
+fn is_set_wrapper_ident(ident: &str) -> bool {
+    matches!(ident, "BTreeSet" | "HashSet" | "IndexSet")
+}
+
+fn primitive_kind_for_type(ty: &Type) -> Option<InferredMcpInput> {
+    match peel_type_wrappers(ty) {
+        Type::Path(path) if path.qself.is_none() => {
+            let segment = path.path.segments.last()?;
+            if segment.ident == "Option" {
+                return None;
+            }
+            primitive_kind_for_path_ident(&segment.ident.to_string())
+        },
+        _ => None,
+    }
+}
+
+fn primitive_kind_for_path_ident(ident: &str) -> Option<InferredMcpInput> {
+    match ident {
+        "bool" => Some(InferredMcpInput::Boolean),
+        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128"
+        | "usize" => Some(InferredMcpInput::Integer),
+        "f32" | "f64" => Some(InferredMcpInput::Number),
+        "Decimal" => Some(InferredMcpInput::Decimal),
+        "String" | "str" | "Path" | "PathBuf" | "OsString" | "char" => {
+            Some(InferredMcpInput::String)
+        },
+        "NaiveDate" | "Date" => Some(InferredMcpInput::Date),
+        "NaiveDateTime" | "DateTime" | "OffsetDateTime" | "Timestamp" | "Zoned" => {
+            Some(InferredMcpInput::DateTime)
+        },
+        _ => None,
+    }
+}
+
+fn scalar_input(kind: InferredMcpInput) -> Option<InferredMcpInput> {
+    Some(match kind {
+        InferredMcpInput::Boolean => InferredMcpInput::Boolean,
+        InferredMcpInput::Integer => InferredMcpInput::Integer,
+        InferredMcpInput::Number => InferredMcpInput::Number,
+        InferredMcpInput::Decimal => InferredMcpInput::Decimal,
+        InferredMcpInput::String => InferredMcpInput::String,
+        InferredMcpInput::Date => InferredMcpInput::Date,
+        InferredMcpInput::DateTime => InferredMcpInput::DateTime,
+        _ => return None,
+    })
+}
+
+fn list_input(kind: InferredMcpInput) -> Option<InferredMcpInput> {
+    Some(match kind {
+        InferredMcpInput::Boolean => InferredMcpInput::BooleanList,
+        InferredMcpInput::Integer => InferredMcpInput::IntegerList,
+        InferredMcpInput::Number => InferredMcpInput::NumberList,
+        InferredMcpInput::Decimal => InferredMcpInput::DecimalList,
+        InferredMcpInput::String => InferredMcpInput::StringList,
+        InferredMcpInput::Date => InferredMcpInput::DateList,
+        InferredMcpInput::DateTime => InferredMcpInput::DateTimeList,
+        _ => return None,
+    })
+}
+
+fn set_input(kind: InferredMcpInput) -> Option<InferredMcpInput> {
+    Some(match kind {
+        InferredMcpInput::Boolean => InferredMcpInput::BooleanSet,
+        InferredMcpInput::Integer => InferredMcpInput::IntegerSet,
+        InferredMcpInput::Number => InferredMcpInput::NumberSet,
+        InferredMcpInput::Decimal => InferredMcpInput::DecimalSet,
+        InferredMcpInput::String => InferredMcpInput::StringSet,
+        InferredMcpInput::Date => InferredMcpInput::DateSet,
+        InferredMcpInput::DateTime => InferredMcpInput::DateTimeSet,
+        _ => return None,
+    })
+}
+
+fn range_input(kind: InferredMcpInput) -> Option<InferredMcpInput> {
+    Some(match kind {
+        InferredMcpInput::Integer => InferredMcpInput::IntegerRange,
+        InferredMcpInput::Number => InferredMcpInput::NumberRange,
+        InferredMcpInput::Decimal => InferredMcpInput::DecimalRange,
+        InferredMcpInput::Date => InferredMcpInput::DateRange,
+        InferredMcpInput::DateTime => InferredMcpInput::DateTimeRange,
+        _ => return None,
+    })
+}
+
+fn range_bound_kind(ty: &Type) -> Option<InferredMcpInput> {
+    let Type::Path(path) = peel_type_wrappers(ty) else {
+        return None;
+    };
+    if path.qself.is_some() {
+        return None;
+    }
+
+    let segment = path.path.segments.last()?;
+    if segment.ident != "Option" {
+        return None;
+    }
+
+    single_type_argument(&segment.arguments).and_then(primitive_kind_for_type)
+}
+
+fn single_type_argument(arguments: &PathArguments) -> Option<&Type> {
+    let PathArguments::AngleBracketed(arguments) = arguments else {
+        return None;
+    };
+    let mut arguments = arguments.args.iter();
+    let GenericArgument::Type(ty) = arguments.next()? else {
+        return None;
+    };
+    if arguments.next().is_some() {
+        return None;
+    }
+    Some(ty)
+}
+
+fn peel_type_wrappers(mut ty: &Type) -> &Type {
+    loop {
+        match ty {
+            Type::Group(group) => ty = &group.elem,
+            Type::Paren(paren) => ty = &paren.elem,
+            Type::Reference(reference) => ty = &reference.elem,
+            _ => return ty,
         }
     }
 }
