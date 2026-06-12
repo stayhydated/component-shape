@@ -23,7 +23,7 @@ pub enum McpInputShape {
 }
 
 /// Validation error for generated MCP tool metadata.
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Clone, Debug, Eq, thiserror::Error, PartialEq)]
 pub enum McpToolMetadataError {
     #[error("tool name cannot be empty")]
     EmptyName,

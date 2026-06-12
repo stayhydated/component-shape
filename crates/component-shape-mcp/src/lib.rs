@@ -573,7 +573,7 @@ impl McpJsonSchema for () {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Clone, Debug, Eq, thiserror::Error, PartialEq)]
 pub enum McpToolError {
     #[error("tool arguments must be a JSON object")]
     ArgumentsMustBeObject,

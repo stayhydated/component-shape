@@ -11,8 +11,8 @@ publish.workspace = true
 repository.workspace = true
 
 [features]
-default = [ "derive" ]
 chrono = [ "dep:chrono" ]
+default = [ "derive" ]
 derive = [ "dep:component-shape-mcp-macros" ]
 rust_decimal = [ "dep:rust_decimal" ]
 

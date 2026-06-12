@@ -22,7 +22,7 @@ when the task is about a form framework consuming the shape rather than
 declaring the shape itself.
 
 This reusable skill does not cover proc-macro implementation internals,
-trybuild fixture maintenance, or contributor-only architecture work. Use the
+trybuild fixture maintenance, or contributor-only implementation docs. Use the
 workspace `AGENTS.md` and crate docs for those tasks.
 
 ## Decision Rule
@@ -138,7 +138,7 @@ component_shape_gpui::component_shape! {
             T: std::str::FromStr + ToString + 'static,
         {
             type Event = gpui_component::input::InputEvent;
-            /* seed_value_binding_state and form_value_change */
+            /* seed_value_binding_state and value_change */
         }
     }
 }

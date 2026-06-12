@@ -102,5 +102,6 @@ contracts aligned:
 - `component-shape-codegen` docs when generator-facing behavior changes,
 - downstream framework guidance only when their public workflow changes.
 
-Keep implementation details, parser internals, and design rationale in
-`docs/` or crate-local architecture notes instead of user-facing READMEs.
+Keep implementation details, parser internals, and design rationale in focused
+rustdoc, tests, fixtures, or topic-specific crate-local docs instead of
+user-facing READMEs.

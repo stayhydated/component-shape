@@ -83,10 +83,10 @@ prose-only explanations when showing behavior changes.
 
 ### Internal Documentation
 
-Use `docs/` or crate-local `docs/ARCHITECTURE.md` files for internal
-documentation when deeper design notes are needed.
+Use rustdoc, focused tests, compile fixtures, or topic-specific crate-local
+docs for internal documentation when deeper design notes are needed.
 
-Keep these topics in architecture documents, not in READMEs:
+Keep these topics out of READMEs:
 
 - implementation details,
 - proc-macro parsing and expansion details,
@@ -94,6 +94,10 @@ Keep these topics in architecture documents, not in READMEs:
 - subsystem boundaries,
 - design rationale,
 - internal relationships between macro, codegen, and runtime crates.
+
+Do not add `ARCHITECTURE.md` files. If implementation notes are needed, use a
+specific filename that names the subsystem or keep the guidance next to the code
+or tests it explains.
 
 ### Test Expectations
 
@@ -149,10 +153,16 @@ may depend on `component-shape`; `component-shape` must not depend on GPUI.
 
 - `crates/component-shape-mcp`
   Audience: **Public integration**
-  Docs: [Architecture](crates/component-shape-mcp/docs/ARCHITECTURE.md)
   Role: shared MCP tool server, `rmcp` stdio serving, and JSON Schema helpers
   for crates that consume `McpInput` metadata. It does not own downstream
   form or table decoding policy.
+
+- `crates/component-shape-mcp-macros`
+  Audience: **Public integration**
+  Role: proc-macro implementation for `component-shape-mcp` schema derives.
+  Most users should use the `McpJsonSchema` derive re-export from
+  `component-shape-mcp` with the `derive` feature instead of depending on this
+  crate directly.
 
 - `crates/component-shape-gpui-macros`
   Audience: **Public integration**
@@ -197,7 +207,7 @@ may depend on `component-shape`; `component-shape` must not depend on GPUI.
 
 - Keep READMEs and rustdoc user-facing.
 - Move proc-macro expansion details, codegen internals, and subsystem design
-  into `docs/` or a crate-local `docs/ARCHITECTURE.md`.
+  into focused rustdoc, tests, fixtures, or topic-specific crate-local docs.
 - Prefer examples over prose-only explanations.
 - Keep docs for `component-shape-gpui` aligned with macro tests when macro
   syntax, generated output, or diagnostics change.
