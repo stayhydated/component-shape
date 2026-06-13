@@ -822,6 +822,7 @@ name = "component-shape-gpui-macros"
 version = "0.1.0"
 dependencies = [
  "component-shape",
+ "component-shape-codegen",
  "prettyplease",
  "proc-macro-crate",
  "proc-macro-error2",

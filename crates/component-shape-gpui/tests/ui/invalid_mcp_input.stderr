@@ -1,0 +1,5 @@
+error: unknown `mcp_input` shorthand `strings`; use a supported McpInput constructor name or an explicit `McpInput` expression
+  --> tests/ui/invalid_mcp_input.rs:15:17
+   |
+15 |     mcp_input = strings
+   |                 ^^^^^^^

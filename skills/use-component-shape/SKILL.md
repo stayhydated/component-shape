@@ -58,7 +58,9 @@ map generic value-change metadata onto their own event systems.
 Use `McpInput` for declarative structured input metadata such as text values,
 primitive lists, primitive sets, decimal ranges, date ranges, and date-time
 ranges.
-Use `McpInput::any()` for unconstrained JSON and leave the default
+Use `McpInput::any()` for coarse unconstrained JSON metadata and
+`component_shape_mcp::McpAny` for typed tool fields that intentionally accept
+any JSON. Leave the default
 `McpInput::unsupported()` for shapes that should not advertise structured MCP
 input. Keep protocol execution, JSON decoding, authorization, and handler
 policy in downstream MCP integration crates or `component-shape-mcp`.
@@ -66,14 +68,21 @@ GPUI shape declarations infer common MCP metadata from unambiguous declared
 value types. The generated `ComponentShapeFor<Value>` impl carries the
 value-specific metadata; custom or ambiguous wire schemas should be handled by
 the downstream MCP integration's typed schema or a manual decode/schema impl.
+Use `component_shape_mcp::McpToolValue` when an integration needs one value to
+provide both JSON Schema and strict MCP decoding. The blanket implementation
+covers `Deserialize` types that implement `McpJsonSchema`; arbitrary JSON input
+should use `McpAny` explicitly.
 Use `component_shape_mcp::McpJsonSchema` when an integration has a concrete
 Rust argument type and needs richer JSON Schema than `McpInput::object()`.
 Aliases inherit the underlying type schema, and app-owned named structs,
-single-field transparent newtypes, or fieldless enums can derive it. When using
-a facade re-export, set `#[mcp(crate = facade::mcp)]` so generated paths target
-that facade module. The derive follows serde deserialize names, includes enum
-deserialize aliases, skips deserialization-skipped fields, rejects flattened
-fields, and treats serde-defaulted fields as not required.
+single-field transparent newtypes, or fieldless enums can derive it. Facade
+re-exports such as `gpui_form::mcp` and `gpui_table::mcp` are inferred when
+unambiguous; use `#[mcp(crate = facade::mcp)]` only for renamed crates or
+ambiguous facade paths. The derive follows serde deserialize names, includes
+enum deserialize aliases, skips deserialization-skipped fields, rejects
+flattened fields, and treats serde-defaulted fields as not required.
+Use `component_shape_mcp::McpToolInput` for top-level object-shaped tool
+argument structs that should derive schema and strict decoding together.
 Use `component_shape_mcp::McpRange<T>` for typed object-shaped range arguments
 with nullable `min` and `max` fields.
 

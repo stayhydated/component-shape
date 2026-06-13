@@ -1,11 +1,14 @@
 use proc_macro::TokenStream;
 use proc_macro_crate::{FoundCrate, crate_name};
 use quote::quote;
+use std::collections::BTreeMap;
 use syn::{
-    Data, DeriveInput, Expr, Fields, GenericArgument, Ident, LitBool, LitStr, Path, PathArguments,
-    Type, parse_macro_input, parse_quote, spanned::Spanned,
+    Attribute, Data, DeriveInput, Expr, Fields, GenericArgument, Ident, LitBool, LitStr, Path,
+    PathArguments, Type, parse_macro_input, parse_quote, spanned::Spanned as _,
 };
 
+/// Derive JSON Schema metadata for structs, transparent newtypes, and
+/// fieldless enums used in MCP tool schemas.
 #[proc_macro_derive(McpJsonSchema, attributes(mcp, serde))]
 pub fn derive_mcp_json_schema(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -15,6 +18,21 @@ pub fn derive_mcp_json_schema(input: TokenStream) -> TokenStream {
     }
 }
 
+/// Derive a top-level MCP input schema and strict MCP argument decoding for a
+/// named tool input struct.
+#[proc_macro_derive(McpToolInput, attributes(mcp, serde))]
+pub fn derive_mcp_tool_input(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    match expand_mcp_tool_input(input) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+
+fn expand_mcp_tool_input(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    expand_mcp_tool_input_impl(input)
+}
+
 fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let schema_options = SchemaOptions::parse(&input)?;
     let ident = input.ident;
@@ -22,7 +40,8 @@ fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_macro2::TokenS
     let mcp_crate = schema_options
         .crate_path
         .clone()
-        .unwrap_or_else(|| resolve_crate_path("component-shape-mcp", "::component_shape_mcp"));
+        .map(Ok)
+        .unwrap_or_else(resolve_default_mcp_crate_path)?;
     let data = match input.data {
         Data::Struct(data) => data,
         Data::Enum(data) => {
@@ -37,6 +56,11 @@ fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_macro2::TokenS
     };
     if schema_options.transparent {
         let ty = transparent_field_type(&data.fields)?;
+        let schema_tokens = described_schema_tokens(
+            quote! { <#ty as #mcp_crate::McpJsonSchema>::json_schema() },
+            schema_options.description.as_deref(),
+            ident.span(),
+        );
         generics
             .make_where_clause()
             .predicates
@@ -46,8 +70,8 @@ fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_macro2::TokenS
             impl #impl_generics #mcp_crate::McpJsonSchema for #ident #ty_generics
                 #where_clause
             {
-                fn json_schema() -> #mcp_crate::serde_json::Value {
-                    <#ty as #mcp_crate::McpJsonSchema>::json_schema()
+                fn json_schema() -> #mcp_crate::McpSchema {
+                    #schema_tokens
                 }
             }
         });
@@ -61,6 +85,11 @@ fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_macro2::TokenS
                 .first()
                 .expect("newtype field should exist")
                 .ty;
+            let schema_tokens = described_schema_tokens(
+                quote! { <#ty as #mcp_crate::McpJsonSchema>::json_schema() },
+                schema_options.description.as_deref(),
+                ident.span(),
+            );
             generics
                 .make_where_clause()
                 .predicates
@@ -70,8 +99,8 @@ fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_macro2::TokenS
                 impl #impl_generics #mcp_crate::McpJsonSchema for #ident #ty_generics
                     #where_clause
                 {
-                    fn json_schema() -> #mcp_crate::serde_json::Value {
-                        <#ty as #mcp_crate::McpJsonSchema>::json_schema()
+                    fn json_schema() -> #mcp_crate::McpSchema {
+                        #schema_tokens
                     }
                 }
             });
@@ -85,6 +114,7 @@ fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_macro2::TokenS
     };
 
     let mut field_tokens = Vec::new();
+    let mut field_names = BTreeMap::new();
 
     for field in fields.named {
         let Some(field_ident) = field.ident.clone() else {
@@ -95,18 +125,54 @@ fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_macro2::TokenS
             continue;
         }
 
-        let field_name = options.rename.unwrap_or_else(|| {
-            schema_options
-                .rename_all
-                .map(|rule| rule.apply(&field_ident.to_string()))
-                .unwrap_or_else(|| field_ident.to_string())
-        });
+        let defaulted = options.defaulted();
+        let rust_field_name = field_ident.to_string();
+        let serde_field_name = options
+            .serde_rename
+            .clone()
+            .or_else(|| {
+                schema_options
+                    .serde_rename_all
+                    .map(|rule| rule.apply(&rust_field_name))
+            })
+            .unwrap_or_else(|| rust_field_name.clone());
+        let field_name = options
+            .mcp_rename
+            .clone()
+            .or_else(|| {
+                schema_options
+                    .mcp_rename_all
+                    .map(|rule| rule.apply(&rust_field_name))
+            })
+            .unwrap_or_else(|| serde_field_name.clone());
+        claim_wire_name(
+            &mut field_names,
+            &field_name,
+            field_ident.span(),
+            "MCP schema field or alias",
+        )?;
+        for alias in &options.aliases {
+            claim_wire_name(
+                &mut field_names,
+                alias,
+                field_ident.span(),
+                "MCP schema field or alias",
+            )?;
+        }
         let field_name = LitStr::new(&field_name, field_ident.span());
+        let alias_lits = options
+            .aliases
+            .iter()
+            .map(|alias| LitStr::new(alias, field_ident.span()))
+            .collect::<Vec<_>>();
+        let decode_name = (field_name.value() != serde_field_name)
+            .then(|| LitStr::new(&serde_field_name, field_ident.span()));
         let description = options
             .description
+            .or_else(|| doc_description(&field.attrs))
             .map(|description| LitStr::new(&description, field_ident.span()));
         let required = options.required.unwrap_or_else(|| {
-            !is_option_type(&field.ty) && !options.defaulted && !schema_options.defaulted
+            !is_option_type(&field.ty) && !defaulted && !schema_options.defaulted
         });
         let ty = field.ty;
         generics
@@ -116,23 +182,21 @@ fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_macro2::TokenS
         let description_tokens = description
             .map(|description| {
                 quote! {
-                    if let Some(__component_shape_mcp_field_schema_object) =
-                        __component_shape_mcp_field_schema.as_object_mut()
-                    {
-                        __component_shape_mcp_field_schema_object.insert(
-                            "description".to_string(),
-                            #mcp_crate::serde_json::Value::String(#description.to_string()),
-                        );
-                    }
+                    __component_shape_mcp_field_schema.set_description(#description);
                 }
             })
             .unwrap_or_default();
+        let alias_extension_tokens = alias_extension_tokens(&mcp_crate, &alias_lits);
+        let decode_name_extension_tokens =
+            decode_name_extension_tokens(&mcp_crate, decode_name.as_ref());
 
         field_tokens.push(quote! {
             {
                 let mut __component_shape_mcp_field_schema =
                     <#ty as #mcp_crate::McpJsonSchema>::json_schema();
                 #description_tokens
+                #alias_extension_tokens
+                #decode_name_extension_tokens
                 __component_shape_mcp_properties.insert(
                     #field_name.to_string(),
                     __component_shape_mcp_field_schema,
@@ -147,23 +211,359 @@ fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_macro2::TokenS
     }
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let schema_tokens = described_schema_tokens(
+        quote! {
+            #mcp_crate::object_schema(
+                __component_shape_mcp_properties,
+                __component_shape_mcp_required,
+            )
+        },
+        schema_options.description.as_deref(),
+        ident.span(),
+    );
 
     Ok(quote! {
         impl #impl_generics #mcp_crate::McpJsonSchema for #ident #ty_generics
             #where_clause
         {
-            fn json_schema() -> #mcp_crate::serde_json::Value {
+            fn json_schema() -> #mcp_crate::McpSchema {
                 let mut __component_shape_mcp_properties =
-                    #mcp_crate::serde_json::Map::new();
+                    #mcp_crate::McpSchemaProperties::new();
                 let mut __component_shape_mcp_required = Vec::new();
 
                 #(#field_tokens)*
 
-                #mcp_crate::object_schema(
-                    __component_shape_mcp_properties,
-                    __component_shape_mcp_required,
-                )
+                #schema_tokens
             }
+        }
+    })
+}
+
+fn described_schema_tokens(
+    schema_tokens: proc_macro2::TokenStream,
+    description: Option<&str>,
+    span: proc_macro2::Span,
+) -> proc_macro2::TokenStream {
+    let Some(description) = description else {
+        return schema_tokens;
+    };
+    let description = LitStr::new(description, span);
+    quote! {
+        #schema_tokens.with_description(#description)
+    }
+}
+
+fn alias_extension_tokens(mcp_crate: &Path, aliases: &[LitStr]) -> proc_macro2::TokenStream {
+    if aliases.is_empty() {
+        return proc_macro2::TokenStream::new();
+    }
+
+    quote! {
+        __component_shape_mcp_field_schema.set_extension(
+            "x-mcpAliases",
+            #mcp_crate::serde_json::json!([#(#aliases),*]),
+        );
+    }
+}
+
+fn decode_name_extension_tokens(
+    mcp_crate: &Path,
+    decode_name: Option<&LitStr>,
+) -> proc_macro2::TokenStream {
+    let Some(decode_name) = decode_name else {
+        return proc_macro2::TokenStream::new();
+    };
+
+    quote! {
+        __component_shape_mcp_field_schema.set_extension(
+            "x-mcpDecodeName",
+            #mcp_crate::serde_json::Value::String(#decode_name.to_string()),
+        );
+    }
+}
+
+fn expand_mcp_tool_input_impl(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let schema_options = SchemaOptions::parse(&input)?;
+    if schema_options.transparent {
+        return Err(syn::Error::new(
+            input.ident.span(),
+            "McpToolInput requires an object-shaped struct; transparent inputs should derive McpJsonSchema and be used as fields",
+        ));
+    }
+
+    let ident = input.ident;
+    let mut generics = input.generics;
+    let mcp_crate = schema_options
+        .crate_path
+        .clone()
+        .map(Ok)
+        .unwrap_or_else(resolve_default_mcp_crate_path)?;
+    let data = match input.data {
+        Data::Struct(data) => data,
+        _ => {
+            return Err(syn::Error::new(
+                ident.span(),
+                "McpToolInput can only be derived for structs with named fields",
+            ));
+        },
+    };
+    let fields = match data.fields {
+        Fields::Named(fields) => fields,
+        _ => {
+            return Err(syn::Error::new(
+                ident.span(),
+                "McpToolInput requires a struct with named fields",
+            ));
+        },
+    };
+
+    let mut field_tokens = Vec::new();
+    let mut schema_field_tokens = Vec::new();
+    let mut wire_names = BTreeMap::new();
+
+    for field in fields.named {
+        let Some(field_ident) = field.ident.clone() else {
+            continue;
+        };
+        let options = FieldOptions::parse(&field)?;
+        let description = options
+            .description
+            .clone()
+            .or_else(|| doc_description(&field.attrs))
+            .map(|description| LitStr::new(&description, field_ident.span()));
+        let ty = field.ty;
+        if options.skip {
+            let default = options
+                .default_value
+                .as_ref()
+                .map(FieldDefault::tokens)
+                .unwrap_or_else(|| {
+                    generics
+                        .make_where_clause()
+                        .predicates
+                        .push(parse_quote!(#ty: ::core::default::Default));
+                    quote! { ::core::default::Default::default() }
+                });
+            field_tokens.push(quote! {
+                #field_ident: #default
+            });
+            continue;
+        }
+
+        generics
+            .make_where_clause()
+            .predicates
+            .push(parse_quote!(#ty: #mcp_crate::McpToolValue));
+
+        let defaulted = options.defaulted();
+        let rust_field_name = field_ident.to_string();
+        let serde_field_name = options
+            .serde_rename
+            .clone()
+            .or_else(|| {
+                schema_options
+                    .serde_rename_all
+                    .map(|rule| rule.apply(&rust_field_name))
+            })
+            .unwrap_or_else(|| rust_field_name.clone());
+        let field_name = options
+            .mcp_rename
+            .clone()
+            .or_else(|| {
+                schema_options
+                    .mcp_rename_all
+                    .map(|rule| rule.apply(&rust_field_name))
+            })
+            .unwrap_or_else(|| serde_field_name.clone());
+        claim_wire_name(
+            &mut wire_names,
+            &field_name,
+            field_ident.span(),
+            "MCP tool input field or alias",
+        )?;
+        for alias in &options.aliases {
+            claim_wire_name(
+                &mut wire_names,
+                alias,
+                field_ident.span(),
+                "MCP tool input field or alias",
+            )?;
+        }
+        let field_name_lit = LitStr::new(&field_name, field_ident.span());
+        let alias_lits = options
+            .aliases
+            .iter()
+            .map(|alias| LitStr::new(alias, field_ident.span()))
+            .collect::<Vec<_>>();
+        let decode_name = (field_name != serde_field_name)
+            .then(|| LitStr::new(&serde_field_name, field_ident.span()));
+        let required = options
+            .required
+            .unwrap_or_else(|| !is_option_type(&ty) && !defaulted && !schema_options.defaulted);
+        let default = options.default_value.as_ref();
+        let description_tokens = description
+            .map(|description| {
+                quote! {
+                    __component_shape_mcp_field_schema.set_description(#description);
+                }
+            })
+            .unwrap_or_default();
+        let alias_extension_tokens = alias_extension_tokens(&mcp_crate, &alias_lits);
+        let decode_name_extension_tokens =
+            decode_name_extension_tokens(&mcp_crate, decode_name.as_ref());
+        schema_field_tokens.push(quote! {
+            {
+                let mut __component_shape_mcp_field_schema =
+                    <#ty as #mcp_crate::McpToolValue>::tool_value_schema();
+                #description_tokens
+                #alias_extension_tokens
+                #decode_name_extension_tokens
+                __component_shape_mcp_properties.insert(
+                    #field_name_lit.to_string(),
+                    __component_shape_mcp_field_schema,
+                );
+                if #required {
+                    __component_shape_mcp_required.push(
+                        #field_name_lit.to_string(),
+                    );
+                }
+            }
+        });
+        let field_decode = decode_field_tokens(
+            DecodeField {
+                ty: &ty,
+                field_name: &field_name_lit,
+                aliases: &alias_lits,
+                required,
+                default,
+                container_defaulted: schema_options.defaulted,
+            },
+            &mut generics,
+        )?;
+        field_tokens.push(quote! {
+            #field_ident: #field_decode
+        });
+    }
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let schema_tokens = described_schema_tokens(
+        quote! {
+            #mcp_crate::object_schema(
+                __component_shape_mcp_properties,
+                __component_shape_mcp_required,
+            )
+        },
+        schema_options.description.as_deref(),
+        ident.span(),
+    );
+
+    Ok(quote! {
+        impl #impl_generics #mcp_crate::McpToolInput for #ident #ty_generics
+            #where_clause
+        {
+            fn input_schema() -> #mcp_crate::McpSchema {
+                let mut __component_shape_mcp_properties =
+                    #mcp_crate::McpSchemaProperties::new();
+                let mut __component_shape_mcp_required = Vec::new();
+
+                #(#schema_field_tokens)*
+
+                #schema_tokens
+            }
+
+            fn from_tool_call(
+                __component_shape_mcp_call: #mcp_crate::McpToolCall,
+            ) -> ::core::result::Result<Self, #mcp_crate::McpToolError> {
+                let mut __component_shape_mcp_arguments =
+                    __component_shape_mcp_call.into_arguments();
+                let __component_shape_mcp_input = Self {
+                    #(#field_tokens,)*
+                };
+                __component_shape_mcp_arguments.finish()?;
+                ::core::result::Result::Ok(__component_shape_mcp_input)
+            }
+        }
+
+        impl #impl_generics #mcp_crate::McpJsonSchema for #ident #ty_generics
+            #where_clause
+        {
+            fn json_schema() -> #mcp_crate::McpSchema {
+                <Self as #mcp_crate::McpToolInput>::input_schema()
+            }
+        }
+    })
+}
+
+struct DecodeField<'a> {
+    ty: &'a Type,
+    field_name: &'a LitStr,
+    aliases: &'a [LitStr],
+    required: bool,
+    default: Option<&'a FieldDefault>,
+    container_defaulted: bool,
+}
+
+fn decode_field_tokens(
+    field: DecodeField<'_>,
+    generics: &mut syn::Generics,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let DecodeField {
+        ty,
+        field_name,
+        aliases,
+        required,
+        default,
+        container_defaulted,
+    } = field;
+    let alias_tokens = quote! { &[#(#aliases),*] };
+
+    if is_option_type(ty) {
+        if required {
+            return Ok(quote! {
+                __component_shape_mcp_arguments
+                    .take_required_tool_value_from::<#ty>(#field_name, #alias_tokens)?
+            });
+        }
+
+        return Ok(quote! {
+            __component_shape_mcp_arguments
+                .take_present_tool_value_from::<#ty>(#field_name, #alias_tokens)?
+                .flatten()
+        });
+    }
+
+    if required {
+        return Ok(quote! {
+            __component_shape_mcp_arguments
+                .take_required_tool_value_from::<#ty>(#field_name, #alias_tokens)?
+        });
+    }
+
+    let default_tokens = match default {
+        Some(default) => default.tokens(),
+        None if container_defaulted => {
+            generics
+                .make_where_clause()
+                .predicates
+                .push(parse_quote!(#ty: ::core::default::Default));
+            quote! { ::core::default::Default::default() }
+        },
+        None => {
+            return Err(syn::Error::new_spanned(
+                ty,
+                "McpToolInput cannot decode an optional non-Option field without a default; use `Option<T>`, `#[mcp(default)]`, `#[serde(default)]`, or make the field required",
+            ));
+        },
+    };
+
+    Ok(quote! {
+        match __component_shape_mcp_arguments
+            .take_present_tool_value_from::<#ty>(#field_name, #alias_tokens)?
+        {
+            ::core::option::Option::Some(__component_shape_mcp_value) => {
+                __component_shape_mcp_value
+            }
+            ::core::option::Option::None => #default_tokens,
         }
     })
 }
@@ -197,6 +597,8 @@ fn expand_enum_mcp_json_schema(
     mcp_crate: Path,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let mut value_tokens = Vec::new();
+    let mut decode_aliases = Vec::new();
+    let mut enum_values = BTreeMap::new();
 
     for variant in data.variants {
         let options = VariantOptions::parse(&variant)?;
@@ -210,18 +612,55 @@ fn expand_enum_mcp_json_schema(
             ));
         }
 
-        let primary_name = options.rename.unwrap_or_else(|| {
-            schema_options
-                .rename_all
-                .map(|rule| rule.apply(&variant.ident.to_string()))
-                .unwrap_or_else(|| variant.ident.to_string())
-        });
+        let rust_variant_name = variant.ident.to_string();
+        let serde_name = options
+            .serde_rename
+            .clone()
+            .or_else(|| {
+                schema_options
+                    .serde_rename_all
+                    .map(|rule| rule.apply(&rust_variant_name))
+            })
+            .unwrap_or_else(|| rust_variant_name.clone());
+        let primary_name = options
+            .mcp_rename
+            .clone()
+            .or_else(|| {
+                schema_options
+                    .mcp_rename_all
+                    .map(|rule| rule.apply(&rust_variant_name))
+            })
+            .unwrap_or_else(|| serde_name.clone());
+        claim_wire_name(
+            &mut enum_values,
+            &primary_name,
+            variant.ident.span(),
+            "MCP enum value",
+        )?;
+        if primary_name != serde_name {
+            decode_aliases.push((
+                LitStr::new(&primary_name, variant.ident.span()),
+                LitStr::new(&serde_name, variant.ident.span()),
+            ));
+        }
         value_tokens.push(enum_value_push_tokens(
             &mcp_crate,
             &primary_name,
             variant.ident.span(),
         ));
         for alias in options.aliases {
+            claim_wire_name(
+                &mut enum_values,
+                &alias,
+                variant.ident.span(),
+                "MCP enum value",
+            )?;
+            if alias != serde_name {
+                decode_aliases.push((
+                    LitStr::new(&alias, variant.ident.span()),
+                    LitStr::new(&serde_name, variant.ident.span()),
+                ));
+            }
             value_tokens.push(enum_value_push_tokens(
                 &mcp_crate,
                 &alias,
@@ -238,18 +677,32 @@ fn expand_enum_mcp_json_schema(
     }
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let enum_decode_alias_extension_tokens =
+        enum_decode_alias_extension_tokens(&mcp_crate, &decode_aliases);
+    let schema_tokens = described_schema_tokens(
+        quote! {
+            {
+                let mut __component_shape_mcp_schema =
+                    #mcp_crate::McpSchema::new(#mcp_crate::serde_json::json!({
+                        "type": "string",
+                        "enum": __component_shape_mcp_enum_values
+                    }));
+                #enum_decode_alias_extension_tokens
+                __component_shape_mcp_schema
+            }
+        },
+        schema_options.description.as_deref(),
+        ident.span(),
+    );
 
     Ok(quote! {
         impl #impl_generics #mcp_crate::McpJsonSchema for #ident #ty_generics
             #where_clause
         {
-            fn json_schema() -> #mcp_crate::serde_json::Value {
+            fn json_schema() -> #mcp_crate::McpSchema {
                 let mut __component_shape_mcp_enum_values = Vec::new();
                 #(#value_tokens)*
-                #mcp_crate::serde_json::json!({
-                    "type": "string",
-                    "enum": __component_shape_mcp_enum_values
-                })
+                #schema_tokens
             }
         }
     })
@@ -268,10 +721,33 @@ fn enum_value_push_tokens(
     }
 }
 
+fn enum_decode_alias_extension_tokens(
+    mcp_crate: &Path,
+    aliases: &[(LitStr, LitStr)],
+) -> proc_macro2::TokenStream {
+    if aliases.is_empty() {
+        return proc_macro2::TokenStream::new();
+    }
+
+    let wire_values = aliases.iter().map(|(wire, _)| wire);
+    let decode_values = aliases.iter().map(|(_, decode)| decode);
+
+    quote! {
+        __component_shape_mcp_schema.set_extension(
+            "x-mcpEnumDecodeAliases",
+            #mcp_crate::serde_json::json!({
+                #(#wire_values: #decode_values),*
+            }),
+        );
+    }
+}
+
 #[derive(Default)]
 struct SchemaOptions {
     crate_path: Option<Path>,
-    rename_all: Option<RenameRule>,
+    description: Option<String>,
+    mcp_rename_all: Option<RenameRule>,
+    serde_rename_all: Option<RenameRule>,
     defaulted: bool,
     transparent: bool,
 }
@@ -285,16 +761,23 @@ impl SchemaOptions {
             .filter(|attr| attr.path().is_ident("mcp"))
         {
             attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("crate") || meta.path.is_ident("crate_path") {
+                if meta.path.is_ident("crate") {
                     set_option(
                         &mut options.crate_path,
                         parse_path_value(&meta)?,
                         "crate",
                         meta.path.span(),
                     )
+                } else if meta.path.is_ident("description") {
+                    set_option(
+                        &mut options.description,
+                        meta.value()?.parse::<LitStr>()?.value(),
+                        "description",
+                        meta.path.span(),
+                    )
                 } else if meta.path.is_ident("rename_all") {
                     set_option(
-                        &mut options.rename_all,
+                        &mut options.mcp_rename_all,
                         parse_rename_rule_value(&meta)?,
                         "rename_all",
                         meta.path.span(),
@@ -325,33 +808,36 @@ impl SchemaOptions {
         {
             parse_container_serde_attr(attr, &mut options)?;
         }
+        if options.description.is_none() {
+            options.description = doc_description(&input.attrs);
+        }
         Ok(options)
     }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RenameRule {
-    LowerCase,
-    UpperCase,
-    PascalCase,
-    CamelCase,
-    SnakeCase,
-    ScreamingSnakeCase,
-    KebabCase,
-    ScreamingKebabCase,
+    Lower,
+    Upper,
+    Pascal,
+    Camel,
+    Snake,
+    ScreamingSnake,
+    Kebab,
+    ScreamingKebab,
 }
 
 impl RenameRule {
     fn parse_lit(value: &LitStr) -> syn::Result<Self> {
         match value.value().as_str() {
-            "lowercase" => Ok(Self::LowerCase),
-            "UPPERCASE" => Ok(Self::UpperCase),
-            "PascalCase" => Ok(Self::PascalCase),
-            "camelCase" => Ok(Self::CamelCase),
-            "snake_case" => Ok(Self::SnakeCase),
-            "SCREAMING_SNAKE_CASE" => Ok(Self::ScreamingSnakeCase),
-            "kebab-case" => Ok(Self::KebabCase),
-            "SCREAMING-KEBAB-CASE" => Ok(Self::ScreamingKebabCase),
+            "lowercase" => Ok(Self::Lower),
+            "UPPERCASE" => Ok(Self::Upper),
+            "PascalCase" => Ok(Self::Pascal),
+            "camelCase" => Ok(Self::Camel),
+            "snake_case" => Ok(Self::Snake),
+            "SCREAMING_SNAKE_CASE" => Ok(Self::ScreamingSnake),
+            "kebab-case" => Ok(Self::Kebab),
+            "SCREAMING-KEBAB-CASE" => Ok(Self::ScreamingKebab),
             _ => Err(syn::Error::new(
                 value.span(),
                 format!("unsupported serde rename_all rule `{}`", value.value()),
@@ -362,10 +848,10 @@ impl RenameRule {
     fn apply(self, ident: &str) -> String {
         let words = split_words(ident);
         match self {
-            Self::LowerCase => words.concat().to_ascii_lowercase(),
-            Self::UpperCase => words.concat().to_ascii_uppercase(),
-            Self::PascalCase => words.iter().map(|word| capitalize(word)).collect(),
-            Self::CamelCase => {
+            Self::Lower => words.concat().to_ascii_lowercase(),
+            Self::Upper => words.concat().to_ascii_uppercase(),
+            Self::Pascal => words.iter().map(|word| capitalize(word)).collect(),
+            Self::Camel => {
                 let mut renamed = String::new();
                 for (index, word) in words.iter().enumerate() {
                     if index == 0 {
@@ -376,10 +862,10 @@ impl RenameRule {
                 }
                 renamed
             },
-            Self::SnakeCase => words.join("_").to_ascii_lowercase(),
-            Self::ScreamingSnakeCase => words.join("_").to_ascii_uppercase(),
-            Self::KebabCase => words.join("-").to_ascii_lowercase(),
-            Self::ScreamingKebabCase => words.join("-").to_ascii_uppercase(),
+            Self::Snake => words.join("_").to_ascii_lowercase(),
+            Self::ScreamingSnake => words.join("_").to_ascii_uppercase(),
+            Self::Kebab => words.join("-").to_ascii_lowercase(),
+            Self::ScreamingKebab => words.join("-").to_ascii_uppercase(),
         }
     }
 }
@@ -420,13 +906,17 @@ fn split_words(ident: &str) -> Vec<String> {
 
         let next_kind = chars.get(index + 1).and_then(|ch| char_kind(*ch));
         let boundary = !current.is_empty()
-            && match (previous_kind, kind, next_kind) {
-                (Some(CharKind::Lower), CharKind::Upper, _) => true,
-                (Some(CharKind::Digit), CharKind::Upper | CharKind::Lower, _) => true,
-                (Some(CharKind::Upper | CharKind::Lower), CharKind::Digit, _) => true,
-                (Some(CharKind::Upper), CharKind::Upper, Some(CharKind::Lower)) => true,
-                _ => false,
-            };
+            && matches!(
+                (previous_kind, kind, next_kind),
+                (Some(CharKind::Lower), CharKind::Upper, _)
+                    | (Some(CharKind::Digit), CharKind::Upper | CharKind::Lower, _)
+                    | (Some(CharKind::Upper | CharKind::Lower), CharKind::Digit, _)
+                    | (
+                        Some(CharKind::Upper),
+                        CharKind::Upper,
+                        Some(CharKind::Lower)
+                    )
+            );
 
         if boundary {
             words.push(std::mem::take(&mut current));
@@ -455,12 +945,31 @@ fn capitalize(word: &str) -> String {
 
 #[derive(Default)]
 struct FieldOptions {
-    rename: Option<String>,
+    mcp_rename: Option<String>,
+    serde_rename: Option<String>,
+    aliases: Vec<String>,
     description: Option<String>,
     required: Option<bool>,
-    defaulted: bool,
+    default_value: Option<FieldDefault>,
     flatten: Option<proc_macro2::Span>,
     skip: bool,
+}
+
+#[derive(Clone)]
+enum FieldDefault {
+    Default,
+    Expr(Expr),
+    CallPath(Path),
+}
+
+impl FieldDefault {
+    fn tokens(&self) -> proc_macro2::TokenStream {
+        match self {
+            Self::Default => quote! { ::core::default::Default::default() },
+            Self::Expr(expr) => quote! { #expr },
+            Self::CallPath(path) => quote! { #path() },
+        }
+    }
 }
 
 impl FieldOptions {
@@ -469,13 +978,18 @@ impl FieldOptions {
         for attr in &field.attrs {
             if attr.path().is_ident("mcp") {
                 attr.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("rename") || meta.path.is_ident("name") {
+                    if meta.path.is_ident("rename") {
                         set_option(
-                            &mut options.rename,
+                            &mut options.mcp_rename,
                             meta.value()?.parse::<LitStr>()?.value(),
                             "rename",
                             meta.path.span(),
                         )
+                    } else if meta.path.is_ident("alias") {
+                        options
+                            .aliases
+                            .push(meta.value()?.parse::<LitStr>()?.value());
+                        Ok(())
                     } else if meta.path.is_ident("description") {
                         set_option(
                             &mut options.description,
@@ -505,12 +1019,16 @@ impl FieldOptions {
                             meta.path.span(),
                         )
                     } else if meta.path.is_ident("default") {
-                        set_flag(
-                            &mut options.defaulted,
-                            parse_bool_flag_or_value(&meta)?,
-                            "default",
-                            meta.path.span(),
-                        )
+                        if let Some(default_value) = parse_mcp_default_value(&meta)? {
+                            set_option(
+                                &mut options.default_value,
+                                default_value,
+                                "default",
+                                meta.path.span(),
+                            )
+                        } else {
+                            Ok(())
+                        }
                     } else {
                         Err(meta.error("unknown `mcp` field option"))
                     }
@@ -529,11 +1047,16 @@ impl FieldOptions {
         }
         Ok(options)
     }
+
+    fn defaulted(&self) -> bool {
+        self.default_value.is_some()
+    }
 }
 
 #[derive(Default)]
 struct VariantOptions {
-    rename: Option<String>,
+    mcp_rename: Option<String>,
+    serde_rename: Option<String>,
     aliases: Vec<String>,
     skip: bool,
 }
@@ -544,13 +1067,18 @@ impl VariantOptions {
         for attr in &variant.attrs {
             if attr.path().is_ident("mcp") {
                 attr.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("rename") || meta.path.is_ident("name") {
+                    if meta.path.is_ident("rename") {
                         set_option(
-                            &mut options.rename,
+                            &mut options.mcp_rename,
                             meta.value()?.parse::<LitStr>()?.value(),
                             "rename",
                             meta.path.span(),
                         )
+                    } else if meta.path.is_ident("alias") {
+                        options
+                            .aliases
+                            .push(meta.value()?.parse::<LitStr>()?.value());
+                        Ok(())
                     } else if meta.path.is_ident("skip") {
                         set_flag(
                             &mut options.skip,
@@ -573,10 +1101,10 @@ impl VariantOptions {
 fn parse_serde_attr(attr: &syn::Attribute, options: &mut FieldOptions) -> syn::Result<()> {
     attr.parse_nested_meta(|meta| {
         if meta.path.is_ident("rename") {
-            if let Some(rename) = parse_serde_rename(&meta)? {
-                if options.rename.is_none() {
-                    options.rename = Some(rename);
-                }
+            if let Some(rename) = parse_serde_rename(&meta)?
+                && options.serde_rename.is_none()
+            {
+                options.serde_rename = Some(rename);
             }
             Ok(())
         } else if meta.path.is_ident("skip") {
@@ -586,22 +1114,32 @@ fn parse_serde_attr(attr: &syn::Attribute, options: &mut FieldOptions) -> syn::R
             options.skip = true;
             consume_optional_serde_meta_value(&meta)
         } else if meta.path.is_ident("default") {
-            options.defaulted = true;
-            consume_optional_serde_meta_value(&meta)
+            if options.default_value.is_none() {
+                options.default_value = Some(parse_serde_default_value(&meta)?);
+            } else {
+                consume_optional_serde_meta_value(&meta)?;
+            }
+            Ok(())
+        } else if meta.path.is_ident("alias") {
+            options
+                .aliases
+                .push(meta.value()?.parse::<LitStr>()?.value());
+            Ok(())
         } else if meta.path.is_ident("flatten") {
             options.flatten = Some(meta.path.span());
             Ok(())
         } else if meta.path.is_ident("skip_serializing")
+            || meta.path.is_ident("skip_serializing_if")
             || meta.path.is_ident("with")
             || meta.path.is_ident("serialize_with")
             || meta.path.is_ident("deserialize_with")
-            || meta.path.is_ident("alias")
             || meta.path.is_ident("rename_all")
             || meta.path.is_ident("bound")
+            || meta.path.is_ident("borrow")
         {
             consume_optional_serde_meta_value(&meta)
         } else {
-            Ok(())
+            consume_optional_serde_meta_value(&meta)
         }
     })
 }
@@ -612,10 +1150,10 @@ fn parse_variant_serde_attr(
 ) -> syn::Result<()> {
     attr.parse_nested_meta(|meta| {
         if meta.path.is_ident("rename") {
-            if let Some(rename) = parse_serde_rename(&meta)? {
-                if options.rename.is_none() {
-                    options.rename = Some(rename);
-                }
+            if let Some(rename) = parse_serde_rename(&meta)?
+                && options.serde_rename.is_none()
+            {
+                options.serde_rename = Some(rename);
             }
             Ok(())
         } else if meta.path.is_ident("alias") {
@@ -641,10 +1179,10 @@ fn parse_container_serde_attr(
 ) -> syn::Result<()> {
     attr.parse_nested_meta(|meta| {
         if meta.path.is_ident("rename_all") {
-            if let Some(rename_all) = parse_serde_rename_rule(&meta)? {
-                if options.rename_all.is_none() {
-                    options.rename_all = Some(rename_all);
-                }
+            if let Some(rename_all) = parse_serde_rename_rule(&meta)?
+                && options.serde_rename_all.is_none()
+            {
+                options.serde_rename_all = Some(rename_all);
             }
             Ok(())
         } else if meta.path.is_ident("default") {
@@ -703,6 +1241,26 @@ fn parse_serde_rename_rule(
     Ok(deserialize)
 }
 
+fn parse_mcp_default_value(
+    meta: &syn::meta::ParseNestedMeta<'_>,
+) -> syn::Result<Option<FieldDefault>> {
+    if !meta.input.peek(syn::Token![=]) {
+        return Ok(Some(FieldDefault::Default));
+    }
+
+    let expr = meta.value()?.parse::<Expr>()?;
+    Ok(Some(FieldDefault::Expr(expr)))
+}
+
+fn parse_serde_default_value(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<FieldDefault> {
+    if !meta.input.peek(syn::Token![=]) {
+        return Ok(FieldDefault::Default);
+    }
+
+    let value = meta.value()?.parse::<LitStr>()?;
+    Ok(FieldDefault::CallPath(value.parse()?))
+}
+
 fn consume_optional_serde_meta_value(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<()> {
     if meta.input.peek(syn::Token![=]) {
         let _ = meta.value()?.parse::<Expr>()?;
@@ -712,6 +1270,30 @@ fn consume_optional_serde_meta_value(meta: &syn::meta::ParseNestedMeta<'_>) -> s
         let _ = content.parse::<proc_macro2::TokenStream>()?;
     }
     Ok(())
+}
+
+fn doc_description(attrs: &[Attribute]) -> Option<String> {
+    let mut lines = attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("doc"))
+        .filter_map(|attr| match &attr.meta {
+            syn::Meta::NameValue(meta) => match &meta.value {
+                Expr::Lit(expr) => match &expr.lit {
+                    syn::Lit::Str(value) => Some(value.value().trim().to_string()),
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let first = lines.iter().position(|line| !line.is_empty())?;
+    let last = lines.iter().rposition(|line| !line.is_empty())?;
+    lines.drain(..first);
+    lines.truncate(last - first + 1);
+
+    Some(lines.join("\n"))
 }
 
 fn parse_rename_rule_value(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<RenameRule> {
@@ -768,40 +1350,90 @@ fn parse_bool_flag_or_value(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Resul
 }
 
 fn is_option_type(ty: &Type) -> bool {
+    option_type_argument(ty).is_some()
+}
+
+fn option_type_argument(ty: &Type) -> Option<&Type> {
     let Type::Path(path) = ty else {
-        return false;
+        return None;
     };
     if path.qself.is_some() {
-        return false;
+        return None;
     }
-    path.path
-        .segments
-        .last()
-        .is_some_and(|segment| segment.ident == "Option" && has_one_type_argument(segment))
+    let segment = path.path.segments.last()?;
+    if segment.ident != "Option" {
+        return None;
+    }
+    single_type_argument(&segment.arguments)
 }
 
-fn has_one_type_argument(segment: &syn::PathSegment) -> bool {
-    matches!(
-        &segment.arguments,
-        PathArguments::AngleBracketed(arguments)
-            if arguments.args.len() == 1
-                && matches!(arguments.args.first(), Some(GenericArgument::Type(_)))
-    )
-}
-
-fn resolve_crate_path(package: &str, fallback: &str) -> Path {
-    let path = match crate_name(package) {
-        Ok(FoundCrate::Itself) => "crate".to_string(),
-        Ok(FoundCrate::Name(name)) => format!("::{name}"),
-        Err(_) => fallback.to_string(),
+fn single_type_argument(arguments: &PathArguments) -> Option<&Type> {
+    let PathArguments::AngleBracketed(arguments) = arguments else {
+        return None;
     };
-    syn::parse_str(&path).unwrap_or_else(|_| {
-        let fallback_ident = Ident::new(
-            fallback.trim_start_matches("::"),
-            proc_macro2::Span::call_site(),
-        );
-        syn::parse_quote!(::#fallback_ident)
+    let mut arguments = arguments.args.iter();
+    let GenericArgument::Type(ty) = arguments.next()? else {
+        return None;
+    };
+    if arguments.next().is_some() {
+        return None;
+    }
+    Some(ty)
+}
+
+fn claim_wire_name(
+    names: &mut BTreeMap<String, proc_macro2::Span>,
+    name: &str,
+    span: proc_macro2::Span,
+    label: &'static str,
+) -> syn::Result<()> {
+    if let Some(first_span) = names.get(name).copied() {
+        let mut error = syn::Error::new(span, format!("duplicate {label} name `{name}`"));
+        error.combine(syn::Error::new(first_span, "first declared here"));
+        return Err(error);
+    }
+
+    names.insert(name.to_string(), span);
+    Ok(())
+}
+
+fn resolve_default_mcp_crate_path() -> syn::Result<Path> {
+    if let Some(path) = resolve_package_path("component-shape-mcp", "crate", None) {
+        return Ok(path);
+    }
+
+    let facade_paths = [
+        ("gpui-form", "crate::mcp", "mcp"),
+        ("gpui-table", "crate::mcp", "mcp"),
+    ]
+    .into_iter()
+    .filter_map(|(package, itself_path, module)| {
+        resolve_package_path(package, itself_path, Some(module)).map(|path| (package, path))
     })
+    .collect::<Vec<_>>();
+
+    match facade_paths.as_slice() {
+        [(_, path)] => Ok(path.clone()),
+        [] => Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "MCP derive could not find `component-shape-mcp`, `gpui-form`, or `gpui-table` in this crate's manifest; add one of those dependencies or set `#[mcp(crate = path::to::mcp)]`",
+        )),
+        _ => Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "MCP derive found multiple MCP facade crates; add `#[mcp(crate = path::to::mcp)]` to choose one",
+        )),
+    }
+}
+
+fn resolve_package_path(package: &str, itself_path: &str, module: Option<&str>) -> Option<Path> {
+    let path = match crate_name(package).ok()? {
+        FoundCrate::Itself => itself_path.to_string(),
+        FoundCrate::Name(name) => match module {
+            Some(module) => format!("::{name}::{module}"),
+            None => format!("::{name}"),
+        },
+    };
+    syn::parse_str(&path).ok()
 }
 
 #[cfg(test)]
@@ -828,8 +1460,31 @@ mod tests {
 
         assert!(expanded.contains("\"q\""));
         assert!(expanded.contains("Search text"));
+        assert!(expanded.contains("x-mcpDecodeName"));
         assert!(expanded.contains("page"));
         assert!(!expanded.contains("internal"));
+    }
+
+    #[test]
+    fn derive_schema_infers_doc_descriptions() {
+        let input: DeriveInput = syn::parse_quote! {
+            /// Search arguments sent to the tool.
+            ///
+            /// Blank doc lines are preserved between paragraphs.
+            struct SearchArgs {
+                /// Full text query.
+                query: String,
+            }
+        };
+
+        let expanded = expand_mcp_json_schema(input)
+            .expect("schema derive should expand")
+            .to_token_stream()
+            .to_string();
+
+        assert!(expanded.contains("Search arguments sent to the tool."));
+        assert!(expanded.contains("Blank doc lines are preserved between paragraphs."));
+        assert!(expanded.contains("Full text query."));
     }
 
     #[test]
@@ -882,7 +1537,7 @@ mod tests {
     }
 
     #[test]
-    fn derive_schema_accepts_crate_path_override() {
+    fn derive_schema_accepts_crate_override() {
         let input: DeriveInput = syn::parse_quote! {
             #[mcp(crate = gpui_form::mcp)]
             struct UserId(u64);
@@ -897,6 +1552,48 @@ mod tests {
     }
 
     #[test]
+    fn derive_schema_rejects_legacy_crate_path_option() {
+        let input: DeriveInput = syn::parse_quote! {
+            #[mcp(crate_path = gpui_form::mcp)]
+            struct UserId(u64);
+        };
+
+        let error = expand_mcp_json_schema(input).unwrap_err().to_string();
+
+        assert!(error.contains("unknown `mcp` container option"));
+    }
+
+    #[test]
+    fn derive_schema_rejects_field_name_alias() {
+        let input: DeriveInput = syn::parse_quote! {
+            struct SearchArgs {
+                #[mcp(name = "q")]
+                query: String,
+            }
+        };
+
+        let error = expand_mcp_json_schema(input).unwrap_err().to_string();
+
+        assert!(error.contains("unknown `mcp` field option"));
+    }
+
+    #[test]
+    fn derive_schema_rejects_duplicate_field_names() {
+        let input: DeriveInput = syn::parse_quote! {
+            #[serde(rename_all = "camelCase")]
+            struct SearchArgs {
+                query_text: String,
+                #[mcp(rename = "queryText")]
+                query: String,
+            }
+        };
+
+        let error = expand_mcp_json_schema(input).unwrap_err().to_string();
+
+        assert!(error.contains("duplicate MCP schema field or alias name `queryText`"));
+    }
+
+    #[test]
     fn derive_schema_supports_fieldless_enums() {
         let input: DeriveInput = syn::parse_quote! {
             #[serde(rename_all = "kebab-case")]
@@ -904,7 +1601,7 @@ mod tests {
                 Open,
                 #[serde(alias = "reviewing")]
                 InReview,
-                #[mcp(rename = "done")]
+                #[mcp(rename = "done", alias = "resolved")]
                 Closed,
                 #[serde(other)]
                 Unknown,
@@ -920,7 +1617,126 @@ mod tests {
         assert!(expanded.contains("in-review"));
         assert!(expanded.contains("reviewing"));
         assert!(expanded.contains("done"));
+        assert!(expanded.contains("resolved"));
+        assert!(expanded.contains("x-mcpEnumDecodeAliases"));
         assert!(!expanded.contains("Unknown"));
+    }
+
+    #[test]
+    fn derive_schema_rejects_duplicate_enum_values() {
+        let input: DeriveInput = syn::parse_quote! {
+            enum IssueState {
+                Open,
+                #[serde(alias = "Open")]
+                InReview,
+            }
+        };
+
+        let error = expand_mcp_json_schema(input).unwrap_err().to_string();
+
+        assert!(error.contains("duplicate MCP enum value name `Open`"));
+    }
+
+    #[test]
+    fn derive_tool_input_generates_schema_and_strict_decoder() {
+        let input: DeriveInput = syn::parse_quote! {
+            #[serde(rename_all = "camelCase")]
+            struct SearchArgs {
+                #[serde(rename(deserialize = "q"), alias = "queryText")]
+                query: String,
+                page_size: Option<u32>,
+                #[serde(default = "default_limit")]
+                limit: usize,
+                #[serde(skip)]
+                internal: String,
+            }
+        };
+
+        let expanded = expand_mcp_tool_input(input)
+            .expect("tool input derive should expand")
+            .to_token_stream()
+            .to_string();
+
+        assert!(expanded.contains("McpToolInput for SearchArgs"));
+        assert!(expanded.contains("McpJsonSchema for SearchArgs"));
+        assert!(expanded.contains("McpToolValue"));
+        assert!(expanded.contains("x-mcpAliases"));
+        assert!(expanded.contains("take_required_tool_value_from :: < String >"));
+        assert!(expanded.contains("take_present_tool_value_from :: < Option < u32 > >"));
+        assert!(expanded.contains("default_limit ()"));
+        assert!(expanded.contains("\"queryText\""));
+    }
+
+    #[test]
+    fn derive_tool_input_treats_mcp_default_value_as_rust_expression() {
+        let input: DeriveInput = syn::parse_quote! {
+            struct SearchArgs {
+                #[mcp(optional, default = false)]
+                include_archived: bool,
+            }
+        };
+
+        let expanded = expand_mcp_tool_input(input)
+            .expect("tool input derive should expand")
+            .to_token_stream()
+            .to_string();
+
+        assert!(expanded.contains("false"));
+    }
+
+    #[test]
+    fn derive_tool_input_rejects_tuple_structs() {
+        let input: DeriveInput = syn::parse_quote! {
+            struct SearchArgs(String);
+        };
+
+        let error = expand_mcp_tool_input(input).unwrap_err().to_string();
+
+        assert!(error.contains("struct with named fields"));
+    }
+
+    #[test]
+    fn derive_tool_input_rejects_optional_non_option_fields_without_defaults() {
+        let input: DeriveInput = syn::parse_quote! {
+            struct SearchArgs {
+                #[mcp(optional)]
+                limit: usize,
+            }
+        };
+
+        let error = expand_mcp_tool_input(input).unwrap_err().to_string();
+
+        assert!(error.contains("optional non-Option field without a default"));
+    }
+
+    #[test]
+    fn derive_tool_input_rejects_duplicate_field_aliases() {
+        let input: DeriveInput = syn::parse_quote! {
+            struct SearchArgs {
+                #[serde(alias = "q")]
+                query: String,
+                #[mcp(rename = "q")]
+                text: String,
+            }
+        };
+
+        let error = expand_mcp_tool_input(input).unwrap_err().to_string();
+
+        assert!(error.contains("duplicate MCP tool input field or alias name `q`"));
+    }
+
+    #[test]
+    fn derive_tool_input_rejects_alias_matching_primary_name() {
+        let input: DeriveInput = syn::parse_quote! {
+            struct SearchArgs {
+                #[serde(alias = "query")]
+                query: String,
+            }
+        };
+
+        let error = expand_mcp_tool_input(input).unwrap_err().to_string();
+
+        assert!(error.contains("duplicate MCP tool input field or alias name `query`"));
     }
 
     #[test]

@@ -99,6 +99,7 @@ fn is_shape_option_start(input: ParseStream<'_>) -> bool {
         || input.peek(kw::values)
         || input.peek(kw::value_binding)
         || input.peek(kw::field_suffix)
+        || input.peek(kw::mcp_input)
 }
 
 fn parse_option_separator(input: ParseStream<'_>) -> Result<()> {
@@ -542,6 +543,27 @@ mod tests {
     }
 
     #[test]
+    fn function_macro_infers_object_mcp_input_from_string_keyed_map_metadata() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct PreferencesShape {
+                state = crate::PreferencesState;
+                value = std::collections::HashMap<String, gpui_form::mcp::McpAny>;
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("ComponentShapeMetadataforPreferencesShape"));
+        assert!(expanded.contains("McpInput::object"));
+        assert!(
+            expanded.contains(
+                "ComponentShapeFor<std::collections::HashMap<String,gpui_form::mcp::McpAny>>forPreferencesShape"
+            )
+        );
+    }
+
+    #[test]
     fn function_macro_infers_value_specific_mcp_input_for_ambiguous_values() {
         let input: ComponentShapeInput = syn::parse2(quote! {
             pub struct MultiValueShape {
@@ -558,5 +580,55 @@ mod tests {
         assert!(expanded.contains("ComponentShapeFor<u32>forMultiValueShape"));
         assert!(expanded.contains("McpInput::integer"));
         assert!(!expanded.contains("ComponentShapeMetadataforMultiValueShape{constMCP_INPUT"));
+    }
+
+    #[test]
+    fn function_macro_accepts_explicit_mcp_input_for_generic_values() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct JsonEditorShape<T> {
+                state = crate::EditorState;
+                value = T;
+                mcp_input = object;
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("ComponentShapeMetadataforJsonEditorShape<T>{constMCP_INPUT"));
+        assert!(expanded.contains("ComponentShapeFor<T>forJsonEditorShape<T>"));
+        assert!(expanded.contains("McpInput::object"));
+    }
+
+    #[test]
+    fn function_macro_accepts_mcp_input_constructor_call_shorthand() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct JsonEditorShape<T> {
+                state = crate::EditorState;
+                value = T;
+                mcp_input = object();
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("McpInput::object"));
+    }
+
+    #[test]
+    fn function_macro_rejects_unknown_mcp_input_shorthand() {
+        let error = match syn::parse2::<ComponentShapeInput>(quote! {
+            pub struct JsonEditorShape {
+                state = crate::EditorState;
+                value = String;
+                mcp_input = strings;
+            }
+        }) {
+            Ok(_) => panic!("unknown MCP input shorthand should be rejected"),
+            Err(error) => error.to_string(),
+        };
+
+        assert!(error.contains("unknown `mcp_input` shorthand `strings`"));
     }
 }

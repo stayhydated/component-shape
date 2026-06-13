@@ -16,7 +16,7 @@ pub use component_suffix::{
 };
 pub use field_component::ComponentShapeUse;
 pub use mcp::{
-    McpInput, McpInputShape, McpPrimitiveKind, McpToolMetadataError,
+    McpInput, McpInputShape, McpPrimitiveKind, McpRangeBoundKind, McpToolMetadataError,
     validate_mcp_tool_metadata_text, validate_mcp_tool_name,
 };
 pub use metadata::{

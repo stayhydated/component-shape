@@ -11,6 +11,34 @@ pub enum McpPrimitiveKind {
     DateTime,
 }
 
+/// Primitive kinds that can be used as `{ "min": ..., "max": ... }` MCP range bounds.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum McpRangeBoundKind {
+    Integer,
+    Number,
+    Decimal,
+    Date,
+    DateTime,
+}
+
+impl McpRangeBoundKind {
+    pub const fn primitive_kind(self) -> McpPrimitiveKind {
+        match self {
+            Self::Integer => McpPrimitiveKind::Integer,
+            Self::Number => McpPrimitiveKind::Number,
+            Self::Decimal => McpPrimitiveKind::Decimal,
+            Self::Date => McpPrimitiveKind::Date,
+            Self::DateTime => McpPrimitiveKind::DateTime,
+        }
+    }
+}
+
+impl From<McpRangeBoundKind> for McpPrimitiveKind {
+    fn from(kind: McpRangeBoundKind) -> Self {
+        kind.primitive_kind()
+    }
+}
+
 /// Framework-neutral shape of structured MCP input accepted by a component.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum McpInputShape {
@@ -18,7 +46,7 @@ pub enum McpInputShape {
     Scalar(McpPrimitiveKind),
     List(McpPrimitiveKind),
     Set(McpPrimitiveKind),
-    Range(McpPrimitiveKind),
+    Range(McpRangeBoundKind),
     Object,
 }
 
@@ -231,31 +259,31 @@ impl McpInput {
 
     /// Accept a decimal `{ "min": ..., "max": ... }` range object.
     pub const fn decimal_range() -> Self {
-        Self::range(McpPrimitiveKind::Decimal)
+        Self::range(McpRangeBoundKind::Decimal)
     }
 
     /// Accept an integer `{ "min": ..., "max": ... }` range object.
     pub const fn integer_range() -> Self {
-        Self::range(McpPrimitiveKind::Integer)
+        Self::range(McpRangeBoundKind::Integer)
     }
 
     /// Accept a number `{ "min": ..., "max": ... }` range object.
     pub const fn number_range() -> Self {
-        Self::range(McpPrimitiveKind::Number)
+        Self::range(McpRangeBoundKind::Number)
     }
 
     /// Accept a date `{ "min": ..., "max": ... }` range object.
     pub const fn date_range() -> Self {
-        Self::range(McpPrimitiveKind::Date)
+        Self::range(McpRangeBoundKind::Date)
     }
 
     /// Accept a date-time `{ "min": ..., "max": ... }` range object.
     pub const fn date_time_range() -> Self {
-        Self::range(McpPrimitiveKind::DateTime)
+        Self::range(McpRangeBoundKind::DateTime)
     }
 
     /// Accept a `{ "min": ..., "max": ... }` range object of the given kind.
-    pub const fn range(bound: McpPrimitiveKind) -> Self {
+    pub const fn range(bound: McpRangeBoundKind) -> Self {
         Self {
             input_shape: McpInputShape::Range(bound),
         }
@@ -288,8 +316,8 @@ impl Default for McpInput {
 #[cfg(test)]
 mod tests {
     use super::{
-        McpInput, McpInputShape, McpPrimitiveKind, validate_mcp_tool_metadata_text,
-        validate_mcp_tool_name,
+        McpInput, McpInputShape, McpPrimitiveKind, McpRangeBoundKind,
+        validate_mcp_tool_metadata_text, validate_mcp_tool_name,
     };
 
     #[test]
@@ -302,12 +330,12 @@ mod tests {
 
     #[test]
     fn mcp_input_records_shape() {
-        let input = McpInput::range(McpPrimitiveKind::Date);
+        let input = McpInput::range(McpRangeBoundKind::Date);
 
         assert!(input.supported());
         assert_eq!(
             input.input_shape(),
-            McpInputShape::Range(McpPrimitiveKind::Date)
+            McpInputShape::Range(McpRangeBoundKind::Date)
         );
     }
 
@@ -327,19 +355,19 @@ mod tests {
         );
         assert_eq!(
             McpInput::date_range().input_shape(),
-            McpInputShape::Range(McpPrimitiveKind::Date)
+            McpInputShape::Range(McpRangeBoundKind::Date)
         );
         assert_eq!(
             McpInput::decimal_range().input_shape(),
-            McpInputShape::Range(McpPrimitiveKind::Decimal)
+            McpInputShape::Range(McpRangeBoundKind::Decimal)
         );
         assert_eq!(
             McpInput::integer_range().input_shape(),
-            McpInputShape::Range(McpPrimitiveKind::Integer)
+            McpInputShape::Range(McpRangeBoundKind::Integer)
         );
         assert_eq!(
             McpInput::date_time_range().input_shape(),
-            McpInputShape::Range(McpPrimitiveKind::DateTime)
+            McpInputShape::Range(McpRangeBoundKind::DateTime)
         );
         assert_eq!(
             McpInput::decimal_list().input_shape(),

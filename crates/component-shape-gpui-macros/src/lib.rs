@@ -15,10 +15,13 @@ use proc_macro_error2::proc_macro_error;
 /// `State: GpuiComponentStateValueBinding<T>`.
 ///
 /// Common MCP input metadata is inferred from declared value metadata when the
-/// shape has unambiguous string, boolean, numeric, date, date-time, array, or
-/// range value shapes. Each generated `ComponentShapeFor<Value>` impl carries
-/// the value-specific metadata; the shape-level metadata is emitted only when
-/// all declared values agree.
+/// shape has unambiguous string, boolean, numeric, date, date-time, array, set,
+/// range, object-map, or unconstrained JSON value shapes. Each generated
+/// `ComponentShapeFor<Value>` impl carries the value-specific metadata; the
+/// shape-level metadata is emitted only when all declared values agree. Use
+/// `mcp_input = string`, `mcp_input = object`, or another `McpInput` expression
+/// when a generic or custom shape knows its model-facing MCP input better than
+/// the value type can be inferred.
 #[proc_macro_derive(GpuiComponentShape, attributes(gpui_component_shape))]
 #[proc_macro_error]
 pub fn derive_gpui_component_shape(input: TokenStream) -> TokenStream {
@@ -34,10 +37,13 @@ pub fn derive_gpui_component_shape(input: TokenStream) -> TokenStream {
 /// and enables value-binding metadata.
 ///
 /// Common MCP input metadata is inferred from declared value metadata when the
-/// shape has unambiguous string, boolean, numeric, date, date-time, array, or
-/// range value shapes. Each generated `ComponentShapeFor<Value>` impl carries
-/// the value-specific metadata; the shape-level metadata is emitted only when
-/// all declared values agree.
+/// shape has unambiguous string, boolean, numeric, date, date-time, array, set,
+/// range, object-map, or unconstrained JSON value shapes. Each generated
+/// `ComponentShapeFor<Value>` impl carries the value-specific metadata; the
+/// shape-level metadata is emitted only when all declared values agree. Use
+/// `mcp_input = string`, `mcp_input = object`, or another `McpInput` expression
+/// when a generic or custom shape knows its model-facing MCP input better than
+/// the value type can be inferred.
 #[proc_macro]
 #[proc_macro_error]
 pub fn component_shape(input: TokenStream) -> TokenStream {

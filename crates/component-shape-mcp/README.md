@@ -21,22 +21,29 @@ use component_shape::McpInput;
 let schema = component_shape_mcp::schema_for_input(McpInput::date_time_range());
 ```
 
-Use `McpJsonSchema` when a Rust type should publish a more precise schema than
-the coarse `McpInput::object()` marker. Built-in implementations cover common
-primitive, `Option<T>`, `Vec<T>`, slices, arrays, sets, string-keyed maps,
-references, `Cow<T>`, and boxed values, so type aliases inherit the underlying
-schema. `McpRange<T>` covers typed `{ "min": ..., "max": ... }` range
-arguments. App-owned named structs, tuple or named transparent newtypes, and
-fieldless enums can derive it. The derive follows serde deserialize names, includes
-deserialize aliases for enum variants, skips deserialization-skipped fields,
-rejects flattened fields that cannot be inferred safely, and treats
-serde-defaulted fields as not required:
+Use `McpJsonSchema` when a Rust type should publish a more precise typed schema
+than the coarse `McpInput::object()` marker. Built-in implementations cover
+common primitive, `Option<T>`, `Vec<T>`, slices, arrays, fixed tuples with 1 to
+4 elements, sets, string-keyed maps, references, `Cow<T>`, and boxed values, so
+type aliases inherit the underlying schema. `McpRange<T>` covers typed
+`{ "min": ..., "max": ... }` range arguments. `McpAny` is the explicit typed
+wrapper for fields that intentionally accept unconstrained JSON. App-owned named
+structs, tuple or named transparent newtypes, and fieldless enums can derive it. The derive
+follows serde deserialize names, records field aliases in `x-mcpAliases`,
+includes serde or `#[mcp(alias = "...")]` aliases for enum variants, skips
+deserialization-skipped fields, rejects flattened fields that cannot be inferred
+safely, rejects duplicate inferred field or enum value names, treats
+serde-defaulted fields as not required, and uses Rust doc comments as JSON
+Schema descriptions when `#[mcp(description = "...")]` is not set. When a value
+is decoded through the default `McpToolValue` implementation, MCP field and enum
+renames or aliases are normalized before serde deserialization:
 
 ```rust
+/// Search arguments sent to the tool.
 #[derive(component_shape_mcp::McpJsonSchema)]
-#[mcp(crate = component_shape_mcp)]
 struct SearchArgs {
-    #[mcp(rename = "q", description = "Search text")]
+    /// Search text.
+    #[mcp(rename = "q")]
     query: String,
     page: Option<u32>,
 }
@@ -50,19 +57,75 @@ enum IssueState {
 }
 ```
 
+Use `McpToolValue` when a single field or filter value needs both schema and
+strict decoding. It is implemented automatically for any
+`T: McpJsonSchema + serde::de::DeserializeOwned`, and generated integrations
+such as `gpui-form` submit fields and `gpui-table` filter shapes use that
+contract for value-level MCP arguments. The default decoder checks JSON null
+against the value schema before falling back to serde, so nullable schemas such
+as `Option<T>` accept null while non-nullable schemas reject it consistently.
+
+Use `McpToolInput` for top-level tool argument structs. It derives the schema
+and strict typed decoding for the tool input together, follows the same `serde`
+names and aliases, rejects unknown fields, and reports duplicate primary/alias
+field names. It also implements `McpJsonSchema`, so the same struct can be
+reused as a nested schema value without a second derive. Fields are
+schema-and-decode checked through `McpToolValue`. `tool_definition_for_input`
+returns an `McpTypedTool<T>`, so typed server registration keeps the handler
+input and published schema paired by type:
+
+```rust
+#[derive(component_shape_mcp::McpToolInput)]
+#[serde(rename_all = "camelCase")]
+struct SearchArgs {
+    #[serde(rename(deserialize = "q"), alias = "queryText")]
+    query: String,
+    page_size: Option<u32>,
+}
+
+let tool = component_shape_mcp::tool_definition_for_input::<SearchArgs>(
+    "search",
+    Some("Search".to_string()),
+    None,
+    None,
+)?;
+
+server.add_typed_tool::<SearchArgs, _>(tool, |args| {
+    component_shape_mcp::tool_structured_result(
+        component_shape_mcp::serde_json::json!({ "query": args.query }),
+    )
+})?;
+```
+
+Generated integrations that already have `McpToolMetadata` can keep name,
+title, and description together with
+`tool_definition_for_input_with_metadata::<SearchArgs>(...)`.
+
+GPUI shape macros infer coarse `McpInput` metadata for common primitive values,
+arrays, sets, ranges, `McpAny` unconstrained JSON values, and string-keyed map
+object values. Use explicit `mcp_input = ...` only when a custom value type
+cannot be inferred from its Rust type.
+
+When the derive is re-exported through `gpui_form::mcp` or `gpui_table::mcp`,
+the macro infers that facade path when it is unambiguous. Use
+`#[mcp(crate = path::to::mcp)]` only for renamed crates or manifests that expose
+multiple MCP facades.
+
 `McpInput::unsupported()` maps to an impossible schema. Use
-`McpInput::any()` when a tool should accept unconstrained JSON. Tool
+`McpInput::any()` for coarse metadata and `McpAny` for typed tool fields when a
+tool should accept unconstrained JSON. Tool
 definitions reject non-object input or output schemas during registration
-instead of silently publishing an empty schema. Use
-`schema_object(label, value)?` when custom integration code needs the same
+instead of silently publishing an empty schema. Build custom schemas with
+`McpSchema::new(serde_json::json!(...))`, then use
+`schema_object(label, schema)?` when custom integration code needs the same
 strict object validation before constructing an `rmcp` tool definition.
 `McpInput::*_list()` maps to an ordered JSON array; `McpInput::*_set()` maps
 to an array with `uniqueItems: true`.
 
-This crate does not decode application values or authorize tool calls. Domain
-integrations such as form submit or table query crates own those policies.
-Those integrations can register into the same `McpServer`, so an
-application can serve form submit tools, table query tools, and custom tools
+This crate provides schema-paired value decoding, but domain integrations such
+as form submit or table query crates still own validation, authorization, and
+handler policy. Those integrations can register into the same `McpServer`, so
+an application can serve form submit tools, table query tools, and custom tools
 from one MCP server. Use `McpServer::builder(name, version)` to chain generated
 registrars from integration crates with `.register(...)`, or add custom tools
 with `.tool(...)` and `.tool_async(...)`. If you already have a mutable server,
@@ -71,10 +134,12 @@ call `server.add_tool(...)` or `server.add_tool_async(...)` directly. Call
 registration is complete. Registration returns an error for duplicate tool
 names so composed server construction can fail explicitly.
 
-Custom tool executors receive a typed `McpToolCall`, not raw JSON. The shared
-server has already normalized missing arguments to an empty object and rejected
-non-object arguments before dispatch. Use `call.into_arguments()` to get an
-`McpArguments` decoder, consume expected fields with helpers such as
-`take_required`, `take_present`, `take_nullable`, or `take_optional_usize`, and
-finish with `arguments.finish()?` to reject unknown fields. Use
-`into_inner()` only when an integration intentionally needs raw JSON ownership.
+Custom untyped tool executors receive a typed `McpToolCall`, not raw JSON. The
+shared server has already normalized missing arguments to an empty object and
+rejected non-object arguments before dispatch. Use `call.into_arguments()` to
+get an `McpArguments` decoder, consume expected fields with
+`take_required_tool_value::<T>` or `take_present_tool_value::<T>`, and finish
+with `arguments.finish()?` to reject unknown fields. These helpers require
+`T: McpToolValue`, so custom decoders stay paired with the schema published for
+that value. Use `take_raw` or `into_inner()` only when an integration
+intentionally needs raw JSON ownership.
