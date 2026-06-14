@@ -10,12 +10,13 @@ needs MCP tool definitions, a dynamic `rmcp` tool server, structured tool
 results, sync or async tool executors, a blocking stdio server entry point, or
 JSON Schema from `McpInput` metadata. Generated integration crates can use
 `McpToolMetadata` to carry optional application-owned tool names, titles,
-descriptions, and MCP `ToolAnnotations` hints such as read-only, destructive,
-idempotent, and open-world behavior beside their domain descriptors, and can
-call `validate_tool_name`, `validate_tool_metadata_text`, or
+descriptions, icons, task-support execution metadata, and MCP
+`ToolAnnotations` hints such as read-only, destructive, idempotent, and
+open-world behavior beside their domain descriptors, and can call
+`validate_tool_name`, `validate_tool_metadata_text`, or
 `McpToolMetadata::validate()` to share the same validation as final tool
 construction. Metadata validation rejects tools marked as both read-only and
-destructive.
+destructive and rejects empty icon fields.
 `McpServer::add_tool` and `add_tool_async` also validate raw custom
 `ToolDefinition`s, so manual registrations cannot bypass shared name,
 metadata, or annotation rules.
@@ -106,7 +107,8 @@ server.add_typed_tool::<SearchArgs, _>(tool, |args| {
 ```
 
 Generated integrations that already have `McpToolMetadata` can keep name,
-title, description, and `ToolAnnotations` hints together with
+title, description, icons, task-support execution metadata, and
+`ToolAnnotations` hints together with
 `tool_definition_for_input_with_metadata::<SearchArgs>(...)`. Use
 `tool_definition_with_annotations` or
 `tool_definition_for_input_with_annotations::<SearchArgs>(...)` when a custom
@@ -152,11 +154,18 @@ handler policy. Those integrations can register into the same `McpServer`, so
 an application can serve form submit tools, table query tools, and custom tools
 from one MCP server. Use `McpServer::builder(name, version)` to chain generated
 registrars from integration crates with `.register(...)`, or add custom tools
-with `.tool(...)` and `.tool_async(...)`. If you already have a mutable server,
+with `.tool(...)` and `.tool_async(...)`. The shared server also supports MCP
+resources, resource templates, and prompts with `.resource(...)`,
+`.resource_async(...)`, `.resource_template(...)`, `.prompt(...)`, and
+`.prompt_async(...)`; mutable servers expose matching `add_*`, `list_*`, and
+`contains_*` helpers. Use `resource_definition`, `resource_template_definition`,
+`json_resource_result`, `prompt_definition`, and `text_prompt_result` for the
+common static JSON/text cases. If you already have a mutable server,
 call `server.add_tool(...)` or `server.add_tool_async(...)` directly. Call
 `.build()?`, `.serve_stdio().await`, or `.serve_stdio_blocking()` when
 registration is complete. Registration returns an error for duplicate tool
-names so composed server construction can fail explicitly.
+names, resource URIs, or prompt names so composed server construction can fail
+explicitly.
 
 Tool failures produced by the shared server helpers keep a text content message
 and also set `structured_content.error`. Typed `McpToolError` failures include

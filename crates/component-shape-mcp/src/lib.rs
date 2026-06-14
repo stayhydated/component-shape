@@ -26,8 +26,12 @@ pub use component_shape_mcp_macros::{McpJsonSchema, McpToolInput};
 use rmcp::{
     ErrorData, RoleServer, ServerHandler, ServiceExt as _,
     model::{
-        CallToolRequestParams, Implementation, JsonObject, ListToolsResult, PaginatedRequestParams,
-        ProtocolVersion, ServerCapabilities, ServerInfo, Tool,
+        AnnotateAble, CallToolRequestParams, GetPromptRequestParams, GetPromptResult,
+        Implementation, JsonObject, ListPromptsResult, ListResourceTemplatesResult,
+        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt, PromptMessage,
+        PromptMessageRole, ProtocolVersion, RawResource, RawResourceTemplate,
+        ReadResourceRequestParams, ReadResourceResult, ResourceContents, ResourceTemplate,
+        ServerCapabilities, ServerInfo, Tool,
     },
     service::{MaybeSendFuture, RequestContext},
     transport::stdio,
@@ -37,8 +41,15 @@ use serde_json::{Map, Value, json};
 
 pub use rmcp;
 pub use rmcp::model::{
-    CallToolResult as ToolCallResult, Content as ContentBlock, Tool as ToolDefinition,
-    ToolAnnotations as McpToolAnnotations,
+    CallToolResult as ToolCallResult, Content as ContentBlock, GetPromptResult as McpPromptResult,
+    Icon as McpIcon, IconTheme as McpIconTheme, Prompt as PromptDefinition,
+    PromptArgument as McpPromptArgument, PromptMessage as McpPromptMessage,
+    PromptMessageContent as McpPromptMessageContent, PromptMessageRole as McpPromptMessageRole,
+    RawResource as RawResourceDefinition, RawResourceTemplate as RawResourceTemplateDefinition,
+    ReadResourceResult as McpResourceResult, Resource as ResourceDefinition,
+    ResourceContents as McpResourceContents, ResourceTemplate as ResourceTemplateDefinition,
+    TaskSupport as McpToolTaskSupport, Tool as ToolDefinition,
+    ToolAnnotations as McpToolAnnotations, ToolExecution as McpToolExecution,
 };
 pub use serde;
 pub use serde_json;
@@ -50,6 +61,10 @@ pub type McpToolArguments = Map<String, Value>;
 pub type McpSchemaProperties = BTreeMap<String, McpSchema>;
 pub type McpSchemaFn = fn() -> McpSchema;
 type ToolFuture = Pin<Box<dyn Future<Output = ToolCallResult> + Send + 'static>>;
+type ResourceFuture =
+    Pin<Box<dyn Future<Output = Result<ReadResourceResult, ErrorData>> + Send + 'static>>;
+type PromptFuture =
+    Pin<Box<dyn Future<Output = Result<GetPromptResult, ErrorData>> + Send + 'static>>;
 
 /// Typed MCP tool call payload passed to registered handlers.
 ///
@@ -209,6 +224,86 @@ impl From<McpToolArguments> for McpArguments {
     }
 }
 
+/// Static icon metadata for an MCP tool definition.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct McpToolIcon {
+    src: &'static str,
+    mime_type: Option<&'static str>,
+    sizes: &'static [&'static str],
+    theme: Option<McpIconTheme>,
+}
+
+impl McpToolIcon {
+    /// Create icon metadata from an icon resource URI or data URI.
+    pub const fn new(src: &'static str) -> Self {
+        Self {
+            src,
+            mime_type: None,
+            sizes: &[],
+            theme: None,
+        }
+    }
+
+    /// Override the icon MIME type.
+    pub const fn with_mime_type(mut self, mime_type: &'static str) -> Self {
+        self.mime_type = Some(mime_type);
+        self
+    }
+
+    /// Declare supported icon sizes such as `"48x48"` or `"any"`.
+    pub const fn with_sizes(mut self, sizes: &'static [&'static str]) -> Self {
+        self.sizes = sizes;
+        self
+    }
+
+    /// Declare the icon's intended theme.
+    pub const fn with_theme(mut self, theme: McpIconTheme) -> Self {
+        self.theme = Some(theme);
+        self
+    }
+
+    pub const fn src(self) -> &'static str {
+        self.src
+    }
+
+    pub const fn mime_type(self) -> Option<&'static str> {
+        self.mime_type
+    }
+
+    pub const fn sizes(self) -> &'static [&'static str] {
+        self.sizes
+    }
+
+    pub const fn theme(self) -> Option<McpIconTheme> {
+        self.theme
+    }
+
+    fn into_definition_icon(self) -> McpIcon {
+        let mut icon = McpIcon::new(self.src);
+        if let Some(mime_type) = self.mime_type {
+            icon = icon.with_mime_type(mime_type);
+        }
+        if !self.sizes.is_empty() {
+            icon = icon.with_sizes(self.sizes.iter().map(|size| (*size).to_string()).collect());
+        }
+        if let Some(theme) = self.theme {
+            icon = icon.with_theme(theme);
+        }
+        icon
+    }
+
+    fn validate(self) -> Result<(), McpToolError> {
+        validate_required_metadata_text("icon src", self.src)?;
+        if let Some(mime_type) = self.mime_type {
+            validate_required_metadata_text("icon mime_type", mime_type)?;
+        }
+        for size in self.sizes {
+            validate_required_metadata_text("icon size", size)?;
+        }
+        Ok(())
+    }
+}
+
 /// Optional application-facing metadata for a generated MCP tool.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct McpToolMetadata {
@@ -219,6 +314,8 @@ pub struct McpToolMetadata {
     destructive_hint: Option<bool>,
     idempotent_hint: Option<bool>,
     open_world_hint: Option<bool>,
+    icons: &'static [McpToolIcon],
+    task_support: Option<McpToolTaskSupport>,
 }
 
 impl McpToolMetadata {
@@ -231,6 +328,8 @@ impl McpToolMetadata {
             destructive_hint: None,
             idempotent_hint: None,
             open_world_hint: None,
+            icons: &[],
+            task_support: None,
         }
     }
 
@@ -269,6 +368,16 @@ impl McpToolMetadata {
         self
     }
 
+    pub const fn with_icons(mut self, icons: &'static [McpToolIcon]) -> Self {
+        self.icons = icons;
+        self
+    }
+
+    pub const fn with_task_support(mut self, task_support: McpToolTaskSupport) -> Self {
+        self.task_support = Some(task_support);
+        self
+    }
+
     pub const fn name(self) -> Option<&'static str> {
         self.name
     }
@@ -297,6 +406,14 @@ impl McpToolMetadata {
         self.open_world_hint
     }
 
+    pub const fn icons(self) -> &'static [McpToolIcon] {
+        self.icons
+    }
+
+    pub const fn task_support(self) -> Option<McpToolTaskSupport> {
+        self.task_support
+    }
+
     pub fn tool_annotations(self) -> Option<McpToolAnnotations> {
         if self.read_only_hint.is_none()
             && self.destructive_hint.is_none()
@@ -315,6 +432,20 @@ impl McpToolMetadata {
         ))
     }
 
+    pub fn tool_icons(self) -> Option<Vec<McpIcon>> {
+        (!self.icons.is_empty()).then(|| {
+            self.icons
+                .iter()
+                .map(|icon| icon.into_definition_icon())
+                .collect()
+        })
+    }
+
+    pub fn tool_execution(self) -> Option<McpToolExecution> {
+        self.task_support
+            .map(|task_support| McpToolExecution::from_raw(Some(task_support)))
+    }
+
     pub fn validate(self) -> Result<(), McpToolError> {
         validate_tool_annotation_hints(self.read_only_hint, self.destructive_hint)?;
         if let Some(name) = self.name {
@@ -325,6 +456,9 @@ impl McpToolMetadata {
         }
         if let Some(description) = self.description {
             validate_tool_metadata_text("description", description)?;
+        }
+        for icon in self.icons {
+            icon.validate()?;
         }
         Ok(())
     }
@@ -499,6 +633,10 @@ impl<Input> McpTypedTool<Input> {
 
     pub fn definition(&self) -> &ToolDefinition {
         &self.definition
+    }
+
+    pub fn definition_mut(&mut self) -> &mut ToolDefinition {
+        &mut self.definition
     }
 
     pub fn into_definition(self) -> ToolDefinition {
@@ -920,7 +1058,7 @@ pub enum McpToolError {
     #[error("validation failed: {message}")]
     Validation {
         message: String,
-        details: Vec<String>,
+        details: Vec<Value>,
     },
     #[error("tool `{name}` returned invalid structured content: {message}")]
     InvalidToolOutput { name: String, message: String },
@@ -934,6 +1072,14 @@ pub enum McpToolError {
     DuplicateTool { name: String },
     #[error("unknown tool `{name}`")]
     UnknownTool { name: String },
+    #[error("resource `{uri}` is already registered")]
+    DuplicateResource { uri: String },
+    #[error("unknown resource `{uri}`")]
+    UnknownResource { uri: String },
+    #[error("prompt `{name}` is already registered")]
+    DuplicatePrompt { name: String },
+    #[error("unknown prompt `{name}`")]
+    UnknownPrompt { name: String },
 }
 
 impl McpToolError {
@@ -954,6 +1100,10 @@ impl McpToolError {
             Self::InvalidSchema { .. } => "invalid_schema",
             Self::DuplicateTool { .. } => "duplicate_tool",
             Self::UnknownTool { .. } => "unknown_tool",
+            Self::DuplicateResource { .. } => "duplicate_resource",
+            Self::UnknownResource { .. } => "unknown_resource",
+            Self::DuplicatePrompt { .. } => "duplicate_prompt",
+            Self::UnknownPrompt { .. } => "unknown_prompt",
         }
     }
 
@@ -999,6 +1149,12 @@ impl McpToolError {
             Self::DuplicateTool { name } | Self::UnknownTool { name } => {
                 object.insert("name".to_string(), json!(name));
             },
+            Self::DuplicateResource { uri } | Self::UnknownResource { uri } => {
+                object.insert("uri".to_string(), json!(uri));
+            },
+            Self::DuplicatePrompt { name } | Self::UnknownPrompt { name } => {
+                object.insert("name".to_string(), json!(name));
+            },
         }
 
         Value::Object(object)
@@ -1035,7 +1191,18 @@ impl McpToolError {
         let details = details.into_iter().map(Into::into).collect::<Vec<_>>();
         Self::Validation {
             message: details.join("; "),
-            details,
+            details: details.into_iter().map(Value::String).collect(),
+        }
+    }
+
+    /// Build a validation error with machine-readable structured details.
+    pub fn validation_structured_details(
+        message: impl Into<String>,
+        details: impl IntoIterator<Item = Value>,
+    ) -> Self {
+        Self::Validation {
+            message: message.into(),
+            details: details.into_iter().collect(),
         }
     }
 
@@ -1067,6 +1234,22 @@ impl McpToolError {
 
     pub fn duplicate_tool(name: impl Into<String>) -> Self {
         Self::DuplicateTool { name: name.into() }
+    }
+
+    pub fn duplicate_resource(uri: impl Into<String>) -> Self {
+        Self::DuplicateResource { uri: uri.into() }
+    }
+
+    pub fn unknown_resource(uri: impl Into<String>) -> Self {
+        Self::UnknownResource { uri: uri.into() }
+    }
+
+    pub fn duplicate_prompt(name: impl Into<String>) -> Self {
+        Self::DuplicatePrompt { name: name.into() }
+    }
+
+    pub fn unknown_prompt(name: impl Into<String>) -> Self {
+        Self::UnknownPrompt { name: name.into() }
     }
 }
 
@@ -1475,6 +1658,9 @@ pub struct McpServer {
     server_name: Cow<'static, str>,
     server_version: Cow<'static, str>,
     tools: BTreeMap<String, Arc<dyn ToolExecutor>>,
+    resources: BTreeMap<String, Arc<dyn ResourceReader>>,
+    resource_templates: Vec<ResourceTemplate>,
+    prompts: BTreeMap<String, Arc<dyn PromptExecutor>>,
 }
 
 impl McpServer {
@@ -1487,6 +1673,9 @@ impl McpServer {
             server_name: server_name.into(),
             server_version: server_version.into(),
             tools: BTreeMap::new(),
+            resources: BTreeMap::new(),
+            resource_templates: Vec::new(),
+            prompts: BTreeMap::new(),
         }
     }
 
@@ -1603,6 +1792,139 @@ impl McpServer {
         self.tools.len()
     }
 
+    /// Register a static MCP resource reader.
+    pub fn add_resource<Read>(
+        &mut self,
+        definition: ResourceDefinition,
+        read: Read,
+    ) -> Result<(), McpToolError>
+    where
+        Read: Fn() -> ReadResourceResult + Send + Sync + 'static,
+    {
+        self.add_resource_async(definition, move || {
+            let result = read();
+            std::future::ready(Ok(result))
+        })
+    }
+
+    /// Register an async MCP resource reader.
+    pub fn add_resource_async<Read, Fut>(
+        &mut self,
+        definition: ResourceDefinition,
+        read: Read,
+    ) -> Result<(), McpToolError>
+    where
+        Read: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<ReadResourceResult, ErrorData>> + Send + 'static,
+    {
+        let uri = definition.raw.uri.clone();
+        validate_resource_definition(&definition)?;
+        if self.resources.contains_key(&uri) {
+            return Err(McpToolError::duplicate_resource(uri));
+        }
+
+        self.resources.insert(
+            uri,
+            Arc::new(RegisteredResource {
+                definition,
+                read: Arc::new(move || Box::pin(read())),
+            }),
+        );
+        Ok(())
+    }
+
+    /// Register an MCP resource template advertised by `resources/templates/list`.
+    pub fn add_resource_template(
+        &mut self,
+        definition: ResourceTemplateDefinition,
+    ) -> Result<(), McpToolError> {
+        validate_resource_template(&definition)?;
+        self.resource_templates.push(definition);
+        Ok(())
+    }
+
+    /// Return registered MCP resource definitions.
+    pub fn list_resources(&self) -> Vec<ResourceDefinition> {
+        self.resources
+            .values()
+            .map(|resource| resource.definition())
+            .collect()
+    }
+
+    /// Return registered MCP resource template definitions.
+    pub fn list_resource_templates(&self) -> Vec<ResourceTemplateDefinition> {
+        self.resource_templates.clone()
+    }
+
+    /// Whether a resource URI is already registered.
+    pub fn contains_resource(&self, uri: &str) -> bool {
+        self.resources.contains_key(uri)
+    }
+
+    /// Number of registered concrete resources.
+    pub fn resource_count(&self) -> usize {
+        self.resources.len()
+    }
+
+    /// Register a static MCP prompt.
+    pub fn add_prompt<Get>(
+        &mut self,
+        definition: PromptDefinition,
+        get: Get,
+    ) -> Result<(), McpToolError>
+    where
+        Get: Fn(Option<JsonObject>) -> GetPromptResult + Send + Sync + 'static,
+    {
+        self.add_prompt_async(definition, move |arguments| {
+            let result = get(arguments);
+            std::future::ready(Ok(result))
+        })
+    }
+
+    /// Register an async MCP prompt.
+    pub fn add_prompt_async<Get, Fut>(
+        &mut self,
+        definition: PromptDefinition,
+        get: Get,
+    ) -> Result<(), McpToolError>
+    where
+        Get: Fn(Option<JsonObject>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<GetPromptResult, ErrorData>> + Send + 'static,
+    {
+        let name = definition.name.clone();
+        validate_prompt_definition(&definition)?;
+        if self.prompts.contains_key(&name) {
+            return Err(McpToolError::duplicate_prompt(name));
+        }
+
+        self.prompts.insert(
+            name,
+            Arc::new(RegisteredPrompt {
+                definition,
+                get: Arc::new(move |arguments| Box::pin(get(arguments))),
+            }),
+        );
+        Ok(())
+    }
+
+    /// Return registered MCP prompt definitions.
+    pub fn list_prompts(&self) -> Vec<PromptDefinition> {
+        self.prompts
+            .values()
+            .map(|prompt| prompt.definition())
+            .collect()
+    }
+
+    /// Whether a prompt name is already registered.
+    pub fn contains_prompt(&self, name: &str) -> bool {
+        self.prompts.contains_key(name)
+    }
+
+    /// Number of registered prompts.
+    pub fn prompt_count(&self) -> usize {
+        self.prompts.len()
+    }
+
     pub fn call_tool(&self, name: &str, arguments: Option<Value>) -> ToolCallResult {
         match self.tools.get(name) {
             Some(executor) => {
@@ -1700,6 +2022,45 @@ impl McpServerBuilder {
         self.register(move |server| server.add_typed_tool_async(definition, call))
     }
 
+    /// Add a static MCP resource to the server being built.
+    pub fn resource<Read>(self, definition: ResourceDefinition, read: Read) -> Self
+    where
+        Read: Fn() -> ReadResourceResult + Send + Sync + 'static,
+    {
+        self.register(move |server| server.add_resource(definition, read))
+    }
+
+    /// Add an async MCP resource to the server being built.
+    pub fn resource_async<Read, Fut>(self, definition: ResourceDefinition, read: Read) -> Self
+    where
+        Read: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<ReadResourceResult, ErrorData>> + Send + 'static,
+    {
+        self.register(move |server| server.add_resource_async(definition, read))
+    }
+
+    /// Add an MCP resource template to the server being built.
+    pub fn resource_template(self, definition: ResourceTemplateDefinition) -> Self {
+        self.register(move |server| server.add_resource_template(definition))
+    }
+
+    /// Add a static MCP prompt to the server being built.
+    pub fn prompt<Get>(self, definition: PromptDefinition, get: Get) -> Self
+    where
+        Get: Fn(Option<JsonObject>) -> GetPromptResult + Send + Sync + 'static,
+    {
+        self.register(move |server| server.add_prompt(definition, get))
+    }
+
+    /// Add an async MCP prompt to the server being built.
+    pub fn prompt_async<Get, Fut>(self, definition: PromptDefinition, get: Get) -> Self
+    where
+        Get: Fn(Option<JsonObject>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<GetPromptResult, ErrorData>> + Send + 'static,
+    {
+        self.register(move |server| server.add_prompt_async(definition, get))
+    }
+
     pub fn build(self) -> Result<McpServer, McpToolError> {
         self.server
     }
@@ -1715,7 +2076,12 @@ impl McpServerBuilder {
 
 impl ServerHandler for McpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+        let mut capabilities = ServerCapabilities::builder().enable_tools().build();
+        capabilities.resources = (!self.resources.is_empty()
+            || !self.resource_templates.is_empty())
+        .then(Default::default);
+        capabilities.prompts = (!self.prompts.is_empty()).then(Default::default);
+        ServerInfo::new(capabilities)
             .with_protocol_version(ProtocolVersion::V_2025_11_25)
             .with_server_info(Implementation::new(
                 self.server_name.clone(),
@@ -1764,6 +2130,82 @@ impl ServerHandler for McpServer {
         };
         async move { Ok(call.await) }
     }
+
+    fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<ListResourcesResult, ErrorData>> + MaybeSendFuture + '_ {
+        std::future::ready(Ok(ListResourcesResult {
+            resources: self.list_resources(),
+            next_cursor: None,
+            meta: None,
+        }))
+    }
+
+    fn list_resource_templates(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<ListResourceTemplatesResult, ErrorData>> + MaybeSendFuture + '_
+    {
+        std::future::ready(Ok(ListResourceTemplatesResult {
+            resource_templates: self.list_resource_templates(),
+            next_cursor: None,
+            meta: None,
+        }))
+    }
+
+    fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<ReadResourceResult, ErrorData>> + MaybeSendFuture + '_ {
+        let uri = request.uri;
+        let read = self.resources.get(&uri).map(|resource| resource.read());
+        async move {
+            match read {
+                Some(read) => read.await,
+                None => Err(ErrorData::resource_not_found(
+                    format!("resource `{uri}` not found"),
+                    Some(McpToolError::unknown_resource(uri).to_structured_value()),
+                )),
+            }
+        }
+    }
+
+    fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<ListPromptsResult, ErrorData>> + MaybeSendFuture + '_ {
+        std::future::ready(Ok(ListPromptsResult {
+            prompts: self.list_prompts(),
+            next_cursor: None,
+            meta: None,
+        }))
+    }
+
+    fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<GetPromptResult, ErrorData>> + MaybeSendFuture + '_ {
+        let name = request.name;
+        let get = self
+            .prompts
+            .get(&name)
+            .map(|prompt| prompt.get(request.arguments));
+        async move {
+            match get {
+                Some(get) => get.await,
+                None => Err(ErrorData::invalid_params(
+                    format!("prompt `{name}` not found"),
+                    Some(McpToolError::unknown_prompt(name).to_structured_value()),
+                )),
+            }
+        }
+    }
 }
 
 trait ToolExecutor: Send + Sync {
@@ -1783,6 +2225,46 @@ impl ToolExecutor for RegisteredTool {
 
     fn call(&self, call: McpToolCall) -> ToolFuture {
         (self.call)(call)
+    }
+}
+
+trait ResourceReader: Send + Sync {
+    fn definition(&self) -> ResourceDefinition;
+    fn read(&self) -> ResourceFuture;
+}
+
+struct RegisteredResource {
+    definition: ResourceDefinition,
+    read: Arc<dyn Fn() -> ResourceFuture + Send + Sync>,
+}
+
+impl ResourceReader for RegisteredResource {
+    fn definition(&self) -> ResourceDefinition {
+        self.definition.clone()
+    }
+
+    fn read(&self) -> ResourceFuture {
+        (self.read)()
+    }
+}
+
+trait PromptExecutor: Send + Sync {
+    fn definition(&self) -> PromptDefinition;
+    fn get(&self, arguments: Option<JsonObject>) -> PromptFuture;
+}
+
+struct RegisteredPrompt {
+    definition: PromptDefinition,
+    get: Arc<dyn Fn(Option<JsonObject>) -> PromptFuture + Send + Sync>,
+}
+
+impl PromptExecutor for RegisteredPrompt {
+    fn definition(&self) -> PromptDefinition {
+        self.definition.clone()
+    }
+
+    fn get(&self, arguments: Option<JsonObject>) -> PromptFuture {
+        (self.get)(arguments)
     }
 }
 
@@ -1948,6 +2430,8 @@ pub fn tool_definition_with_metadata(
         output_schema,
     )?;
     tool.annotations = metadata.tool_annotations();
+    tool.icons = metadata.tool_icons();
+    tool.execution = metadata.tool_execution();
     Ok(tool)
 }
 
@@ -1961,6 +2445,83 @@ where
 {
     tool_definition_with_metadata(default_name, metadata, Input::input_schema(), output_schema)
         .map(McpTypedTool::from_definition_unchecked)
+}
+
+/// Build and validate a concrete MCP resource definition.
+pub fn resource_definition(
+    uri: impl Into<String>,
+    name: impl Into<String>,
+    title: Option<String>,
+    description: Option<String>,
+    mime_type: Option<String>,
+) -> Result<ResourceDefinition, McpToolError> {
+    let mut resource = RawResource::new(uri, name);
+    resource.title = title;
+    resource.description = description;
+    resource.mime_type = mime_type;
+    let resource = resource.no_annotation();
+    validate_resource_definition(&resource)?;
+    Ok(resource)
+}
+
+/// Build and validate an MCP resource template definition.
+pub fn resource_template_definition(
+    uri_template: impl Into<String>,
+    name: impl Into<String>,
+    title: Option<String>,
+    description: Option<String>,
+    mime_type: Option<String>,
+) -> Result<ResourceTemplateDefinition, McpToolError> {
+    let mut template = RawResourceTemplate::new(uri_template, name);
+    template.title = title;
+    template.description = description;
+    template.mime_type = mime_type;
+    let template = template.no_annotation();
+    validate_resource_template(&template)?;
+    Ok(template)
+}
+
+/// Build a text resource result with an explicit MIME type.
+pub fn text_resource_result(
+    uri: impl Into<String>,
+    text: impl Into<String>,
+    mime_type: impl Into<String>,
+) -> ReadResourceResult {
+    ReadResourceResult::new(vec![
+        ResourceContents::text(text, uri).with_mime_type(mime_type),
+    ])
+}
+
+/// Encode a JSON value as a pretty-printed `application/json` resource result.
+pub fn json_resource_result(
+    uri: impl Into<String>,
+    value: &Value,
+) -> Result<ReadResourceResult, McpToolError> {
+    let text = serde_json::to_string_pretty(value).map_err(|error| {
+        McpToolError::conversion(format!("failed to encode JSON resource: {error}"))
+    })?;
+    Ok(text_resource_result(uri, text, "application/json"))
+}
+
+/// Build and validate an MCP prompt definition.
+pub fn prompt_definition(
+    name: impl Into<String>,
+    title: Option<String>,
+    description: Option<String>,
+    arguments: Option<Vec<McpPromptArgument>>,
+) -> Result<PromptDefinition, McpToolError> {
+    let mut prompt = Prompt::new(name, description, arguments);
+    prompt.title = title;
+    validate_prompt_definition(&prompt)?;
+    Ok(prompt)
+}
+
+/// Build a prompt result containing one user text message.
+pub fn text_prompt_result(description: Option<String>, text: impl Into<String>) -> GetPromptResult {
+    let mut result =
+        GetPromptResult::new(vec![PromptMessage::new_text(PromptMessageRole::User, text)]);
+    result.description = description;
+    result
 }
 
 pub fn validate_tool_name(name: &str) -> Result<(), McpToolError> {
@@ -1995,6 +2556,88 @@ pub fn validate_tool_definition(definition: &ToolDefinition) -> Result<(), McpTo
     }
     if let Some(annotations) = definition.annotations.as_ref() {
         validate_tool_annotations(annotations)?;
+    }
+    if let Some(icons) = definition.icons.as_ref() {
+        for icon in icons {
+            validate_icon_definition(icon)?;
+        }
+    }
+    Ok(())
+}
+
+/// Validate a concrete MCP resource definition accepted by this shared server.
+pub fn validate_resource_definition(definition: &ResourceDefinition) -> Result<(), McpToolError> {
+    validate_required_metadata_text("resource uri", &definition.uri)?;
+    validate_required_metadata_text("resource name", &definition.name)?;
+    if let Some(title) = definition.title.as_deref() {
+        validate_tool_metadata_text("resource title", title)?;
+    }
+    if let Some(description) = definition.description.as_deref() {
+        validate_tool_metadata_text("resource description", description)?;
+    }
+    if let Some(mime_type) = definition.mime_type.as_deref() {
+        validate_required_metadata_text("resource mime type", mime_type)?;
+    }
+    Ok(())
+}
+
+/// Validate an MCP resource template definition accepted by this shared server.
+pub fn validate_resource_template(
+    definition: &ResourceTemplateDefinition,
+) -> Result<(), McpToolError> {
+    validate_required_metadata_text("resource uri template", &definition.uri_template)?;
+    validate_required_metadata_text("resource template name", &definition.name)?;
+    if let Some(title) = definition.title.as_deref() {
+        validate_tool_metadata_text("resource template title", title)?;
+    }
+    if let Some(description) = definition.description.as_deref() {
+        validate_tool_metadata_text("resource template description", description)?;
+    }
+    if let Some(mime_type) = definition.mime_type.as_deref() {
+        validate_required_metadata_text("resource template mime type", mime_type)?;
+    }
+    Ok(())
+}
+
+/// Validate an MCP prompt definition accepted by this shared server.
+pub fn validate_prompt_definition(definition: &PromptDefinition) -> Result<(), McpToolError> {
+    validate_tool_name(&definition.name)?;
+    if let Some(title) = definition.title.as_deref() {
+        validate_tool_metadata_text("prompt title", title)?;
+    }
+    if let Some(description) = definition.description.as_deref() {
+        validate_tool_metadata_text("prompt description", description)?;
+    }
+    if let Some(arguments) = definition.arguments.as_deref() {
+        for argument in arguments {
+            validate_tool_name(&argument.name)?;
+            if let Some(title) = argument.title.as_deref() {
+                validate_tool_metadata_text("prompt argument title", title)?;
+            }
+            if let Some(description) = argument.description.as_deref() {
+                validate_tool_metadata_text("prompt argument description", description)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_required_metadata_text(label: &str, value: &str) -> Result<(), McpToolError> {
+    if value.trim().is_empty() {
+        return Err(McpToolError::invalid_schema(label, "must not be empty"));
+    }
+    validate_tool_metadata_text(label, value)
+}
+
+fn validate_icon_definition(icon: &McpIcon) -> Result<(), McpToolError> {
+    validate_required_metadata_text("icon src", &icon.src)?;
+    if let Some(mime_type) = icon.mime_type.as_deref() {
+        validate_required_metadata_text("icon mime_type", mime_type)?;
+    }
+    if let Some(sizes) = icon.sizes.as_ref() {
+        for size in sizes {
+            validate_required_metadata_text("icon size", size)?;
+        }
     }
     Ok(())
 }
@@ -2902,6 +3545,12 @@ mod tests {
 
     #[test]
     fn tool_metadata_records_optional_overrides() {
+        static ICONS: &[super::McpToolIcon] =
+            &[super::McpToolIcon::new("https://example.com/tool.png")
+                .with_mime_type("image/png")
+                .with_sizes(&["48x48"])
+                .with_theme(super::McpIconTheme::Light)];
+
         let metadata = super::McpToolMetadata::new()
             .with_name("custom_tool")
             .with_title("Custom tool")
@@ -2909,7 +3558,9 @@ mod tests {
             .with_read_only_hint(true)
             .with_destructive_hint(false)
             .with_idempotent_hint(true)
-            .with_open_world_hint(false);
+            .with_open_world_hint(false)
+            .with_icons(ICONS)
+            .with_task_support(super::McpToolTaskSupport::Optional);
 
         assert_eq!(metadata.name(), Some("custom_tool"));
         assert_eq!(metadata.title(), Some("Custom tool"));
@@ -2918,6 +3569,17 @@ mod tests {
         assert_eq!(metadata.destructive_hint(), Some(false));
         assert_eq!(metadata.idempotent_hint(), Some(true));
         assert_eq!(metadata.open_world_hint(), Some(false));
+        assert_eq!(metadata.icons()[0].src(), "https://example.com/tool.png");
+        assert_eq!(metadata.icons()[0].mime_type(), Some("image/png"));
+        assert_eq!(metadata.icons()[0].sizes(), &["48x48"]);
+        assert_eq!(
+            metadata.icons()[0].theme(),
+            Some(super::McpIconTheme::Light)
+        );
+        assert_eq!(
+            metadata.task_support(),
+            Some(super::McpToolTaskSupport::Optional)
+        );
         let annotations = metadata
             .tool_annotations()
             .expect("metadata should publish tool annotations");
@@ -2930,6 +3592,8 @@ mod tests {
 
     #[test]
     fn tool_metadata_validates_optional_overrides() {
+        static EMPTY_SRC_ICONS: &[super::McpToolIcon] = &[super::McpToolIcon::new("")];
+
         assert!(
             super::McpToolMetadata::new()
                 .with_name("custom_tool")
@@ -2937,6 +3601,12 @@ mod tests {
                 .with_description("Runs a custom tool.")
                 .validate()
                 .is_ok()
+        );
+        assert!(
+            super::McpToolMetadata::new()
+                .with_icons(EMPTY_SRC_ICONS)
+                .validate()
+                .is_err()
         );
         assert!(
             super::McpToolMetadata::new()
@@ -3096,13 +3766,21 @@ mod tests {
             value: String,
         }
 
+        static ICONS: &[super::McpToolIcon] =
+            &[super::McpToolIcon::new("https://example.com/echo.svg")
+                .with_mime_type("image/svg+xml")
+                .with_sizes(&["any"])
+                .with_theme(super::McpIconTheme::Dark)];
+
         let metadata = super::McpToolMetadata::new()
             .with_name("custom_echo")
             .with_title("Custom echo")
             .with_description("Echoes a value.")
             .with_read_only_hint(true)
             .with_destructive_hint(false)
-            .with_open_world_hint(false);
+            .with_open_world_hint(false)
+            .with_icons(ICONS)
+            .with_task_support(super::McpToolTaskSupport::Required);
         let tool =
             super::tool_definition_for_input_with_metadata::<EchoInput>("echo", metadata, None)
                 .expect("tool definition should build");
@@ -3118,6 +3796,23 @@ mod tests {
         assert_eq!(annotations.read_only_hint, Some(true));
         assert_eq!(annotations.destructive_hint, Some(false));
         assert_eq!(annotations.open_world_hint, Some(false));
+        let icons = tool
+            .icons
+            .as_ref()
+            .expect("metadata icons should be applied");
+        assert_eq!(icons[0].src, "https://example.com/echo.svg");
+        assert_eq!(icons[0].mime_type.as_deref(), Some("image/svg+xml"));
+        assert_eq!(
+            icons[0].sizes.as_ref().expect("sizes should be set")[0],
+            "any"
+        );
+        assert_eq!(icons[0].theme, Some(super::McpIconTheme::Dark));
+        assert_eq!(
+            tool.execution
+                .as_ref()
+                .and_then(|execution| execution.task_support),
+            Some(super::McpToolTaskSupport::Required)
+        );
         assert_eq!(tool.input_schema["properties"]["value"]["type"], "string");
     }
 
@@ -3544,6 +4239,164 @@ mod tests {
 
             assert_eq!(result.is_error, Some(false));
             assert_eq!(result.structured_content.expect("structured")["value"], 42);
+
+            client.cancel().await.expect("client should close");
+            server_handle.await.expect("server should finish");
+        });
+    }
+
+    #[test]
+    fn server_exposes_resources_and_prompts_through_rmcp_protocol() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime should start");
+
+        runtime.block_on(async {
+            use rmcp::{
+                ServerHandler as _, ServiceExt as _,
+                model::{GetPromptRequestParams, ReadResourceRequestParams},
+            };
+
+            let descriptor_uri = "gpui-form://forms/contact/descriptor";
+            let descriptor = json!({
+                "tool": "form_contact",
+                "fields": ["name", "email"]
+            });
+            let descriptor_resource = descriptor.clone();
+            let mut server = McpServer::new("test-server", "0.0.0");
+            server
+                .add_resource(
+                    super::resource_definition(
+                        descriptor_uri,
+                        "contact_descriptor",
+                        Some("Contact descriptor".to_string()),
+                        Some("Descriptor for the contact form.".to_string()),
+                        Some("application/json".to_string()),
+                    )
+                    .expect("resource definition should build"),
+                    move || {
+                        super::json_resource_result(descriptor_uri, &descriptor_resource)
+                            .expect("descriptor resource should encode")
+                    },
+                )
+                .expect("resource should register");
+            server
+                .add_resource_template(
+                    super::resource_template_definition(
+                        "gpui-form://forms/{form}/descriptor",
+                        "gpui_form_descriptor",
+                        Some("GPUI form descriptor".to_string()),
+                        Some("Descriptor for a generated GPUI form.".to_string()),
+                        Some("application/json".to_string()),
+                    )
+                    .expect("resource template should build"),
+                )
+                .expect("resource template should register");
+            server
+                .add_prompt(
+                    super::prompt_definition(
+                        "draft_contact",
+                        Some("Draft contact".to_string()),
+                        Some("Draft values for the contact form.".to_string()),
+                        None,
+                    )
+                    .expect("prompt definition should build"),
+                    |_| {
+                        super::text_prompt_result(
+                            Some("Draft values for the contact form.".to_string()),
+                            "Use the contact descriptor resource and return valid form fields.",
+                        )
+                    },
+                )
+                .expect("prompt should register");
+
+            let info = server.get_info();
+            assert!(info.capabilities.resources.is_some());
+            assert!(info.capabilities.prompts.is_some());
+
+            let (server_transport, client_transport) = tokio::io::duplex(4096);
+            let server_handle = tokio::spawn(async move {
+                let service = server
+                    .serve(server_transport)
+                    .await
+                    .expect("server should start");
+                service.waiting().await.expect("server task should join");
+            });
+
+            let client = ().serve(client_transport).await.expect("client should start");
+
+            let resources = client
+                .peer()
+                .list_resources(Default::default())
+                .await
+                .expect("resources/list should succeed");
+            assert_eq!(resources.resources.len(), 1);
+            assert_eq!(resources.resources[0].uri, descriptor_uri);
+            assert_eq!(
+                resources.resources[0].title.as_deref(),
+                Some("Contact descriptor")
+            );
+
+            let templates = client
+                .peer()
+                .list_resource_templates(Default::default())
+                .await
+                .expect("resources/templates/list should succeed");
+            assert_eq!(templates.resource_templates.len(), 1);
+            assert_eq!(
+                templates.resource_templates[0].uri_template,
+                "gpui-form://forms/{form}/descriptor"
+            );
+
+            let resource = client
+                .peer()
+                .read_resource(ReadResourceRequestParams::new(descriptor_uri))
+                .await
+                .expect("resources/read should succeed");
+            assert_eq!(resource.contents.len(), 1);
+            match &resource.contents[0] {
+                super::McpResourceContents::TextResourceContents {
+                    uri,
+                    mime_type,
+                    text,
+                    ..
+                } => {
+                    assert_eq!(uri, descriptor_uri);
+                    assert_eq!(mime_type.as_deref(), Some("application/json"));
+                    let value: Value =
+                        serde_json::from_str(text).expect("resource should contain JSON");
+                    assert_eq!(value, descriptor);
+                },
+                other => panic!("expected text resource contents, got {other:?}"),
+            }
+
+            let prompts = client
+                .peer()
+                .list_prompts(Default::default())
+                .await
+                .expect("prompts/list should succeed");
+            assert_eq!(prompts.prompts.len(), 1);
+            assert_eq!(prompts.prompts[0].name, "draft_contact");
+            assert_eq!(prompts.prompts[0].title.as_deref(), Some("Draft contact"));
+
+            let prompt = client
+                .peer()
+                .get_prompt(GetPromptRequestParams::new("draft_contact"))
+                .await
+                .expect("prompts/get should succeed");
+            assert_eq!(
+                prompt.description.as_deref(),
+                Some("Draft values for the contact form.")
+            );
+            assert_eq!(prompt.messages.len(), 1);
+            assert_eq!(prompt.messages[0].role, super::McpPromptMessageRole::User);
+            match &prompt.messages[0].content {
+                super::McpPromptMessageContent::Text { text } => {
+                    assert!(text.contains("Use the contact descriptor resource"))
+                },
+                other => panic!("expected text prompt message, got {other:?}"),
+            }
 
             client.cancel().await.expect("client should close");
             server_handle.await.expect("server should finish");
