@@ -1420,9 +1420,34 @@ fn resolve_default_mcp_crate_path() -> syn::Result<Path> {
         )),
         _ => Err(syn::Error::new(
             proc_macro2::Span::call_site(),
-            "MCP derive found multiple MCP facade crates; add `#[mcp(crate = path::to::mcp)]` to choose one",
+            multiple_facade_error_message(&facade_paths),
         )),
     }
+}
+
+fn multiple_facade_error_message(facade_paths: &[(&str, Path)]) -> String {
+    let packages = facade_paths
+        .iter()
+        .map(|(package, _)| format!("`{package}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let suggestions = facade_paths
+        .iter()
+        .map(|(_, path)| format!("`#[mcp(crate = {})]`", display_path(path)))
+        .collect::<Vec<_>>()
+        .join(" or ");
+
+    format!(
+        "MCP derive found multiple MCP facade crates: {packages}; add {suggestions} to choose one"
+    )
+}
+
+fn display_path(path: &Path) -> String {
+    path.segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::")
 }
 
 fn resolve_package_path(package: &str, itself_path: &str, module: Option<&str>) -> Option<Path> {
@@ -1549,6 +1574,18 @@ mod tests {
             .to_string();
 
         assert!(expanded.contains("gpui_form :: mcp :: McpJsonSchema"));
+    }
+
+    #[test]
+    fn multiple_facade_error_lists_available_overrides() {
+        let message = multiple_facade_error_message(&[
+            ("gpui-form", parse_quote!(::gpui_form::mcp)),
+            ("gpui-table", parse_quote!(::gpui_table::mcp)),
+        ]);
+
+        assert!(message.contains("`gpui-form`, `gpui-table`"));
+        assert!(message.contains("#[mcp(crate = gpui_form::mcp)]"));
+        assert!(message.contains("#[mcp(crate = gpui_table::mcp)]"));
     }
 
     #[test]

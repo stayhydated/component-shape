@@ -80,6 +80,10 @@ pub struct McpToolMetadataParts<'a> {
     pub name: Option<&'a str>,
     pub title: Option<&'a str>,
     pub description: Option<&'a str>,
+    pub read_only: Option<bool>,
+    pub destructive: Option<bool>,
+    pub idempotent: Option<bool>,
+    pub open_world: Option<bool>,
 }
 
 /// Extract a rustdoc description from contiguous non-empty `///` lines.
@@ -118,6 +122,13 @@ pub fn mcp_tool_metadata_tokens(
     metadata: McpToolMetadataParts<'_>,
     span: Span,
 ) -> syn::Result<TokenStream> {
+    if metadata.read_only == Some(true) && metadata.destructive == Some(true) {
+        return Err(syn::Error::new(
+            span,
+            "MCP tool annotation hints cannot be both read-only and destructive",
+        ));
+    }
+
     if let Some(name) = metadata.name {
         component_shape::validate_mcp_tool_name(name)
             .map_err(|error| syn::Error::new(span, error.to_string()))?;
@@ -151,6 +162,18 @@ pub fn mcp_tool_metadata_tokens(
     if let Some(description) = description {
         let description = LitStr::new(&description, span);
         tokens = quote! { #tokens.with_description(#description) };
+    }
+    if let Some(read_only) = metadata.read_only {
+        tokens = quote! { #tokens.with_read_only_hint(#read_only) };
+    }
+    if let Some(destructive) = metadata.destructive {
+        tokens = quote! { #tokens.with_destructive_hint(#destructive) };
+    }
+    if let Some(idempotent) = metadata.idempotent {
+        tokens = quote! { #tokens.with_idempotent_hint(#idempotent) };
+    }
+    if let Some(open_world) = metadata.open_world {
+        tokens = quote! { #tokens.with_open_world_hint(#open_world) };
     }
 
     Ok(tokens)
@@ -1561,6 +1584,10 @@ mod tests {
                 name: Some("search"),
                 title: Some("Search"),
                 description: Some("Explicit description."),
+                read_only: Some(true),
+                destructive: Some(false),
+                idempotent: Some(true),
+                open_world: Some(false),
             },
             Span::call_site(),
         )
@@ -1571,6 +1598,10 @@ mod tests {
         assert!(compact.contains(".with_name(\"search\")"));
         assert!(compact.contains(".with_title(\"Search\")"));
         assert!(compact.contains(".with_description(\"Explicitdescription.\")"));
+        assert!(compact.contains(".with_read_only_hint(true)"));
+        assert!(compact.contains(".with_destructive_hint(false)"));
+        assert!(compact.contains(".with_idempotent_hint(true)"));
+        assert!(compact.contains(".with_open_world_hint(false)"));
         assert!(!compact.contains("Inferreddescription."));
     }
 
@@ -1584,12 +1615,39 @@ mod tests {
                 name: Some("bad name"),
                 title: None,
                 description: None,
+                read_only: None,
+                destructive: None,
+                idempotent: None,
+                open_world: None,
             },
             Span::call_site(),
         )
         .expect_err("invalid name should fail");
 
         assert!(error.to_string().contains("tool name"));
+
+        let error = mcp_tool_metadata_tokens(
+            &mcp_crate,
+            &[],
+            McpToolMetadataParts {
+                name: None,
+                title: None,
+                description: None,
+                read_only: Some(true),
+                destructive: Some(true),
+                idempotent: None,
+                open_world: None,
+            },
+            Span::call_site(),
+        )
+        .expect_err("conflicting annotation hints should fail");
+
+        assert!(
+            error
+                .to_string()
+                .contains("cannot be both read-only and destructive"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]

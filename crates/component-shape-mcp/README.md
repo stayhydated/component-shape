@@ -9,11 +9,16 @@ Most component authors should start with `component-shape` or
 needs MCP tool definitions, a dynamic `rmcp` tool server, structured tool
 results, sync or async tool executors, a blocking stdio server entry point, or
 JSON Schema from `McpInput` metadata. Generated integration crates can use
-`McpToolMetadata` to carry optional application-owned tool names, titles, and
-descriptions beside their domain descriptors, and can call
-`validate_tool_name`, `validate_tool_metadata_text`, or
+`McpToolMetadata` to carry optional application-owned tool names, titles,
+descriptions, and MCP `ToolAnnotations` hints such as read-only, destructive,
+idempotent, and open-world behavior beside their domain descriptors, and can
+call `validate_tool_name`, `validate_tool_metadata_text`, or
 `McpToolMetadata::validate()` to share the same validation as final tool
-construction.
+construction. Metadata validation rejects tools marked as both read-only and
+destructive.
+`McpServer::add_tool` and `add_tool_async` also validate raw custom
+`ToolDefinition`s, so manual registrations cannot bypass shared name,
+metadata, or annotation rules.
 
 ```rust
 use component_shape::McpInput;
@@ -27,8 +32,11 @@ common primitive, `Option<T>`, `Vec<T>`, slices, arrays, fixed tuples with 1 to
 4 elements, sets, string-keyed maps, references, `Cow<T>`, and boxed values, so
 type aliases inherit the underlying schema. `McpRange<T>` covers typed
 `{ "min": ..., "max": ... }` range arguments. `McpAny` is the explicit typed
-wrapper for fields that intentionally accept unconstrained JSON. App-owned named
-structs, tuple or named transparent newtypes, and fieldless enums can derive it. The derive
+wrapper for fields that intentionally accept unconstrained JSON;
+`serde_json::Value` also publishes the same unconstrained schema for dynamic
+argument fields. Tool output schemas must declare an object root. App-owned
+named structs, tuple or named transparent newtypes, and fieldless enums can
+derive it. The derive
 follows serde deserialize names, records field aliases in `x-mcpAliases`,
 includes serde or `#[mcp(alias = "...")]` aliases for enum variants, skips
 deserialization-skipped fields, rejects flattened fields that cannot be inferred
@@ -98,8 +106,11 @@ server.add_typed_tool::<SearchArgs, _>(tool, |args| {
 ```
 
 Generated integrations that already have `McpToolMetadata` can keep name,
-title, and description together with
-`tool_definition_for_input_with_metadata::<SearchArgs>(...)`.
+title, description, and `ToolAnnotations` hints together with
+`tool_definition_for_input_with_metadata::<SearchArgs>(...)`. Use
+`tool_definition_with_annotations` or
+`tool_definition_for_input_with_annotations::<SearchArgs>(...)` when a custom
+integration computes annotations separately from `McpToolMetadata`.
 
 GPUI shape macros infer coarse `McpInput` metadata for common primitive values,
 arrays, sets, ranges, `McpAny` unconstrained JSON values, and string-keyed map
@@ -110,15 +121,28 @@ When the derive is re-exported through `gpui_form::mcp` or `gpui_table::mcp`,
 the macro infers that facade path when it is unambiguous. Use
 `#[mcp(crate = path::to::mcp)]` only for renamed crates or manifests that expose
 multiple MCP facades.
+For example, a crate that enables both facades should pin custom schema derives
+to the facade that owns the generated integration:
+
+```rs
+#[derive(gpui_form::mcp::McpJsonSchema)]
+#[mcp(crate = gpui_form::mcp)]
+struct AxisName(String);
+```
 
 `McpInput::unsupported()` maps to an impossible schema. Use
 `McpInput::any()` for coarse metadata and `McpAny` for typed tool fields when a
-tool should accept unconstrained JSON. Tool
-definitions reject non-object input or output schemas during registration
-instead of silently publishing an empty schema. Build custom schemas with
-`McpSchema::new(serde_json::json!(...))`, then use
-`schema_object(label, schema)?` when custom integration code needs the same
-strict object validation before constructing an `rmcp` tool definition.
+tool should accept unconstrained JSON. Tool definitions reject input schemas
+that do not declare object arguments with `type: "object"`, and reject output
+schemas that do not declare an object root with `type: "object"`. Build custom
+schemas with
+`McpSchema::new(serde_json::json!(...))`; raw tool definitions registered with
+`McpServer::add_tool` and `add_tool_async` are checked against the same schema
+rules.
+Successful calls for tools that publish `output_schema` must return object
+`structured_content` that matches the declared schema. Handler error results
+are passed through as errors and can still include their own structured
+`error` object.
 `McpInput::*_list()` maps to an ordered JSON array; `McpInput::*_set()` maps
 to an array with `uniqueItems: true`.
 
@@ -133,6 +157,14 @@ call `server.add_tool(...)` or `server.add_tool_async(...)` directly. Call
 `.build()?`, `.serve_stdio().await`, or `.serve_stdio_blocking()` when
 registration is complete. Registration returns an error for duplicate tool
 names so composed server construction can fail explicitly.
+
+Tool failures produced by the shared server helpers keep a text content message
+and also set `structured_content.error`. Typed `McpToolError` failures include
+a stable `kind` plus relevant fields such as `field`, `name`, `label`,
+`value`, or `detail`, so MCP clients can branch on decode, validation,
+registration, unknown-tool, and handler failures without parsing text.
+Validation failures that represent multiple domain errors can additionally
+include a `details` array with each individual validation message.
 
 Custom untyped tool executors receive a typed `McpToolCall`, not raw JSON. The
 shared server has already normalized missing arguments to an empty object and

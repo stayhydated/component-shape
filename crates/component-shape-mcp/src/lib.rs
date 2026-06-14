@@ -38,6 +38,7 @@ use serde_json::{Map, Value, json};
 pub use rmcp;
 pub use rmcp::model::{
     CallToolResult as ToolCallResult, Content as ContentBlock, Tool as ToolDefinition,
+    ToolAnnotations as McpToolAnnotations,
 };
 pub use serde;
 pub use serde_json;
@@ -214,6 +215,10 @@ pub struct McpToolMetadata {
     name: Option<&'static str>,
     title: Option<&'static str>,
     description: Option<&'static str>,
+    read_only_hint: Option<bool>,
+    destructive_hint: Option<bool>,
+    idempotent_hint: Option<bool>,
+    open_world_hint: Option<bool>,
 }
 
 impl McpToolMetadata {
@@ -222,6 +227,10 @@ impl McpToolMetadata {
             name: None,
             title: None,
             description: None,
+            read_only_hint: None,
+            destructive_hint: None,
+            idempotent_hint: None,
+            open_world_hint: None,
         }
     }
 
@@ -240,6 +249,26 @@ impl McpToolMetadata {
         self
     }
 
+    pub const fn with_read_only_hint(mut self, read_only: bool) -> Self {
+        self.read_only_hint = Some(read_only);
+        self
+    }
+
+    pub const fn with_destructive_hint(mut self, destructive: bool) -> Self {
+        self.destructive_hint = Some(destructive);
+        self
+    }
+
+    pub const fn with_idempotent_hint(mut self, idempotent: bool) -> Self {
+        self.idempotent_hint = Some(idempotent);
+        self
+    }
+
+    pub const fn with_open_world_hint(mut self, open_world: bool) -> Self {
+        self.open_world_hint = Some(open_world);
+        self
+    }
+
     pub const fn name(self) -> Option<&'static str> {
         self.name
     }
@@ -252,7 +281,42 @@ impl McpToolMetadata {
         self.description
     }
 
+    pub const fn read_only_hint(self) -> Option<bool> {
+        self.read_only_hint
+    }
+
+    pub const fn destructive_hint(self) -> Option<bool> {
+        self.destructive_hint
+    }
+
+    pub const fn idempotent_hint(self) -> Option<bool> {
+        self.idempotent_hint
+    }
+
+    pub const fn open_world_hint(self) -> Option<bool> {
+        self.open_world_hint
+    }
+
+    pub fn tool_annotations(self) -> Option<McpToolAnnotations> {
+        if self.read_only_hint.is_none()
+            && self.destructive_hint.is_none()
+            && self.idempotent_hint.is_none()
+            && self.open_world_hint.is_none()
+        {
+            return None;
+        }
+
+        Some(McpToolAnnotations::from_raw(
+            self.title.map(str::to_string),
+            self.read_only_hint,
+            self.destructive_hint,
+            self.idempotent_hint,
+            self.open_world_hint,
+        ))
+    }
+
     pub fn validate(self) -> Result<(), McpToolError> {
+        validate_tool_annotation_hints(self.read_only_hint, self.destructive_hint)?;
         if let Some(name) = self.name {
             validate_tool_name(name)?;
         }
@@ -323,13 +387,15 @@ where
     }
 }
 
-/// JSON Schema metadata for typed MCP argument values.
+/// JSON Schema metadata for typed MCP argument and result values.
 ///
 /// Runtime integrations use this trait when a Rust type can describe its
 /// structured JSON shape more precisely than [`McpInput`]'s coarse object
 /// marker. Type aliases inherit the implementation of their target type, and
 /// app-owned newtypes or structs can derive this trait with
-/// `#[derive(component_shape_mcp::McpJsonSchema)]`.
+/// `#[derive(component_shape_mcp::McpJsonSchema)]`. `serde_json::Value`
+/// publishes an unconstrained schema for dynamic argument fields; tool output
+/// schemas must still declare an object root.
 pub trait McpJsonSchema {
     fn json_schema() -> McpSchema;
 }
@@ -378,6 +444,12 @@ impl std::ops::Deref for McpAny {
 }
 
 impl McpJsonSchema for McpAny {
+    fn json_schema() -> McpSchema {
+        McpSchema::new(json!({}))
+    }
+}
+
+impl McpJsonSchema for Value {
     fn json_schema() -> McpSchema {
         McpSchema::new(json!({}))
     }
@@ -846,7 +918,12 @@ pub enum McpToolError {
     #[error("unknown value `{value}` for field `{field}`")]
     InvalidFieldValue { field: String, value: String },
     #[error("validation failed: {message}")]
-    Validation { message: String },
+    Validation {
+        message: String,
+        details: Vec<String>,
+    },
+    #[error("tool `{name}` returned invalid structured content: {message}")]
+    InvalidToolOutput { name: String, message: String },
     #[error("conversion failed: {message}")]
     Conversion { message: String },
     #[error("handler failed: {message}")]
@@ -860,6 +937,73 @@ pub enum McpToolError {
 }
 
 impl McpToolError {
+    /// Stable machine-readable error kind used in MCP structured error content.
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::ArgumentsMustBeObject => "arguments_must_be_object",
+            Self::MissingField { .. } => "missing_field",
+            Self::UnexpectedNull { .. } => "unexpected_null",
+            Self::DuplicateField { .. } => "duplicate_field",
+            Self::DecodeField { .. } => "decode_field",
+            Self::UnknownField { .. } => "unknown_field",
+            Self::InvalidFieldValue { .. } => "invalid_field_value",
+            Self::Validation { .. } => "validation",
+            Self::InvalidToolOutput { .. } => "invalid_tool_output",
+            Self::Conversion { .. } => "conversion",
+            Self::Handler { .. } => "handler",
+            Self::InvalidSchema { .. } => "invalid_schema",
+            Self::DuplicateTool { .. } => "duplicate_tool",
+            Self::UnknownTool { .. } => "unknown_tool",
+        }
+    }
+
+    /// Build the `structured_content.error` object for this typed MCP error.
+    pub fn to_structured_value(&self) -> Value {
+        let mut object = Map::new();
+        object.insert("kind".to_string(), json!(self.kind()));
+        object.insert("message".to_string(), json!(self.to_string()));
+
+        match self {
+            Self::ArgumentsMustBeObject => {},
+            Self::MissingField { field }
+            | Self::UnexpectedNull { field }
+            | Self::DuplicateField { field }
+            | Self::UnknownField { field } => {
+                object.insert("field".to_string(), json!(field));
+            },
+            Self::DecodeField { field, message } => {
+                object.insert("field".to_string(), json!(field));
+                object.insert("detail".to_string(), json!(message));
+            },
+            Self::InvalidFieldValue { field, value } => {
+                object.insert("field".to_string(), json!(field));
+                object.insert("value".to_string(), json!(value));
+            },
+            Self::Validation { message, details } => {
+                object.insert("detail".to_string(), json!(message));
+                if !details.is_empty() {
+                    object.insert("details".to_string(), json!(details));
+                }
+            },
+            Self::InvalidToolOutput { name, message } => {
+                object.insert("name".to_string(), json!(name));
+                object.insert("detail".to_string(), json!(message));
+            },
+            Self::Conversion { message } | Self::Handler { message } => {
+                object.insert("detail".to_string(), json!(message));
+            },
+            Self::InvalidSchema { label, message } => {
+                object.insert("label".to_string(), json!(label));
+                object.insert("detail".to_string(), json!(message));
+            },
+            Self::DuplicateTool { name } | Self::UnknownTool { name } => {
+                object.insert("name".to_string(), json!(name));
+            },
+        }
+
+        Value::Object(object)
+    }
+
     pub fn missing_field(field: impl Into<String>) -> Self {
         Self::MissingField {
             field: field.into(),
@@ -883,11 +1027,27 @@ impl McpToolError {
     pub fn validation(message: impl Into<String>) -> Self {
         Self::Validation {
             message: message.into(),
+            details: Vec::new(),
+        }
+    }
+
+    pub fn validation_details(details: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        let details = details.into_iter().map(Into::into).collect::<Vec<_>>();
+        Self::Validation {
+            message: details.join("; "),
+            details,
         }
     }
 
     pub fn conversion(message: impl Into<String>) -> Self {
         Self::Conversion {
+            message: message.into(),
+        }
+    }
+
+    pub fn invalid_tool_output(name: impl Into<String>, message: impl Into<String>) -> Self {
+        Self::InvalidToolOutput {
+            name: name.into(),
             message: message.into(),
         }
     }
@@ -1347,6 +1507,7 @@ impl McpServer {
         Call: Fn(McpToolCall) -> ToolCallResult + Send + Sync + 'static,
     {
         let name = definition.name.to_string();
+        validate_tool_definition(&definition)?;
         if self.tools.contains_key(&name) {
             return Err(McpToolError::duplicate_tool(name));
         }
@@ -1373,7 +1534,7 @@ impl McpServer {
         self.add_tool(definition.into_definition(), move |tool_call| {
             let input = match Input::from_tool_call(tool_call) {
                 Ok(input) => input,
-                Err(error) => return tool_error_result(error.to_string()),
+                Err(error) => return tool_error_result_for(error),
             };
             call(input)
         })
@@ -1389,6 +1550,7 @@ impl McpServer {
         Fut: Future<Output = ToolCallResult> + Send + 'static,
     {
         let name = definition.name.to_string();
+        validate_tool_definition(&definition)?;
         if self.tools.contains_key(&name) {
             return Err(McpToolError::duplicate_tool(name));
         }
@@ -1418,7 +1580,7 @@ impl McpServer {
             let future = match input {
                 Ok(input) => call(input),
                 Err(error) => {
-                    return Box::pin(std::future::ready(tool_error_result(error.to_string())))
+                    return Box::pin(std::future::ready(tool_error_result_for(error)))
                         as ToolFuture;
                 },
             };
@@ -1446,16 +1608,18 @@ impl McpServer {
             Some(executor) => {
                 let call = match McpToolCall::from_value(arguments) {
                     Ok(call) => call,
-                    Err(error) => return tool_error_result(error.to_string()),
+                    Err(error) => return tool_error_result_for(error),
                 };
-                block_on_tool_future(executor.call(call))
+                let output_schema = executor.definition().output_schema;
+                validate_tool_call_result(
+                    name,
+                    output_schema.as_deref(),
+                    block_on_tool_future(executor.call(call)),
+                )
             },
-            None => tool_error_result(
-                McpToolError::UnknownTool {
-                    name: name.to_string(),
-                }
-                .to_string(),
-            ),
+            None => tool_error_result_for(McpToolError::UnknownTool {
+                name: name.to_string(),
+            }),
         }
     }
 
@@ -1583,14 +1747,18 @@ impl ServerHandler for McpServer {
         let name = request.name.to_string();
         let call = McpToolCall::new(request.arguments.unwrap_or_default());
         let call = match self.tools.get(&name) {
-            Some(executor) => executor.call(call),
+            Some(executor) => {
+                let output_schema = executor.definition().output_schema;
+                let name = name.clone();
+                let call = executor.call(call);
+                Box::pin(async move {
+                    validate_tool_call_result(&name, output_schema.as_deref(), call.await)
+                }) as ToolFuture
+            },
             None => {
-                let result = tool_error_result(
-                    McpToolError::UnknownTool {
-                        name: name.to_string(),
-                    }
-                    .to_string(),
-                );
+                let result = tool_error_result_for(McpToolError::UnknownTool {
+                    name: name.to_string(),
+                });
                 Box::pin(std::future::ready(result))
             },
         };
@@ -1618,6 +1786,47 @@ impl ToolExecutor for RegisteredTool {
     }
 }
 
+fn validate_tool_call_result(
+    tool_name: &str,
+    output_schema: Option<&JsonObject>,
+    result: ToolCallResult,
+) -> ToolCallResult {
+    let Some(output_schema) = output_schema else {
+        return result;
+    };
+    if result.is_error == Some(true) {
+        return result;
+    }
+
+    let Some(structured_content) = result.structured_content.as_ref() else {
+        return tool_error_result_for(McpToolError::invalid_tool_output(
+            tool_name,
+            "tool declares output_schema but returned no structured_content",
+        ));
+    };
+
+    if !structured_content.is_object() {
+        return tool_error_result_for(McpToolError::invalid_tool_output(
+            tool_name,
+            "tool declares output_schema with object root but returned non-object structured_content",
+        ));
+    }
+
+    let output_schema = Value::Object(output_schema.clone());
+    if let Err(error) = validate_value_against_closed_schema(
+        "structured_content",
+        &output_schema,
+        structured_content,
+    ) {
+        return tool_error_result_for(McpToolError::invalid_tool_output(
+            tool_name,
+            error.to_string(),
+        ));
+    }
+
+    result
+}
+
 fn block_on_tool_future(future: ToolFuture) -> ToolCallResult {
     let join = std::thread::spawn(move || {
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -1629,12 +1838,12 @@ fn block_on_tool_future(future: ToolFuture) -> ToolCallResult {
 
     match join {
         Ok(Ok(result)) => result,
-        Ok(Err(error)) => tool_error_result(
-            McpToolError::handler(format!("failed to run async tool handler: {error}")).to_string(),
-        ),
-        Err(_) => tool_error_result(
-            McpToolError::handler("async tool handler runtime panicked").to_string(),
-        ),
+        Ok(Err(error)) => tool_error_result_for(McpToolError::handler(format!(
+            "failed to run async tool handler: {error}"
+        ))),
+        Err(_) => {
+            tool_error_result_for(McpToolError::handler("async tool handler runtime panicked"))
+        },
     }
 }
 
@@ -1658,9 +1867,9 @@ pub fn tool_definition(
     tool.name = Cow::Owned(name);
     tool.title = title;
     tool.description = description.map(Cow::Owned);
-    tool.input_schema = Arc::new(schema_object("input_schema", input_schema)?);
+    tool.input_schema = Arc::new(input_schema_object("input_schema", input_schema)?);
     tool.output_schema = output_schema
-        .map(|schema| schema_object("output_schema", schema))
+        .map(|schema| output_schema_object("output_schema", schema))
         .transpose()?
         .map(Arc::new);
     Ok(tool)
@@ -1685,6 +1894,43 @@ where
     .map(McpTypedTool::from_definition_unchecked)
 }
 
+pub fn tool_definition_with_annotations(
+    name: impl Into<String>,
+    title: Option<String>,
+    description: Option<String>,
+    input_schema: McpSchema,
+    output_schema: Option<McpSchema>,
+    annotations: Option<McpToolAnnotations>,
+) -> Result<ToolDefinition, McpToolError> {
+    if let Some(annotations) = annotations.as_ref() {
+        validate_tool_annotations(annotations)?;
+    }
+    let mut tool = tool_definition(name, title, description, input_schema, output_schema)?;
+    tool.annotations = annotations;
+    Ok(tool)
+}
+
+pub fn tool_definition_for_input_with_annotations<Input>(
+    name: impl Into<String>,
+    title: Option<String>,
+    description: Option<String>,
+    output_schema: Option<McpSchema>,
+    annotations: Option<McpToolAnnotations>,
+) -> Result<McpTypedTool<Input>, McpToolError>
+where
+    Input: McpToolInput,
+{
+    tool_definition_with_annotations(
+        name,
+        title,
+        description,
+        Input::input_schema(),
+        output_schema,
+        annotations,
+    )
+    .map(McpTypedTool::from_definition_unchecked)
+}
+
 pub fn tool_definition_with_metadata(
     default_name: impl Into<String>,
     metadata: McpToolMetadata,
@@ -1694,13 +1940,15 @@ pub fn tool_definition_with_metadata(
     metadata.validate()?;
     let default_name = default_name.into();
     let name = metadata.name().map(str::to_string).unwrap_or(default_name);
-    tool_definition(
+    let mut tool = tool_definition(
         name,
         metadata.title().map(str::to_string),
         metadata.description().map(str::to_string),
         input_schema,
         output_schema,
-    )
+    )?;
+    tool.annotations = metadata.tool_annotations();
+    Ok(tool)
 }
 
 pub fn tool_definition_for_input_with_metadata<Input>(
@@ -1716,17 +1964,51 @@ where
 }
 
 pub fn validate_tool_name(name: &str) -> Result<(), McpToolError> {
-    component_shape::validate_mcp_tool_name(name).map_err(|error| McpToolError::Validation {
-        message: error.to_string(),
-    })
+    component_shape::validate_mcp_tool_name(name)
+        .map_err(|error| McpToolError::validation(error.to_string()))
 }
 
 pub fn validate_tool_metadata_text(label: &str, value: &str) -> Result<(), McpToolError> {
-    component_shape::validate_mcp_tool_metadata_text(label, value).map_err(|error| {
-        McpToolError::Validation {
-            message: error.to_string(),
-        }
-    })
+    component_shape::validate_mcp_tool_metadata_text(label, value)
+        .map_err(|error| McpToolError::validation(error.to_string()))
+}
+
+pub fn validate_tool_annotations(annotations: &McpToolAnnotations) -> Result<(), McpToolError> {
+    validate_tool_annotation_hints(annotations.read_only_hint, annotations.destructive_hint)?;
+    if let Some(title) = annotations.title.as_deref() {
+        validate_tool_metadata_text("annotation title", title)?;
+    }
+    Ok(())
+}
+
+pub fn validate_tool_definition(definition: &ToolDefinition) -> Result<(), McpToolError> {
+    validate_tool_name(definition.name.as_ref())?;
+    validate_tool_input_schema("input_schema", definition.input_schema.as_ref())?;
+    if let Some(output_schema) = definition.output_schema.as_ref() {
+        validate_tool_output_schema("output_schema", output_schema.as_ref())?;
+    }
+    if let Some(title) = definition.title.as_deref() {
+        validate_tool_metadata_text("title", title)?;
+    }
+    if let Some(description) = definition.description.as_deref() {
+        validate_tool_metadata_text("description", description)?;
+    }
+    if let Some(annotations) = definition.annotations.as_ref() {
+        validate_tool_annotations(annotations)?;
+    }
+    Ok(())
+}
+
+fn validate_tool_annotation_hints(
+    read_only: Option<bool>,
+    destructive: Option<bool>,
+) -> Result<(), McpToolError> {
+    if read_only == Some(true) && destructive == Some(true) {
+        return Err(McpToolError::validation(
+            "MCP tool annotation hints cannot be both read-only and destructive",
+        ));
+    }
+    Ok(())
 }
 
 pub fn schema_object(
@@ -1742,6 +2024,70 @@ pub fn schema_object(
     }
 }
 
+fn input_schema_object(
+    label: impl Into<String>,
+    schema: McpSchema,
+) -> Result<JsonObject, McpToolError> {
+    let label = label.into();
+    let object = schema_object(label.clone(), schema)?;
+    validate_tool_input_schema(&label, &object)?;
+    Ok(object)
+}
+
+fn output_schema_object(
+    label: impl Into<String>,
+    schema: McpSchema,
+) -> Result<JsonObject, McpToolError> {
+    let label = label.into();
+    let object = schema_object(label.clone(), schema)?;
+    validate_tool_output_schema(&label, &object)?;
+    Ok(object)
+}
+
+fn validate_tool_input_schema(
+    label: impl Into<String>,
+    schema: &JsonObject,
+) -> Result<(), McpToolError> {
+    let label = label.into();
+    let type_value = schema.get("type").ok_or_else(|| {
+        McpToolError::invalid_schema(
+            label.clone(),
+            "MCP tool input schemas must declare `type: \"object\"`",
+        )
+    })?;
+
+    let object_type = match type_value {
+        Value::String(value) => value == "object",
+        Value::Array(values) => values
+            .iter()
+            .any(|value| matches!(value, Value::String(value) if value == "object")),
+        _ => false,
+    };
+
+    if object_type {
+        Ok(())
+    } else {
+        Err(McpToolError::invalid_schema(
+            label,
+            "MCP tool input schemas must declare `type: \"object\"`",
+        ))
+    }
+}
+
+fn validate_tool_output_schema(
+    label: impl Into<String>,
+    schema: &JsonObject,
+) -> Result<(), McpToolError> {
+    if type_includes(schema, "object") {
+        Ok(())
+    } else {
+        Err(McpToolError::invalid_schema(
+            label,
+            "MCP tool output schemas must declare `type: \"object\"`",
+        ))
+    }
+}
+
 pub fn tool_structured_result(value: Value) -> ToolCallResult {
     let text = match &value {
         Value::String(value) => value.clone(),
@@ -1752,8 +2098,41 @@ pub fn tool_structured_result(value: Value) -> ToolCallResult {
     result
 }
 
+/// Build an MCP error result for a plain message.
+///
+/// Prefer [`tool_error_result_for`] when the failure is a typed
+/// [`McpToolError`], so clients receive a specific `error.kind`.
 pub fn tool_error_result(message: impl Into<String>) -> ToolCallResult {
-    ToolCallResult::error(vec![ContentBlock::text(message.into())])
+    let message = message.into();
+    tool_error_result_with_structured_content(
+        message.clone(),
+        json!({
+            "error": {
+                "kind": "error",
+                "message": message,
+            }
+        }),
+    )
+}
+
+/// Build an MCP error result with machine-readable `structured_content.error`.
+pub fn tool_error_result_for(error: McpToolError) -> ToolCallResult {
+    let message = error.to_string();
+    tool_error_result_with_structured_content(
+        message,
+        json!({
+            "error": error.to_structured_value(),
+        }),
+    )
+}
+
+fn tool_error_result_with_structured_content(
+    message: String,
+    structured_content: Value,
+) -> ToolCallResult {
+    let mut result = ToolCallResult::error(vec![ContentBlock::text(message)]);
+    result.structured_content = Some(structured_content);
+    result
 }
 
 pub fn serialize_handler_response<Response, Error>(
@@ -1765,7 +2144,7 @@ where
 {
     match result {
         Ok(response) => serialize_response_value(response),
-        Err(error) => tool_error_result(McpToolError::handler(error.to_string()).to_string()),
+        Err(error) => tool_error_result_for(McpToolError::handler(error.to_string())),
     }
 }
 
@@ -1775,9 +2154,9 @@ where
 {
     match serde_json::to_value(response) {
         Ok(value) => tool_structured_result(value),
-        Err(error) => tool_error_result(
-            McpToolError::handler(format!("failed to serialize response: {error}")).to_string(),
-        ),
+        Err(error) => tool_error_result_for(McpToolError::handler(format!(
+            "failed to serialize response: {error}"
+        ))),
     }
 }
 
@@ -2025,6 +2404,10 @@ mod tests {
         );
         assert_eq!(
             <McpAny as super::McpJsonSchema>::json_schema().as_value(),
+            &json!({})
+        );
+        assert_eq!(
+            <serde_json::Value as super::McpJsonSchema>::json_schema().as_value(),
             &json!({})
         );
         assert_eq!(
@@ -2522,11 +2905,27 @@ mod tests {
         let metadata = super::McpToolMetadata::new()
             .with_name("custom_tool")
             .with_title("Custom tool")
-            .with_description("Runs a custom tool.");
+            .with_description("Runs a custom tool.")
+            .with_read_only_hint(true)
+            .with_destructive_hint(false)
+            .with_idempotent_hint(true)
+            .with_open_world_hint(false);
 
         assert_eq!(metadata.name(), Some("custom_tool"));
         assert_eq!(metadata.title(), Some("Custom tool"));
         assert_eq!(metadata.description(), Some("Runs a custom tool."));
+        assert_eq!(metadata.read_only_hint(), Some(true));
+        assert_eq!(metadata.destructive_hint(), Some(false));
+        assert_eq!(metadata.idempotent_hint(), Some(true));
+        assert_eq!(metadata.open_world_hint(), Some(false));
+        let annotations = metadata
+            .tool_annotations()
+            .expect("metadata should publish tool annotations");
+        assert_eq!(annotations.title.as_deref(), Some("Custom tool"));
+        assert_eq!(annotations.read_only_hint, Some(true));
+        assert_eq!(annotations.destructive_hint, Some(false));
+        assert_eq!(annotations.idempotent_hint, Some(true));
+        assert_eq!(annotations.open_world_hint, Some(false));
     }
 
     #[test]
@@ -2548,6 +2947,13 @@ mod tests {
         assert!(
             super::McpToolMetadata::new()
                 .with_description(" ")
+                .validate()
+                .is_err()
+        );
+        assert!(
+            super::McpToolMetadata::new()
+                .with_read_only_hint(true)
+                .with_destructive_hint(true)
                 .validate()
                 .is_err()
         );
@@ -2585,8 +2991,63 @@ mod tests {
                 "valid",
                 None,
                 None,
+                schema(json!({ "type": "string" })),
+                None
+            )
+            .is_err()
+        );
+        assert!(
+            super::tool_definition(
+                "valid",
+                None,
+                None,
+                schema(json!({ "type": "object" })),
+                Some(schema(json!({}))),
+            )
+            .is_err()
+        );
+        assert!(
+            super::tool_definition(
+                "valid",
+                None,
+                None,
+                schema(json!({ "type": "object" })),
+                Some(schema(json!({ "type": "string" }))),
+            )
+            .is_err()
+        );
+        assert!(
+            super::tool_definition(
+                "valid",
+                None,
+                None,
+                schema(json!({ "type": "object" })),
+                Some(schema(json!({ "type": "object" }))),
+            )
+            .is_ok()
+        );
+        assert!(
+            super::tool_definition(
+                "valid",
+                None,
+                None,
                 schema(json!({ "type": "object" })),
                 Some(schema(json!(false))),
+            )
+            .is_err()
+        );
+        assert!(
+            super::tool_definition_with_annotations(
+                "valid",
+                None,
+                None,
+                schema(json!({ "type": "object" })),
+                None,
+                Some(
+                    super::McpToolAnnotations::new()
+                        .read_only(true)
+                        .destructive(true),
+                ),
             )
             .is_err()
         );
@@ -2638,7 +3099,10 @@ mod tests {
         let metadata = super::McpToolMetadata::new()
             .with_name("custom_echo")
             .with_title("Custom echo")
-            .with_description("Echoes a value.");
+            .with_description("Echoes a value.")
+            .with_read_only_hint(true)
+            .with_destructive_hint(false)
+            .with_open_world_hint(false);
         let tool =
             super::tool_definition_for_input_with_metadata::<EchoInput>("echo", metadata, None)
                 .expect("tool definition should build");
@@ -2646,6 +3110,14 @@ mod tests {
         assert_eq!(tool.name.as_ref(), "custom_echo");
         assert_eq!(tool.title.as_deref(), Some("Custom echo"));
         assert_eq!(tool.description.as_deref(), Some("Echoes a value."));
+        let annotations = tool
+            .annotations
+            .as_ref()
+            .expect("metadata annotations should be applied");
+        assert_eq!(annotations.title.as_deref(), Some("Custom echo"));
+        assert_eq!(annotations.read_only_hint, Some(true));
+        assert_eq!(annotations.destructive_hint, Some(false));
+        assert_eq!(annotations.open_world_hint, Some(false));
         assert_eq!(tool.input_schema["properties"]["value"]["type"], "string");
     }
 
@@ -2838,6 +3310,167 @@ mod tests {
 
         let result = server.call_tool("echo", Some(json!({ "value": "typed", "extra": true })));
         assert_eq!(result.is_error, Some(true));
+        assert_eq!(
+            result.structured_content.expect("structured error")["error"],
+            json!({
+                "kind": "unknown_field",
+                "message": "unknown field `extra`",
+                "field": "extra"
+            })
+        );
+    }
+
+    #[test]
+    fn server_validates_success_output_against_declared_schema() {
+        fn echo_output_schema() -> super::McpSchema {
+            schema(json!({
+                "type": "object",
+                "properties": {
+                    "value": { "type": "integer" }
+                },
+                "required": ["value"],
+                "additionalProperties": false
+            }))
+        }
+
+        let mut server = McpServer::new("test-server", "0.0.0");
+        server
+            .add_tool(
+                super::tool_definition(
+                    "missing_structured_content",
+                    None,
+                    None,
+                    schema(json!({ "type": "object" })),
+                    Some(echo_output_schema()),
+                )
+                .expect("tool definition should build"),
+                |_| super::ToolCallResult::success(vec![super::ContentBlock::text("ok")]),
+            )
+            .expect("tool should register");
+        server
+            .add_tool(
+                super::tool_definition(
+                    "non_object_structured_content",
+                    None,
+                    None,
+                    schema(json!({ "type": "object" })),
+                    Some(echo_output_schema()),
+                )
+                .expect("tool definition should build"),
+                |_| super::tool_structured_result(json!("not an object")),
+            )
+            .expect("tool should register");
+        server
+            .add_tool(
+                super::tool_definition(
+                    "schema_mismatch",
+                    None,
+                    None,
+                    schema(json!({ "type": "object" })),
+                    Some(echo_output_schema()),
+                )
+                .expect("tool definition should build"),
+                |_| super::tool_structured_result(json!({})),
+            )
+            .expect("tool should register");
+        server
+            .add_tool(
+                super::tool_definition(
+                    "handler_error",
+                    None,
+                    None,
+                    schema(json!({ "type": "object" })),
+                    Some(echo_output_schema()),
+                )
+                .expect("tool definition should build"),
+                |_| super::tool_error_result_for(super::McpToolError::handler("boom")),
+            )
+            .expect("tool should register");
+
+        let result = server.call_tool("missing_structured_content", Some(json!({})));
+        assert_eq!(result.is_error, Some(true));
+        assert_eq!(
+            result.structured_content.expect("structured error")["error"],
+            json!({
+                "kind": "invalid_tool_output",
+                "message": "tool `missing_structured_content` returned invalid structured content: tool declares output_schema but returned no structured_content",
+                "name": "missing_structured_content",
+                "detail": "tool declares output_schema but returned no structured_content"
+            })
+        );
+
+        let result = server.call_tool("non_object_structured_content", Some(json!({})));
+        assert_eq!(result.is_error, Some(true));
+        assert_eq!(
+            result.structured_content.expect("structured error")["error"],
+            json!({
+                "kind": "invalid_tool_output",
+                "message": "tool `non_object_structured_content` returned invalid structured content: tool declares output_schema with object root but returned non-object structured_content",
+                "name": "non_object_structured_content",
+                "detail": "tool declares output_schema with object root but returned non-object structured_content"
+            })
+        );
+
+        let result = server.call_tool("schema_mismatch", Some(json!({})));
+        assert_eq!(result.is_error, Some(true));
+        assert_eq!(
+            result.structured_content.expect("structured error")["error"],
+            json!({
+                "kind": "invalid_tool_output",
+                "message": "tool `schema_mismatch` returned invalid structured content: missing required field `structured_content.value`",
+                "name": "schema_mismatch",
+                "detail": "missing required field `structured_content.value`"
+            })
+        );
+
+        let result = server.call_tool("handler_error", Some(json!({})));
+        assert_eq!(result.is_error, Some(true));
+        assert_eq!(
+            result.structured_content.expect("structured error")["error"]["kind"],
+            json!("handler")
+        );
+    }
+
+    #[test]
+    fn tool_errors_include_structured_content() {
+        let result = super::tool_error_result("plain failure");
+        assert_eq!(result.is_error, Some(true));
+        assert_eq!(
+            result.structured_content.expect("structured error")["error"],
+            json!({
+                "kind": "error",
+                "message": "plain failure"
+            })
+        );
+
+        let result = super::serialize_handler_response::<(), _>(Err("No client"));
+        assert_eq!(result.is_error, Some(true));
+        assert_eq!(
+            result.structured_content.expect("structured error")["error"],
+            json!({
+                "kind": "handler",
+                "message": "handler failed: No client",
+                "detail": "No client"
+            })
+        );
+
+        let result = super::tool_error_result_for(super::McpToolError::validation_details([
+            "missing required field `title`",
+            "name must not be empty",
+        ]));
+        assert_eq!(result.is_error, Some(true));
+        assert_eq!(
+            result.structured_content.expect("structured error")["error"],
+            json!({
+                "kind": "validation",
+                "message": "validation failed: missing required field `title`; name must not be empty",
+                "detail": "missing required field `title`; name must not be empty",
+                "details": [
+                    "missing required field `title`",
+                    "name must not be empty"
+                ]
+            })
+        );
     }
 
     #[test]
@@ -2858,7 +3491,14 @@ mod tests {
                         Some("Echo".to_string()),
                         None,
                         schema(json!({ "type": "object" })),
-                        None,
+                        Some(schema(json!({
+                            "type": "object",
+                            "properties": {
+                                "value": { "type": "integer" }
+                            },
+                            "required": ["value"],
+                            "additionalProperties": false
+                        }))),
                     )
                     .expect("tool definition should build"),
                     |call| {
@@ -2977,6 +3617,86 @@ mod tests {
             }
         );
         assert_eq!(server.tool_count(), 1);
+    }
+
+    #[test]
+    fn server_validates_raw_tool_definitions() {
+        let mut server = McpServer::new("test-server", "0.0.0");
+        let invalid_name = ToolDefinition::default();
+
+        let error = server
+            .add_tool(invalid_name, |_| super::tool_structured_result(json!(null)))
+            .expect_err("invalid raw tool name should fail");
+
+        assert_eq!(error.kind(), "validation");
+        assert_eq!(server.tool_count(), 0);
+
+        let mut invalid_input_schema = super::tool_definition(
+            "valid",
+            None,
+            None,
+            schema(json!({ "type": "object" })),
+            None,
+        )
+        .expect("tool definition should build");
+        invalid_input_schema.input_schema = std::sync::Arc::new(
+            super::schema_object("input_schema", schema(json!({ "type": "string" })))
+                .expect("raw schema object should build"),
+        );
+
+        let error = server
+            .add_tool(invalid_input_schema, |_| {
+                super::tool_structured_result(json!(null))
+            })
+            .expect_err("raw tool input schema should describe object arguments");
+
+        assert_eq!(error.kind(), "invalid_schema");
+        assert_eq!(server.tool_count(), 0);
+
+        let mut invalid_output_schema = super::tool_definition(
+            "valid",
+            None,
+            None,
+            schema(json!({ "type": "object" })),
+            Some(schema(json!({ "type": "object" }))),
+        )
+        .expect("tool definition should build");
+        invalid_output_schema.output_schema = Some(std::sync::Arc::new(
+            super::schema_object("output_schema", schema(json!({ "type": "string" })))
+                .expect("raw output schema object should build"),
+        ));
+
+        let error = server
+            .add_tool(invalid_output_schema, |_| {
+                super::tool_structured_result(json!({}))
+            })
+            .expect_err("raw tool output schema should describe object content");
+
+        assert_eq!(error.kind(), "invalid_schema");
+        assert_eq!(server.tool_count(), 0);
+
+        let mut conflicting_annotations = super::tool_definition(
+            "valid",
+            None,
+            None,
+            schema(json!({ "type": "object" })),
+            None,
+        )
+        .expect("tool definition should build");
+        conflicting_annotations.annotations = Some(
+            super::McpToolAnnotations::new()
+                .read_only(true)
+                .destructive(true),
+        );
+
+        let error = server
+            .add_tool(conflicting_annotations, |_| {
+                super::tool_structured_result(json!(null))
+            })
+            .expect_err("conflicting raw annotations should fail");
+
+        assert_eq!(error.kind(), "validation");
+        assert_eq!(server.tool_count(), 0);
     }
 
     #[test]
