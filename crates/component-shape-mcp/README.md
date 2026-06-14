@@ -149,23 +149,28 @@ are passed through as errors and can still include their own structured
 to an array with `uniqueItems: true`.
 
 This crate provides schema-paired value decoding, but domain integrations such
-as form submit or table query crates still own validation, authorization, and
-handler policy. Those integrations can register into the same `McpServer`, so
-an application can serve form submit tools, table query tools, and custom tools
-from one MCP server. Use `McpServer::builder(name, version)` to chain generated
-registrars from integration crates with `.register(...)`, or add custom tools
-with `.tool(...)` and `.tool_async(...)`. The shared server also supports MCP
+as form submit or table query crates still own validation execution,
+authorization, and handler policy. Generated integrations can share
+`McpValidationRule`, `McpValidationParam`, `McpValidationIssue`,
+`validation_issues_error`, and `apply_validation_schema_metadata` when they
+need to publish validator metadata, reflect supported literal constraints into
+JSON Schema, or return structured validation details. Those integrations can
+register into the same `McpServer`, so an application can serve form submit
+tools, table query tools, and custom tools from one MCP server. Use
+`McpServer::builder(name, version)` to chain generated registrars from
+integration crates with `.register(...)`, or add custom tools with
+`.tool(...)` and `.tool_async(...)`. The shared server also supports MCP
 resources, resource templates, and prompts with `.resource(...)`,
 `.resource_async(...)`, `.resource_template(...)`, `.prompt(...)`, and
 `.prompt_async(...)`; mutable servers expose matching `add_*`, `list_*`, and
-`contains_*` helpers. Use `resource_definition`, `resource_template_definition`,
-`json_resource_result`, `prompt_definition`, and `text_prompt_result` for the
-common static JSON/text cases. If you already have a mutable server,
-call `server.add_tool(...)` or `server.add_tool_async(...)` directly. Call
-`.build()?`, `.serve_stdio().await`, or `.serve_stdio_blocking()` when
-registration is complete. Registration returns an error for duplicate tool
-names, resource URIs, or prompt names so composed server construction can fail
-explicitly.
+`contains_*` helpers. Use `resource_definition`,
+`resource_template_definition`, `json_resource_result`, `prompt_definition`,
+and `text_prompt_result` for the common static JSON/text cases. If you already
+have a mutable server, call `server.add_tool(...)` or
+`server.add_tool_async(...)` directly. Call `.build()?`, `.serve_stdio().await`,
+or `.serve_stdio_blocking()` when registration is complete. Registration
+returns an error for duplicate tool names, resource URIs, or prompt names so
+composed server construction can fail explicitly.
 
 Tool failures produced by the shared server helpers keep a text content message
 and also set `structured_content.error`. Typed `McpToolError` failures include

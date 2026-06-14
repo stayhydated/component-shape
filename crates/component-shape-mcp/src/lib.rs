@@ -1,8 +1,8 @@
 //! Shared MCP schema helpers and `rmcp` server glue for component-shape integrations.
 //!
-//! This crate owns protocol-level building blocks and schema-paired value
-//! decoding. Domain integrations still own validation, authorization, and
-//! handler contracts.
+//! This crate owns protocol-level building blocks, schema-paired value
+//! decoding, and common validation metadata/error helpers. Domain integrations
+//! still own validation execution, authorization, and handler contracts.
 
 use std::{
     borrow::Cow,
@@ -65,6 +65,420 @@ type ResourceFuture =
     Pin<Box<dyn Future<Output = Result<ReadResourceResult, ErrorData>> + Send + 'static>>;
 type PromptFuture =
     Pin<Box<dyn Future<Output = Result<GetPromptResult, ErrorData>> + Send + 'static>>;
+
+/// Where a generated MCP validation issue applies.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum McpValidationScope {
+    /// The whole form failed validation without a precise field.
+    Form,
+    /// A field-level validator failed.
+    Field,
+    /// A validator for one item inside a collection field failed.
+    Element,
+    /// A table filter argument failed validation.
+    Filter,
+}
+
+impl McpValidationScope {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Form => "form",
+            Self::Field => "field",
+            Self::Element => "element",
+            Self::Filter => "filter",
+        }
+    }
+}
+
+/// Koruma target selector recorded for an MCP validation rule.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum McpValidationTarget {
+    /// Koruma selected the default target for the field type.
+    Default,
+    /// The validator targets the full field value, such as an `Option<T>`.
+    Full,
+    /// The validator targets the unwrapped field value.
+    Unwrapped,
+}
+
+impl McpValidationTarget {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Full => "full",
+            Self::Unwrapped => "unwrapped",
+        }
+    }
+}
+
+/// Type argument syntax used by a generated validator descriptor.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum McpValidationTypeArgMode {
+    /// The validator path did not supply a type argument.
+    None,
+    /// The validator used `::<_>`.
+    Infer,
+    /// The validator supplied an explicit type argument.
+    Explicit,
+}
+
+impl McpValidationTypeArgMode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Infer => "infer",
+            Self::Explicit => "explicit",
+        }
+    }
+}
+
+/// One builder argument captured from a generated validator chain.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct McpValidationParam {
+    name: &'static str,
+    literal: Option<&'static str>,
+    expr: Option<&'static str>,
+}
+
+impl McpValidationParam {
+    /// Record a literal argument value that can be reflected into schemas.
+    pub const fn literal(name: &'static str, literal: &'static str) -> Self {
+        Self {
+            name,
+            literal: Some(literal),
+            expr: None,
+        }
+    }
+
+    /// Record a non-literal expression for tool clients to display or inspect.
+    pub const fn expr(name: &'static str, expr: &'static str) -> Self {
+        Self {
+            name,
+            literal: None,
+            expr: Some(expr),
+        }
+    }
+
+    /// Builder method or argument name.
+    pub const fn name(self) -> &'static str {
+        self.name
+    }
+
+    /// Literal argument value, when the derive could statically identify one.
+    pub const fn literal_value(self) -> Option<&'static str> {
+        self.literal
+    }
+
+    /// Non-literal argument expression, when no literal value is available.
+    pub const fn expr_value(self) -> Option<&'static str> {
+        self.expr
+    }
+
+    pub fn to_value(self) -> Value {
+        let mut object = Map::new();
+        object.insert("name".to_string(), Value::String(self.name.to_string()));
+        if let Some(literal) = self.literal {
+            object.insert("value".to_string(), Value::String(literal.to_string()));
+        }
+        if let Some(expr) = self.expr {
+            object.insert("expr".to_string(), Value::String(expr.to_string()));
+        }
+        Value::Object(object)
+    }
+}
+
+/// Shared empty validation parameter slice for generated descriptors.
+pub const MCP_VALIDATION_PARAMS_NONE: &[McpValidationParam] = &[];
+
+/// Static validator metadata attached to an MCP-visible field or filter.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct McpValidationRule {
+    scope: McpValidationScope,
+    validator: &'static str,
+    path: &'static str,
+    label: Option<&'static str>,
+    target: Option<McpValidationTarget>,
+    type_arg_mode: McpValidationTypeArgMode,
+    params: &'static [McpValidationParam],
+}
+
+impl McpValidationRule {
+    /// Create a validation rule descriptor for generated MCP metadata.
+    pub const fn new(
+        scope: McpValidationScope,
+        validator: &'static str,
+        path: &'static str,
+        label: Option<&'static str>,
+        type_arg_mode: McpValidationTypeArgMode,
+        params: &'static [McpValidationParam],
+    ) -> Self {
+        Self {
+            scope,
+            validator,
+            path,
+            label,
+            target: None,
+            type_arg_mode,
+            params,
+        }
+    }
+
+    /// Attach a Koruma target selector to a rule descriptor.
+    pub const fn with_target(mut self, target: McpValidationTarget) -> Self {
+        self.target = Some(target);
+        self
+    }
+
+    /// Scope where this validator runs.
+    pub const fn scope(self) -> McpValidationScope {
+        self.scope
+    }
+
+    /// Terminal validator type name.
+    pub const fn validator(self) -> &'static str {
+        self.validator
+    }
+
+    /// Validator path as written in the source attribute.
+    pub const fn path(self) -> &'static str {
+        self.path
+    }
+
+    /// Optional source label assigned to this validator.
+    pub const fn label(self) -> Option<&'static str> {
+        self.label
+    }
+
+    /// Optional Koruma target selector used by this validator.
+    pub const fn target(self) -> Option<McpValidationTarget> {
+        self.target
+    }
+
+    /// Type argument syntax used by this validator.
+    pub const fn type_arg_mode(self) -> McpValidationTypeArgMode {
+        self.type_arg_mode
+    }
+
+    /// Captured builder parameters for this validator.
+    pub const fn params(self) -> &'static [McpValidationParam] {
+        self.params
+    }
+
+    pub fn to_value(self) -> Value {
+        let mut object = Map::new();
+        object.insert(
+            "scope".to_string(),
+            Value::String(self.scope.as_str().to_string()),
+        );
+        object.insert(
+            "validator".to_string(),
+            Value::String(self.validator.to_string()),
+        );
+        object.insert("path".to_string(), Value::String(self.path.to_string()));
+        if let Some(label) = self.label {
+            object.insert("label".to_string(), Value::String(label.to_string()));
+        }
+        if let Some(target) = self.target {
+            object.insert(
+                "target".to_string(),
+                Value::String(target.as_str().to_string()),
+            );
+        }
+        object.insert(
+            "type_arg_mode".to_string(),
+            Value::String(self.type_arg_mode.as_str().to_string()),
+        );
+        if !self.params.is_empty() {
+            object.insert(
+                "params".to_string(),
+                Value::Array(self.params.iter().map(|param| param.to_value()).collect()),
+            );
+        }
+        Value::Object(object)
+    }
+}
+
+/// Structured validation failure returned in MCP error details and snapshots.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct McpValidationIssue {
+    field: Option<String>,
+    filter: Option<String>,
+    scope: McpValidationScope,
+    validator: Option<String>,
+    path: Option<String>,
+    label: Option<String>,
+    target: Option<McpValidationTarget>,
+    element_index: Option<usize>,
+    message: String,
+    params: Vec<McpValidationParam>,
+}
+
+impl McpValidationIssue {
+    /// Build a form-scoped issue when no field-specific metadata is available.
+    pub fn form(message: impl Into<String>) -> Self {
+        Self::custom(McpValidationScope::Form, message)
+    }
+
+    /// Build a generic issue for integrations that already have structured metadata.
+    pub fn custom(scope: McpValidationScope, message: impl Into<String>) -> Self {
+        Self {
+            field: None,
+            filter: None,
+            scope,
+            validator: None,
+            path: None,
+            label: None,
+            target: None,
+            element_index: None,
+            message: message.into(),
+            params: Vec::new(),
+        }
+    }
+
+    /// Build a required-field issue.
+    pub fn required(field: impl Into<String>) -> Self {
+        let field = field.into();
+        Self::custom(
+            McpValidationScope::Field,
+            format!("missing required field `{field}`"),
+        )
+        .with_field(field)
+        .with_validator("required")
+    }
+
+    /// Build an issue from a static validation rule descriptor.
+    pub fn for_rule(
+        field: impl Into<String>,
+        rule: McpValidationRule,
+        message: impl Into<String>,
+    ) -> Self {
+        Self::custom(rule.scope(), message)
+            .with_field(field)
+            .with_rule(rule)
+    }
+
+    /// Build a table-filter issue from a static validation rule descriptor.
+    pub fn for_filter_rule(
+        filter: impl Into<String>,
+        rule: McpValidationRule,
+        message: impl Into<String>,
+    ) -> Self {
+        Self::custom(rule.scope(), message)
+            .with_filter(filter)
+            .with_rule(rule)
+    }
+
+    fn with_rule(mut self, rule: McpValidationRule) -> Self {
+        self.validator = Some(rule.validator().to_string());
+        self.path = Some(rule.path().to_string());
+        self.label = rule.label().map(str::to_string);
+        self.target = rule.target();
+        self.params = rule.params().to_vec();
+        self
+    }
+
+    /// Attach the failing collection element index to an element issue.
+    pub fn with_element_index(mut self, element_index: usize) -> Self {
+        self.element_index = Some(element_index);
+        self
+    }
+
+    /// Attach a field name to an issue.
+    pub fn with_field(mut self, field: impl Into<String>) -> Self {
+        self.field = Some(field.into());
+        self
+    }
+
+    /// Attach a table filter name to an issue.
+    pub fn with_filter(mut self, filter: impl Into<String>) -> Self {
+        self.filter = Some(filter.into());
+        self
+    }
+
+    /// Attach a validator name to a generic issue.
+    pub fn with_validator(mut self, validator: impl Into<String>) -> Self {
+        self.validator = Some(validator.into());
+        self
+    }
+
+    /// Attach a source label to a generic issue.
+    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+        self.label = Some(label.into());
+        self
+    }
+
+    /// Field name for field or element issues.
+    pub fn field(&self) -> Option<&str> {
+        self.field.as_deref()
+    }
+
+    /// Table filter name for filter issues.
+    pub fn filter(&self) -> Option<&str> {
+        self.filter.as_deref()
+    }
+
+    /// Human-readable validation message.
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    /// Convert the issue to JSON for MCP structured content.
+    pub fn to_value(&self) -> Value {
+        let mut object = Map::new();
+        object.insert(
+            "scope".to_string(),
+            Value::String(self.scope.as_str().to_string()),
+        );
+        object.insert("message".to_string(), Value::String(self.message.clone()));
+        if let Some(field) = &self.field {
+            object.insert("field".to_string(), Value::String(field.clone()));
+        }
+        if let Some(filter) = &self.filter {
+            object.insert("filter".to_string(), Value::String(filter.clone()));
+        }
+        if let Some(validator) = &self.validator {
+            object.insert("validator".to_string(), Value::String(validator.clone()));
+        }
+        if let Some(path) = &self.path {
+            object.insert("path".to_string(), Value::String(path.clone()));
+        }
+        if let Some(label) = &self.label {
+            object.insert("label".to_string(), Value::String(label.clone()));
+        }
+        if let Some(target) = self.target {
+            object.insert(
+                "target".to_string(),
+                Value::String(target.as_str().to_string()),
+            );
+        }
+        if let Some(element_index) = self.element_index {
+            object.insert(
+                "element_index".to_string(),
+                Value::Number((element_index as u64).into()),
+            );
+        }
+        if !self.params.is_empty() {
+            object.insert(
+                "params".to_string(),
+                Value::Array(self.params.iter().map(|param| param.to_value()).collect()),
+            );
+        }
+        Value::Object(object)
+    }
+}
+
+/// Convert validation issues into a structured MCP validation error.
+pub fn validation_issues_error(issues: Vec<McpValidationIssue>) -> McpToolError {
+    let message = issues
+        .iter()
+        .map(McpValidationIssue::message)
+        .collect::<Vec<_>>()
+        .join("; ");
+    McpToolError::validation_structured_details(
+        message,
+        issues.into_iter().map(|issue| issue.to_value()),
+    )
+}
 
 /// Typed MCP tool call payload passed to registered handlers.
 ///
@@ -2877,6 +3291,168 @@ pub fn schema_for_input(input: McpInput) -> McpSchema {
     }
 }
 
+/// Attach generated validation metadata and supported JSON Schema hints.
+pub fn apply_validation_schema_metadata(
+    object: &mut Map<String, Value>,
+    extension_key: &str,
+    rules: &[McpValidationRule],
+) {
+    if !rules.is_empty() {
+        object.insert(
+            extension_key.to_string(),
+            Value::Array(rules.iter().map(|rule| rule.to_value()).collect()),
+        );
+    }
+    apply_validation_schema_hints(object, rules);
+}
+
+/// Reflect supported literal validation parameters into a JSON Schema object.
+pub fn apply_validation_schema_hints(object: &mut Map<String, Value>, rules: &[McpValidationRule]) {
+    for rule in rules {
+        match rule.validator() {
+            "LenValidation" => apply_len_validation_schema_hint(*rule, object),
+            "RangeValidation" => apply_range_validation_schema_hint(*rule, object),
+            "NonEmptyValidation" => apply_non_empty_validation_schema_hint(object),
+            _ => {},
+        }
+    }
+}
+
+fn apply_len_validation_schema_hint(rule: McpValidationRule, object: &mut Map<String, Value>) {
+    let Some(schema_type) = primary_schema_type(object) else {
+        return;
+    };
+    let (min_keyword, max_keyword) = match schema_type {
+        "string" => ("minLength", "maxLength"),
+        "array" => ("minItems", "maxItems"),
+        _ => return,
+    };
+    if let Some(min) = rule
+        .params()
+        .iter()
+        .find(|param| param.name() == "min")
+        .and_then(|param| param.literal_value())
+        .and_then(literal_to_u64)
+    {
+        object.insert(min_keyword.to_string(), Value::Number(min.into()));
+    }
+    if let Some(max) = rule
+        .params()
+        .iter()
+        .find(|param| param.name() == "max")
+        .and_then(|param| param.literal_value())
+        .and_then(literal_to_u64)
+    {
+        object.insert(max_keyword.to_string(), Value::Number(max.into()));
+    }
+}
+
+fn apply_range_validation_schema_hint(rule: McpValidationRule, object: &mut Map<String, Value>) {
+    if !matches!(primary_schema_type(object), Some("integer" | "number")) {
+        return;
+    }
+    let exclusive_min = rule
+        .params()
+        .iter()
+        .find(|param| param.name() == "exclusive_min")
+        .and_then(|param| param.literal_value())
+        .and_then(literal_to_bool)
+        .unwrap_or(false);
+    let exclusive_max = rule
+        .params()
+        .iter()
+        .find(|param| param.name() == "exclusive_max")
+        .and_then(|param| param.literal_value())
+        .and_then(literal_to_bool)
+        .unwrap_or(false);
+    if let Some(min) = rule
+        .params()
+        .iter()
+        .find(|param| param.name() == "min")
+        .and_then(|param| param.literal_value())
+        .and_then(literal_to_number_value)
+    {
+        let keyword = if exclusive_min {
+            "exclusiveMinimum"
+        } else {
+            "minimum"
+        };
+        object.insert(keyword.to_string(), min);
+    }
+    if let Some(max) = rule
+        .params()
+        .iter()
+        .find(|param| param.name() == "max")
+        .and_then(|param| param.literal_value())
+        .and_then(literal_to_number_value)
+    {
+        let keyword = if exclusive_max {
+            "exclusiveMaximum"
+        } else {
+            "maximum"
+        };
+        object.insert(keyword.to_string(), max);
+    }
+}
+
+fn apply_non_empty_validation_schema_hint(object: &mut Map<String, Value>) {
+    match primary_schema_type(object) {
+        Some("string") => {
+            object
+                .entry("minLength")
+                .or_insert(Value::Number(1_u64.into()));
+        },
+        Some("array") => {
+            object
+                .entry("minItems")
+                .or_insert(Value::Number(1_u64.into()));
+        },
+        _ => {},
+    }
+}
+
+fn primary_schema_type(object: &Map<String, Value>) -> Option<&str> {
+    object.get("type").and_then(Value::as_str).or_else(|| {
+        object
+            .get("anyOf")
+            .and_then(Value::as_array)
+            .and_then(|schemas| schemas.iter().find_map(schema_type_from_value))
+    })
+}
+
+fn schema_type_from_value(value: &Value) -> Option<&str> {
+    match value {
+        Value::Object(object) => object.get("type").and_then(Value::as_str),
+        _ => None,
+    }
+}
+
+fn literal_to_u64(literal: &str) -> Option<u64> {
+    literal.parse::<u64>().ok()
+}
+
+fn literal_to_bool(literal: &str) -> Option<bool> {
+    match literal {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    }
+}
+
+fn literal_to_number_value(literal: &str) -> Option<Value> {
+    if let Ok(value) = literal.parse::<i64>() {
+        return Some(Value::Number(value.into()));
+    }
+    if let Ok(value) = literal.parse::<u64>() {
+        return Some(Value::Number(value.into()));
+    }
+    literal
+        .parse::<f64>()
+        .ok()
+        .and_then(serde_json::Number::from_f64)
+        .map(Value::Number)
+}
+
 pub fn range_schema(bound_schema: McpSchema) -> McpSchema {
     let min_schema = nullable_schema(bound_schema.clone()).into_value();
     let max_schema = nullable_schema(bound_schema).into_value();
@@ -2969,7 +3545,8 @@ fn type_allows_null(value: &Value) -> bool {
 mod tests {
     use super::{
         McpAny, McpInput, McpJsonSchema as _, McpRange, McpServer, McpToolInput as _,
-        ToolDefinition,
+        McpValidationParam, McpValidationRule, McpValidationScope, McpValidationTarget,
+        McpValidationTypeArgMode, ToolDefinition,
     };
     use serde_json::{Value, json};
 
@@ -2994,6 +3571,64 @@ mod tests {
 
         assert_eq!(schema["properties"]["min"]["anyOf"][0]["format"], "date");
         assert_eq!(schema["properties"]["max"]["anyOf"][1]["type"], "null");
+    }
+
+    #[test]
+    fn validation_schema_metadata_attaches_rules_and_hints() {
+        const PARAMS: &[McpValidationParam] = &[
+            McpValidationParam::literal("min", "2"),
+            McpValidationParam::literal("max", "8"),
+        ];
+        const RULES: &[McpValidationRule] = &[McpValidationRule::new(
+            McpValidationScope::Field,
+            "LenValidation",
+            "koruma_collection::collection::LenValidation",
+            Some("Title"),
+            McpValidationTypeArgMode::Infer,
+            PARAMS,
+        )
+        .with_target(McpValidationTarget::Default)];
+        let mut object = json!({ "type": "string" })
+            .as_object()
+            .expect("schema should be an object")
+            .clone();
+
+        super::apply_validation_schema_metadata(&mut object, "x-testValidation", RULES);
+
+        assert_eq!(object["minLength"], json!(2));
+        assert_eq!(object["maxLength"], json!(8));
+        assert_eq!(object["x-testValidation"][0]["scope"], json!("field"));
+        assert_eq!(
+            object["x-testValidation"][0]["path"],
+            json!("koruma_collection::collection::LenValidation")
+        );
+        assert_eq!(object["x-testValidation"][0]["target"], json!("default"));
+        assert_eq!(object["x-testValidation"][0]["label"], json!("Title"));
+    }
+
+    #[test]
+    fn validation_issues_error_preserves_field_filter_and_rule_details() {
+        const PARAMS: &[McpValidationParam] = &[McpValidationParam::literal("min", "1")];
+        const RULE: McpValidationRule = McpValidationRule::new(
+            McpValidationScope::Filter,
+            "LenValidation",
+            "LenValidation",
+            None,
+            McpValidationTypeArgMode::Infer,
+            PARAMS,
+        );
+        let error = super::validation_issues_error(vec![
+            super::McpValidationIssue::required("title"),
+            super::McpValidationIssue::for_filter_rule("name", RULE, "name validation failed"),
+        ]);
+        let structured = error.to_structured_value();
+
+        assert_eq!(structured["kind"], json!("validation"));
+        assert_eq!(structured["details"][0]["field"], json!("title"));
+        assert_eq!(structured["details"][0]["validator"], json!("required"));
+        assert_eq!(structured["details"][1]["scope"], json!("filter"));
+        assert_eq!(structured["details"][1]["filter"], json!("name"));
+        assert_eq!(structured["details"][1]["params"][0]["value"], json!("1"));
     }
 
     #[test]
