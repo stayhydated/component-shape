@@ -1,5 +1,8 @@
+use strum::IntoStaticStr;
+
 /// Primitive value kinds a component shape can expose to model-controlled tools.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, IntoStaticStr, PartialEq)]
+#[strum(serialize_all = "snake_case", const_into_str)]
 pub enum McpPrimitiveKind {
     Any,
     Boolean,
@@ -11,8 +14,15 @@ pub enum McpPrimitiveKind {
     DateTime,
 }
 
+impl McpPrimitiveKind {
+    pub const fn as_str(self) -> &'static str {
+        self.into_str()
+    }
+}
+
 /// Primitive kinds that can be used as `{ "min": ..., "max": ... }` MCP range bounds.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, IntoStaticStr, PartialEq)]
+#[strum(serialize_all = "snake_case", const_into_str)]
 pub enum McpRangeBoundKind {
     Integer,
     Number,
@@ -22,6 +32,10 @@ pub enum McpRangeBoundKind {
 }
 
 impl McpRangeBoundKind {
+    pub const fn as_str(self) -> &'static str {
+        self.into_str()
+    }
+
     pub const fn primitive_kind(self) -> McpPrimitiveKind {
         match self {
             Self::Integer => McpPrimitiveKind::Integer,
@@ -377,6 +391,24 @@ mod tests {
             McpInput::decimal_set().input_shape(),
             McpInputShape::Set(McpPrimitiveKind::Decimal)
         );
+    }
+
+    #[test]
+    fn mcp_kind_names_are_stable_metadata() {
+        assert_eq!(McpPrimitiveKind::Any.as_str(), "any");
+        assert_eq!(McpPrimitiveKind::Boolean.as_str(), "boolean");
+        assert_eq!(McpPrimitiveKind::Integer.as_str(), "integer");
+        assert_eq!(McpPrimitiveKind::Number.as_str(), "number");
+        assert_eq!(McpPrimitiveKind::Decimal.as_str(), "decimal");
+        assert_eq!(McpPrimitiveKind::String.as_str(), "string");
+        assert_eq!(McpPrimitiveKind::Date.as_str(), "date");
+        assert_eq!(McpPrimitiveKind::DateTime.as_str(), "date_time");
+
+        assert_eq!(McpRangeBoundKind::Integer.as_str(), "integer");
+        assert_eq!(McpRangeBoundKind::Number.as_str(), "number");
+        assert_eq!(McpRangeBoundKind::Decimal.as_str(), "decimal");
+        assert_eq!(McpRangeBoundKind::Date.as_str(), "date");
+        assert_eq!(McpRangeBoundKind::DateTime.as_str(), "date_time");
     }
 
     #[test]

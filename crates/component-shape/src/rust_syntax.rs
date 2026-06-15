@@ -1,3 +1,5 @@
+use strum::{Display, IntoStaticStr};
+
 /// Rust type syntax stored as static metadata.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RustType(&'static str);
@@ -8,26 +10,18 @@ pub struct RustPath(&'static str);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RustExpr(&'static str);
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Display, Eq, IntoStaticStr, PartialEq)]
+#[strum(serialize_all = "lowercase", const_into_str)]
 pub enum RustSyntaxKind {
     Type,
     Path,
+    #[strum(to_string = "expression")]
     Expr,
 }
 
 impl RustSyntaxKind {
     pub const fn label(self) -> &'static str {
-        match self {
-            Self::Type => "type",
-            Self::Path => "path",
-            Self::Expr => "expression",
-        }
-    }
-}
-
-impl std::fmt::Display for RustSyntaxKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.label())
+        self.into_str()
     }
 }
 

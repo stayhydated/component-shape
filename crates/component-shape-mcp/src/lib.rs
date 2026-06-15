@@ -38,6 +38,7 @@ use rmcp::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Map, Value, json};
+use strum::IntoStaticStr;
 
 pub use rmcp;
 pub use rmcp::model::{
@@ -67,7 +68,8 @@ type PromptFuture =
     Pin<Box<dyn Future<Output = Result<GetPromptResult, ErrorData>> + Send + 'static>>;
 
 /// Where a generated MCP validation issue applies.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, IntoStaticStr, PartialEq)]
+#[strum(serialize_all = "snake_case", const_into_str)]
 pub enum McpValidationScope {
     /// The whole form failed validation without a precise field.
     Form,
@@ -81,17 +83,13 @@ pub enum McpValidationScope {
 
 impl McpValidationScope {
     pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Form => "form",
-            Self::Field => "field",
-            Self::Element => "element",
-            Self::Filter => "filter",
-        }
+        self.into_str()
     }
 }
 
 /// Koruma target selector recorded for an MCP validation rule.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, IntoStaticStr, PartialEq)]
+#[strum(serialize_all = "snake_case", const_into_str)]
 pub enum McpValidationTarget {
     /// Koruma selected the default target for the field type.
     Default,
@@ -103,16 +101,13 @@ pub enum McpValidationTarget {
 
 impl McpValidationTarget {
     pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Default => "default",
-            Self::Full => "full",
-            Self::Unwrapped => "unwrapped",
-        }
+        self.into_str()
     }
 }
 
 /// Type argument syntax used by a generated validator descriptor.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, IntoStaticStr, PartialEq)]
+#[strum(serialize_all = "snake_case", const_into_str)]
 pub enum McpValidationTypeArgMode {
     /// The validator path did not supply a type argument.
     None,
@@ -124,11 +119,7 @@ pub enum McpValidationTypeArgMode {
 
 impl McpValidationTypeArgMode {
     pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Infer => "infer",
-            Self::Explicit => "explicit",
-        }
+        self.into_str()
     }
 }
 

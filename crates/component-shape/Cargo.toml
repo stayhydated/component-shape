@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 heck.workspace = true
+strum = { features = [ "derive" ], workspace = true }
 syn = { default-features = false, features = [
   "clone-impls",
   "full",
