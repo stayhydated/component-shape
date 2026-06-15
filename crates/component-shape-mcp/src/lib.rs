@@ -2908,6 +2908,123 @@ pub fn json_resource_result(
     Ok(text_resource_result(uri, text, "application/json"))
 }
 
+/// Validated static JSON resource ready to register on an [`McpServer`].
+#[derive(Clone, Debug)]
+pub struct McpJsonResourceSpec {
+    uri: String,
+    definition: ResourceDefinition,
+    value: Arc<Value>,
+}
+
+impl McpJsonResourceSpec {
+    /// Build and validate an `application/json` resource backed by `value`.
+    pub fn new(
+        uri: impl Into<String>,
+        name: impl Into<String>,
+        title: Option<String>,
+        description: Option<String>,
+        value: Value,
+    ) -> Result<Self, McpToolError> {
+        let uri = uri.into();
+        let definition = resource_definition(
+            uri.clone(),
+            name,
+            title,
+            description,
+            Some("application/json".to_string()),
+        )?;
+        Ok(Self {
+            uri,
+            definition,
+            value: Arc::new(value),
+        })
+    }
+
+    /// Concrete resource URI.
+    pub fn uri(&self) -> &str {
+        &self.uri
+    }
+
+    /// Resource definition advertised by `resources/list`.
+    pub fn definition(&self) -> &ResourceDefinition {
+        &self.definition
+    }
+
+    /// Consume the spec and return its resource definition.
+    pub fn into_definition(self) -> ResourceDefinition {
+        self.definition
+    }
+}
+
+/// Return resource definitions for a distinct set of generated JSON resources.
+pub fn json_resource_definitions(
+    specs: &[McpJsonResourceSpec],
+) -> Result<Vec<ResourceDefinition>, McpToolError> {
+    ensure_json_resource_specs_distinct(specs)?;
+    Ok(specs.iter().map(|spec| spec.definition.clone()).collect())
+}
+
+/// Register generated JSON resources, failing if any URI is duplicated.
+pub fn register_json_resource_specs(
+    server: &mut McpServer,
+    specs: Vec<McpJsonResourceSpec>,
+) -> Result<(), McpToolError> {
+    ensure_json_resource_specs_available(server, &specs)?;
+    for spec in specs {
+        let uri = spec.uri.clone();
+        let value = Arc::clone(&spec.value);
+        server.add_resource(spec.definition, move || {
+            json_resource_result(uri.clone(), value.as_ref())
+                .expect("generated JSON resource should encode")
+        })?;
+    }
+    Ok(())
+}
+
+/// Register generated JSON resources unless every URI is already present.
+///
+/// If only some resources are present, this fails with a duplicate-resource
+/// setup error instead of silently publishing a partial set.
+pub fn register_json_resource_specs_if_missing(
+    server: &mut McpServer,
+    specs: Vec<McpJsonResourceSpec>,
+) -> Result<(), McpToolError> {
+    if specs
+        .iter()
+        .all(|spec| server.contains_resource(spec.uri()))
+    {
+        return Ok(());
+    }
+    register_json_resource_specs(server, specs)
+}
+
+/// Ensure generated JSON resource URIs are unique and not already registered.
+pub fn ensure_json_resource_specs_available(
+    server: &McpServer,
+    specs: &[McpJsonResourceSpec],
+) -> Result<(), McpToolError> {
+    ensure_json_resource_specs_distinct(specs)?;
+    for spec in specs {
+        if server.contains_resource(spec.uri()) {
+            return Err(McpToolError::duplicate_resource(spec.uri().to_string()));
+        }
+    }
+    Ok(())
+}
+
+/// Ensure generated JSON resource URIs are unique within one batch.
+pub fn ensure_json_resource_specs_distinct(
+    specs: &[McpJsonResourceSpec],
+) -> Result<(), McpToolError> {
+    let mut seen = BTreeSet::new();
+    for spec in specs {
+        if !seen.insert(spec.uri()) {
+            return Err(McpToolError::duplicate_resource(spec.uri().to_string()));
+        }
+    }
+    Ok(())
+}
+
 /// Build and validate an MCP prompt definition.
 pub fn prompt_definition(
     name: impl Into<String>,
@@ -3282,6 +3399,44 @@ pub fn schema_for_input(input: McpInput) -> McpSchema {
     }
 }
 
+/// Build a compact JSON descriptor for component-shape MCP input metadata.
+///
+/// Descriptor resources use this alongside full JSON Schema so clients can
+/// display the intended component/control shape without reverse-engineering
+/// schema details.
+pub fn mcp_input_descriptor_value(input: McpInput) -> Value {
+    match input.input_shape() {
+        McpInputShape::Unsupported => json!({
+            "supported": false,
+            "shape": "unsupported",
+        }),
+        McpInputShape::Scalar(kind) => json!({
+            "supported": true,
+            "shape": "scalar",
+            "primitive": kind.as_str(),
+        }),
+        McpInputShape::List(kind) => json!({
+            "supported": true,
+            "shape": "list",
+            "items": kind.as_str(),
+        }),
+        McpInputShape::Set(kind) => json!({
+            "supported": true,
+            "shape": "set",
+            "items": kind.as_str(),
+        }),
+        McpInputShape::Range(kind) => json!({
+            "supported": true,
+            "shape": "range",
+            "bound": kind.as_str(),
+        }),
+        McpInputShape::Object => json!({
+            "supported": true,
+            "shape": "object",
+        }),
+    }
+}
+
 /// Attach generated validation metadata and supported JSON Schema hints.
 pub fn apply_validation_schema_metadata(
     object: &mut Map<String, Value>,
@@ -3643,6 +3798,33 @@ mod tests {
         assert!(list_schema["uniqueItems"].is_null());
         assert_eq!(set_schema["type"], "array");
         assert_eq!(set_schema["uniqueItems"], true);
+    }
+
+    #[test]
+    fn mcp_input_descriptor_value_describes_supported_shapes() {
+        assert_eq!(
+            super::mcp_input_descriptor_value(McpInput::unsupported()),
+            json!({
+                "supported": false,
+                "shape": "unsupported",
+            })
+        );
+        assert_eq!(
+            super::mcp_input_descriptor_value(McpInput::string_set()),
+            json!({
+                "supported": true,
+                "shape": "set",
+                "items": "string",
+            })
+        );
+        assert_eq!(
+            super::mcp_input_descriptor_value(McpInput::date_range()),
+            json!({
+                "supported": true,
+                "shape": "range",
+                "bound": "date",
+            })
+        );
     }
 
     #[test]
@@ -4869,6 +5051,64 @@ mod tests {
             client.cancel().await.expect("client should close");
             server_handle.await.expect("server should finish");
         });
+    }
+
+    #[test]
+    fn json_resource_specs_register_and_reuse_generated_resources() {
+        let specs = vec![
+            super::McpJsonResourceSpec::new(
+                "gpui-form://forms/contact/descriptor",
+                "contact_descriptor",
+                Some("Contact descriptor".to_string()),
+                Some("Descriptor for the contact form.".to_string()),
+                json!({ "fields": ["name", "email"] }),
+            )
+            .expect("resource spec should build"),
+        ];
+        let definitions =
+            super::json_resource_definitions(&specs).expect("definitions should build");
+        assert_eq!(definitions[0].uri, "gpui-form://forms/contact/descriptor");
+        assert_eq!(
+            definitions[0].mime_type.as_deref(),
+            Some("application/json")
+        );
+
+        let mut server = super::McpServer::new("test", "0.0.0");
+        super::register_json_resource_specs_if_missing(&mut server, specs.clone())
+            .expect("resources should register");
+        super::register_json_resource_specs_if_missing(&mut server, specs)
+            .expect("existing complete resource set should be reused");
+
+        assert_eq!(server.resource_count(), 1);
+        assert!(server.contains_resource("gpui-form://forms/contact/descriptor"));
+    }
+
+    #[test]
+    fn json_resource_specs_reject_duplicate_uris() {
+        let specs = vec![
+            super::McpJsonResourceSpec::new(
+                "gpui-form://forms/contact/descriptor",
+                "contact_descriptor",
+                None,
+                None,
+                json!({}),
+            )
+            .expect("resource spec should build"),
+            super::McpJsonResourceSpec::new(
+                "gpui-form://forms/contact/descriptor",
+                "duplicate_contact_descriptor",
+                None,
+                None,
+                json!({}),
+            )
+            .expect("resource spec should build"),
+        ];
+
+        assert_eq!(
+            super::ensure_json_resource_specs_distinct(&specs)
+                .expect_err("duplicate URI should fail"),
+            super::McpToolError::duplicate_resource("gpui-form://forms/contact/descriptor")
+        );
     }
 
     #[test]
