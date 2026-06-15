@@ -50,6 +50,9 @@ framework-specific branching when the behavior can be described generically.
 Use `ComponentPrototyping` for generator-facing naming details such as stable
 field suffixes. Suffixes should be valid non-empty ASCII identifier suffixes so
 generated identifiers are deterministic and portable.
+Use `ComponentShapeUse::with_shape_metadata::<Shape>()` and
+`with_value_mcp_input::<Shape, Value>()` when generated or registry metadata
+needs to copy type-owned shape metadata into an erased field/component record.
 
 Use `ValueChange` metadata for normalized value-change behavior. Keep this
 separate from any framework-specific event type; downstream integrations can
@@ -68,6 +71,9 @@ GPUI shape declarations infer common MCP metadata from unambiguous declared
 value types. The generated `ComponentShapeFor<Value>` impl carries the
 value-specific metadata; custom or ambiguous wire schemas should be handled by
 the downstream MCP integration's typed schema or a manual decode/schema impl.
+Manual `ComponentShapeFor<Value>` impls inherit the shape-level
+`ComponentShapeMetadata::MCP_INPUT` by default; override the value-specific
+`MCP_INPUT` only when that value should publish a different coarse MCP shape.
 Use `component_shape_mcp::McpToolValue` when an integration needs one value to
 provide both JSON Schema and strict MCP decoding. The blanket implementation
 covers `Deserialize` types that implement `McpJsonSchema`; arbitrary JSON input

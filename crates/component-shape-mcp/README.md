@@ -117,7 +117,9 @@ integration computes annotations separately from `McpToolMetadata`.
 GPUI shape macros infer coarse `McpInput` metadata for common primitive values,
 arrays, sets, ranges, `McpAny` unconstrained JSON values, and string-keyed map
 object values. Use explicit `mcp_input = ...` only when a custom value type
-cannot be inferred from its Rust type.
+cannot be inferred from its Rust type. Manual `ComponentShapeFor<T>`
+implementations inherit the shape-level `ComponentShapeMetadata::MCP_INPUT`
+unless they override the value-specific `MCP_INPUT`.
 
 When the derive is re-exported through `gpui_form::mcp` or `gpui_table::mcp`,
 the macro infers that facade path when it is unambiguous. Use

@@ -1,4 +1,7 @@
-use crate::{ComponentCapabilities, ComponentPrototyping, McpInput, RustPath, RustType};
+use crate::{
+    ComponentCapabilities, ComponentPrototyping, ComponentShapeFor, ComponentShapeMetadata,
+    McpInput, RustPath, RustType,
+};
 
 /// Framework-neutral metadata describing a field's component shape use.
 ///
@@ -54,6 +57,26 @@ impl ComponentShapeUse {
         self
     }
 
+    /// Copies type-owned shape metadata from a concrete component shape.
+    pub const fn with_shape_metadata<Shape>(mut self) -> Self
+    where
+        Shape: ComponentShapeMetadata,
+    {
+        self.capabilities = Shape::CAPABILITIES;
+        self.prototyping = Shape::PROTOTYPING;
+        self.mcp_input = Shape::MCP_INPUT;
+        self
+    }
+
+    /// Copies value-specific MCP input metadata from a component shape/value pair.
+    pub const fn with_value_mcp_input<Shape, Value>(mut self) -> Self
+    where
+        Shape: ComponentShapeFor<Value>,
+    {
+        self.mcp_input = <Shape as ComponentShapeFor<Value>>::MCP_INPUT;
+        self
+    }
+
     /// Source field name.
     pub const fn field_name(self) -> &'static str {
         self.field_name
@@ -89,9 +112,23 @@ impl ComponentShapeUse {
 mod tests {
     use super::ComponentShapeUse;
     use crate::{
-        ComponentCapabilities, ComponentPrototyping, McpInput, McpInputShape, McpPrimitiveKind,
-        RenderCapability, RustPath, RustType, ValueBindingCapability,
+        ComponentCapabilities, ComponentPrototyping, ComponentShapeFor, ComponentShapeMetadata,
+        McpInput, McpInputShape, McpPrimitiveKind, RenderCapability, RustPath, RustType,
+        ValueBindingCapability,
     };
+
+    struct TextShape;
+
+    impl ComponentShapeMetadata for TextShape {
+        const CAPABILITIES: ComponentCapabilities =
+            ComponentCapabilities::new().with_render(RenderCapability::Component);
+        const PROTOTYPING: ComponentPrototyping = ComponentPrototyping::new().field_suffix("input");
+        const MCP_INPUT: McpInput = McpInput::string();
+    }
+
+    impl ComponentShapeFor<Vec<String>> for TextShape {
+        const MCP_INPUT: McpInput = McpInput::string_list();
+    }
 
     #[test]
     fn component_shape_use_defaults_to_no_capabilities_or_prototyping() {
@@ -165,6 +202,46 @@ mod tests {
         assert_eq!(
             shape_use.mcp_input().input_shape(),
             McpInputShape::Scalar(McpPrimitiveKind::String)
+        );
+    }
+
+    #[test]
+    fn component_shape_use_can_copy_shape_metadata_from_type() {
+        let shape_use = ComponentShapeUse::new(
+            "title",
+            RustPath::from_macro_tokens_unchecked("crate::fields::TitleInput"),
+        )
+        .with_shape_metadata::<TextShape>();
+
+        assert_eq!(
+            shape_use.capabilities().render(),
+            RenderCapability::Component
+        );
+        assert_eq!(
+            shape_use
+                .prototyping()
+                .field_suffix
+                .map(crate::ComponentSuffix::as_str),
+            Some("input")
+        );
+        assert_eq!(
+            shape_use.mcp_input().input_shape(),
+            McpInputShape::Scalar(McpPrimitiveKind::String)
+        );
+    }
+
+    #[test]
+    fn component_shape_use_can_copy_value_specific_mcp_input_from_type() {
+        let shape_use = ComponentShapeUse::new(
+            "tags",
+            RustPath::from_macro_tokens_unchecked("crate::fields::TagsInput"),
+        )
+        .with_shape_metadata::<TextShape>()
+        .with_value_mcp_input::<TextShape, Vec<String>>();
+
+        assert_eq!(
+            shape_use.mcp_input().input_shape(),
+            McpInputShape::List(McpPrimitiveKind::String)
         );
     }
 }

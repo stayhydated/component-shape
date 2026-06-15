@@ -44,8 +44,44 @@ pub trait DeclaredComponentShape: ComponentShapeMetadata {}
 ///
 /// Backend-specific compatibility traits can extend or pair with this marker
 /// while keeping backend-owned methods and diagnostics on their own traits.
-/// The value-specific MCP input defaults to unsupported and may be inferred by
-/// declaration macros for simple JSON-compatible value shapes.
+/// The value-specific MCP input inherits the shape-level MCP input by default,
+/// and declaration macros may emit a more precise value-specific override for
+/// simple JSON-compatible value shapes.
 pub trait ComponentShapeFor<Value>: ComponentShapeMetadata {
-    const MCP_INPUT: McpInput = McpInput::unsupported();
+    const MCP_INPUT: McpInput = <Self as ComponentShapeMetadata>::MCP_INPUT;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        ComponentShapeFor, ComponentShapeMetadata, McpInput, McpInputShape, McpPrimitiveKind,
+    };
+
+    struct TextShape;
+
+    impl ComponentShapeMetadata for TextShape {
+        const MCP_INPUT: McpInput = McpInput::string();
+    }
+
+    impl ComponentShapeFor<String> for TextShape {}
+
+    impl ComponentShapeFor<Vec<String>> for TextShape {
+        const MCP_INPUT: McpInput = McpInput::string_list();
+    }
+
+    #[test]
+    fn component_shape_for_inherits_shape_level_mcp_input_by_default() {
+        assert_eq!(
+            <TextShape as ComponentShapeFor<String>>::MCP_INPUT.input_shape(),
+            McpInputShape::Scalar(McpPrimitiveKind::String)
+        );
+    }
+
+    #[test]
+    fn component_shape_for_can_override_value_specific_mcp_input() {
+        assert_eq!(
+            <TextShape as ComponentShapeFor<Vec<String>>>::MCP_INPUT.input_shape(),
+            McpInputShape::List(McpPrimitiveKind::String)
+        );
+    }
 }

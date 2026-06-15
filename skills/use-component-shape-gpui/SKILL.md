@@ -99,6 +99,8 @@ Metadata rules:
   metadata; set-like collections publish set metadata. Each generated
   `ComponentShapeFor<Value>` impl carries the value-specific MCP metadata, and
   shape-level MCP metadata is emitted only when all declared values agree.
+  Manual `ComponentShapeFor<Value>` impls inherit shape-level MCP metadata
+  unless they override the value-specific `MCP_INPUT`.
   For custom or ambiguous wire schemas, use the downstream MCP integration's
   typed schema derive or a manual decode/schema implementation.
 
@@ -157,6 +159,10 @@ A shape can advertise support for form-side values through:
 - explicit `values(...)` metadata,
 - generated compatibility from `value_binding`,
 - manual `GpuiComponentShapeFor<Value>` implementations.
+
+`GpuiComponentShapeFor<Value>` includes the framework-neutral
+`ComponentShapeFor<Value>` contract, so manual GPUI compatibility impls must
+also publish value-specific shape metadata.
 
 Keep value compatibility separate from downstream storage policy. This crate
 should declare which values a component can represent; downstream consumers
