@@ -852,11 +852,9 @@ dependencies = [
 name = "component-shape-mcp-macros"
 version = "0.1.0"
 dependencies = [
- "component-shape-mcp",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "serde_json",
  "syn 2.0.117",
 ]
 
