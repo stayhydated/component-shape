@@ -327,11 +327,7 @@ fn expand_enum_mcp_json_schema(
                 LitStr::new(&serde_name, variant.ident.span()),
             ));
         }
-        value_tokens.push(enum_value_push_tokens(
-            &mcp_crate,
-            &primary_name,
-            variant.ident.span(),
-        ));
+        value_tokens.push(enum_value_push_tokens(&primary_name, variant.ident.span()));
         for alias in options.aliases {
             claim_wire_name(
                 &mut enum_values,
@@ -345,11 +341,7 @@ fn expand_enum_mcp_json_schema(
                     LitStr::new(&serde_name, variant.ident.span()),
                 ));
             }
-            value_tokens.push(enum_value_push_tokens(
-                &mcp_crate,
-                &alias,
-                variant.ident.span(),
-            ));
+            value_tokens.push(enum_value_push_tokens(&alias, variant.ident.span()));
         }
     }
 
@@ -367,10 +359,8 @@ fn expand_enum_mcp_json_schema(
         quote! {
             {
                 let mut __component_shape_mcp_schema =
-                    #mcp_crate::McpSchema::new(#mcp_crate::serde_json::json!({
-                        "type": "string",
-                        "enum": __component_shape_mcp_enum_values
-                    }));
+                    #mcp_crate::McpSchema::string()
+                        .with_enum_values(__component_shape_mcp_enum_values);
                 #enum_decode_alias_extension_tokens
                 __component_shape_mcp_schema
             }
@@ -392,16 +382,10 @@ fn expand_enum_mcp_json_schema(
     })
 }
 
-fn enum_value_push_tokens(
-    mcp_crate: &Path,
-    value: &str,
-    span: proc_macro2::Span,
-) -> proc_macro2::TokenStream {
+fn enum_value_push_tokens(value: &str, span: proc_macro2::Span) -> proc_macro2::TokenStream {
     let value = LitStr::new(value, span);
     quote! {
-        __component_shape_mcp_enum_values.push(
-            #mcp_crate::serde_json::Value::String(#value.to_string())
-        );
+        __component_shape_mcp_enum_values.push(#value.to_string());
     }
 }
 

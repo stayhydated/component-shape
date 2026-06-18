@@ -21,6 +21,41 @@ fn schema_description_helpers_only_mutate_object_schemas() {
 }
 
 #[test]
+fn schema_builders_emit_common_json_schema_keywords() {
+    let schema = super::McpSchema::object()
+        .with_properties(super::McpSchemaProperties::from([
+            (
+                "state".to_string(),
+                super::McpSchema::string().with_enum_values(["open", "closed"]),
+            ),
+            (
+                "limit".to_string(),
+                super::McpSchema::integer()
+                    .with_minimum(0_u64)
+                    .with_default(25_u64),
+            ),
+            (
+                "tags".to_string(),
+                super::McpSchema::array(super::McpSchema::string()).with_unique_items(true),
+            ),
+        ]))
+        .with_required(["state"])
+        .with_additional_properties(false);
+
+    assert_eq!(schema["type"], "object");
+    assert_eq!(
+        schema["properties"]["state"]["enum"],
+        json!(["open", "closed"])
+    );
+    assert_eq!(schema["properties"]["limit"]["minimum"], 0);
+    assert_eq!(schema["properties"]["limit"]["default"], 25);
+    assert_eq!(schema["properties"]["tags"]["items"]["type"], "string");
+    assert_eq!(schema["properties"]["tags"]["uniqueItems"], true);
+    assert_eq!(schema["required"], json!(["state"]));
+    assert_eq!(schema["additionalProperties"], false);
+}
+
+#[test]
 fn schema_for_input_maps_range_dates() {
     let schema = super::schema_for_input(McpInput::date_range());
 

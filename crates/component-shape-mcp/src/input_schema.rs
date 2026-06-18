@@ -2,12 +2,12 @@ use super::*;
 
 pub fn schema_for_input(input: McpInput) -> McpSchema {
     match input.input_shape() {
-        McpInputShape::Unsupported => McpSchema::new(json!({ "not": {} })),
+        McpInputShape::Unsupported => McpSchema::impossible(),
         McpInputShape::Scalar(kind) => schema_for_primitive(kind),
         McpInputShape::List(kind) => array_schema(schema_for_primitive(kind)),
         McpInputShape::Set(kind) => unique_array_schema(schema_for_primitive(kind)),
         McpInputShape::Range(kind) => range_schema(schema_for_range_bound(kind)),
-        McpInputShape::Object => McpSchema::new(json!({ "type": "object" })),
+        McpInputShape::Object => McpSchema::object(),
     }
 }
 
@@ -212,35 +212,25 @@ fn literal_to_number_value(literal: &str) -> Option<Value> {
 }
 
 pub fn range_schema(bound_schema: McpSchema) -> McpSchema {
-    let min_schema = nullable_schema(bound_schema.clone()).into_value();
-    let max_schema = nullable_schema(bound_schema).into_value();
-    McpSchema::new(json!({
-        "type": "object",
-        "properties": {
-            "min": min_schema,
-            "max": max_schema
-        },
-        "additionalProperties": false
-    }))
+    McpSchema::object()
+        .with_properties(McpSchemaProperties::from([
+            ("min".to_string(), nullable_schema(bound_schema.clone())),
+            ("max".to_string(), nullable_schema(bound_schema)),
+        ]))
+        .with_additional_properties(false)
 }
 
 pub fn schema_for_primitive(kind: McpPrimitiveKind) -> McpSchema {
-    let schema = match kind {
-        McpPrimitiveKind::Any => json!({}),
-        McpPrimitiveKind::Boolean => json!({ "type": "boolean" }),
-        McpPrimitiveKind::Integer => json!({ "type": "integer" }),
-        McpPrimitiveKind::Number => json!({ "type": "number" }),
-        McpPrimitiveKind::Decimal => json!({
-            "anyOf": [
-                { "type": "number" },
-                { "type": "string" }
-            ]
-        }),
-        McpPrimitiveKind::String => json!({ "type": "string" }),
-        McpPrimitiveKind::Date => json!({ "type": "string", "format": "date" }),
-        McpPrimitiveKind::DateTime => json!({ "type": "string", "format": "date-time" }),
-    };
-    McpSchema::new(schema)
+    match kind {
+        McpPrimitiveKind::Any => McpSchema::any(),
+        McpPrimitiveKind::Boolean => McpSchema::boolean(),
+        McpPrimitiveKind::Integer => McpSchema::integer(),
+        McpPrimitiveKind::Number => McpSchema::number(),
+        McpPrimitiveKind::Decimal => McpSchema::any_of([McpSchema::number(), McpSchema::string()]),
+        McpPrimitiveKind::String => McpSchema::string(),
+        McpPrimitiveKind::Date => McpSchema::string().with_format(McpStringFormat::Date),
+        McpPrimitiveKind::DateTime => McpSchema::string().with_format(McpStringFormat::DateTime),
+    }
 }
 
 pub fn schema_for_range_bound(kind: McpRangeBoundKind) -> McpSchema {
@@ -248,13 +238,7 @@ pub fn schema_for_range_bound(kind: McpRangeBoundKind) -> McpSchema {
 }
 
 pub fn nullable_schema(schema: McpSchema) -> McpSchema {
-    let schema = schema.into_value();
-    McpSchema::new(json!({
-        "anyOf": [
-            schema,
-            { "type": "null" }
-        ]
-    }))
+    McpSchema::any_of([schema, McpSchema::null()])
 }
 
 pub fn schema_allows_null(schema: &McpSchema) -> bool {

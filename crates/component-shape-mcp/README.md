@@ -139,10 +139,12 @@ struct AxisName(String);
 tool should accept unconstrained JSON. Tool definitions reject input schemas
 that do not declare object arguments with `type: "object"`, and reject output
 schemas that do not declare an object root with `type: "object"`. Build custom
-schemas with
-`McpSchema::new(serde_json::json!(...))`; raw tool definitions registered with
-`McpServer::add_tool` and `add_tool_async` are checked against the same schema
-rules.
+schemas with typed builders such as
+`McpSchema::string()`, `McpSchema::integer().with_minimum(0_u64)`, and
+`McpSchema::object().with_properties(...)`; `McpSchema::new(...)` remains the
+escape hatch for unusual JSON Schema keywords. Raw tool definitions registered
+with `McpServer::add_tool` and `add_tool_async` are checked against the same
+schema rules.
 Successful calls for tools that publish `output_schema` must return object
 `structured_content` that matches the declared schema. Handler error results
 are passed through as errors and can still include their own structured

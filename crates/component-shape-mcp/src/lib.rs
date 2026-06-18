@@ -76,7 +76,7 @@ pub use schema::*;
 pub use serde;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 pub use serde_json;
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Number, Value, json};
 pub use server::*;
 use strum::IntoStaticStr;
 pub use validation::*;
