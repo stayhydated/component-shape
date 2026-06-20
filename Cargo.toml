@@ -25,6 +25,7 @@ component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.1.0"
 component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", version = "0.1.0" }
 component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.1.0" }
 component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.1.0" }
+derive_more = "2.1"
 gpui = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de", version = "0.2.2" }
 heck = "0.5"
 prettyplease = "0.2"

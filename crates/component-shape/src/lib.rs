@@ -14,7 +14,7 @@ pub use component_suffix::{
     ComponentSuffix, ComponentSuffixError, component_suffix_from_suffix, is_valid_component_suffix,
     validate_component_suffix,
 };
-pub use field_component::ComponentShapeUse;
+pub use field_component::{ComponentFieldName, ComponentShapeUse};
 pub use mcp::{
     McpInput, McpInputShape, McpPrimitiveKind, McpRangeBoundKind, McpToolMetadataError,
     validate_mcp_tool_metadata_text, validate_mcp_tool_name,
