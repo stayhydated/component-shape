@@ -260,8 +260,8 @@ impl McpValidationIssue {
     }
 
     /// Build a required-field issue.
-    pub fn required(field: impl Into<String>) -> Self {
-        let field = field.into();
+    pub fn required(field: impl AsRef<str>) -> Self {
+        let field = field.as_ref();
         Self::custom(
             McpValidationScope::Field,
             format!("missing required field `{field}`"),
@@ -272,7 +272,7 @@ impl McpValidationIssue {
 
     /// Build an issue from a static validation rule descriptor.
     pub fn for_rule(
-        field: impl Into<String>,
+        field: impl AsRef<str>,
         rule: McpValidationRule,
         message: impl Into<String>,
     ) -> Self {
@@ -308,8 +308,8 @@ impl McpValidationIssue {
     }
 
     /// Attach a field name to an issue.
-    pub fn with_field(mut self, field: impl Into<String>) -> Self {
-        self.field = Some(field.into());
+    pub fn with_field(mut self, field: impl AsRef<str>) -> Self {
+        self.field = Some(field.as_ref().to_string());
         self
     }
 
