@@ -13,6 +13,7 @@ mod names;
 mod results;
 mod schema;
 mod server;
+mod stdio_smoke;
 mod validation;
 
 use std::{
@@ -78,6 +79,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 pub use serde_json;
 use serde_json::{Map, Number, Value, json};
 pub use server::*;
+pub use stdio_smoke::*;
 use strum::IntoStaticStr;
 pub use validation::*;
 

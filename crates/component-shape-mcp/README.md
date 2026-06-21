@@ -176,6 +176,15 @@ or `.serve_stdio_blocking()` when registration is complete. Registration
 returns an error for duplicate tool names, resource URIs, or prompt names so
 composed server construction can fail explicitly.
 
+Use `McpStdioSmokeClient` for application-level smoke tests that need to drive
+a real newline-delimited JSON-RPC stdio server process. It spawns a command with
+piped stdin/stdout/stderr, sends `initialize` and
+`notifications/initialized`, exposes raw `tools/list`, `resources/list`,
+`resources/read`, and `tools/call` protocol results, captures child stderr for
+failures, and shuts down the process on drop. `tool_call_structured_content`
+returns either protocol spelling of structured tool output, so smoke tests can
+assert JSON responses without parsing text content.
+
 Tool failures produced by the shared server helpers keep a text content message
 and also set `structured_content.error`. Typed `McpToolError` failures include
 a stable `kind` plus relevant fields such as `field`, `name`, `label`,
