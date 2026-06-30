@@ -47,7 +47,7 @@ pub trait GpuiComponentShape: ComponentShapeMetadata {
 /// Configured builder for a GPUI component shape.
 ///
 /// Generated code can use this contract when a field selects a component shape
-/// with a configuration expression, such as `Select::<_>::searchable(true)`.
+/// with a configuration expression, such as `Select::<_>.searchable(true)`.
 /// The configured value decides how to initialize the same shape state that the
 /// plain [`GpuiComponentShape::new`] path would otherwise construct.
 pub trait GpuiComponentShapeBuilder<Shape: GpuiComponentShape> {

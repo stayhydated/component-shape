@@ -13,7 +13,7 @@ pub enum ComponentShapeConstructor {
     /// Construct the shape with the consumer's normal/default constructor.
     Default,
     /// Construct the shape with a user-supplied expression, such as
-    /// `Select::<_>::searchable(true)`.
+    /// `Select::<_>.searchable(true)`.
     Expr(Expr),
 }
 
@@ -64,7 +64,7 @@ impl ShapeOptions {
     ) -> syn::Result<Self> {
         let parts = component_shape_expression_parts(&expr, expected)?;
         let constructor = if parts.configured {
-            ComponentShapeConstructor::Expr(expr)
+            ComponentShapeConstructor::Expr(parts.constructor.unwrap_or(expr))
         } else {
             ComponentShapeConstructor::Default
         };

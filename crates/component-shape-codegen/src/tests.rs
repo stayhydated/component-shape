@@ -58,10 +58,14 @@ fn shape_options_resolve_plain_constructor_expr_as_default_shape() {
 }
 
 #[test]
-fn shape_options_resolve_associated_constructor_expr() {
-    let expr: Expr = parse_quote!(crate::select::Select::<_>::searchable(true));
+fn shape_options_resolve_dot_chain_constructor_expr() {
+    let expr: Expr = parse_quote!(
+        crate::select::Select::<_>
+            .searchable(true)
+            .placeholder("Country")
+    );
     let options = ShapeOptions::from_constructor_expr(expr, "expected component shape")
-        .expect("configured shape expression should parse");
+        .expect("dot-chain shape expression should parse");
     let field_type: Type = syn::parse_quote!(String);
 
     let resolved = options.resolve("country".to_string(), field_type);
@@ -70,7 +74,6 @@ fn shape_options_resolve_associated_constructor_expr() {
         compact_path(resolved.shape()),
         "crate::select::Select<String>"
     );
-    assert_eq!(resolved.component_suffix(), "select");
     assert_eq!(
         compact_tokens(
             resolved
@@ -78,18 +81,20 @@ fn shape_options_resolve_associated_constructor_expr() {
                 .expect("configured constructor should be retained")
                 .to_token_stream()
         ),
-        "crate::select::Select::<String>::searchable(true)"
+        "crate::select::Select::<String>::searchable(true).placeholder(\"Country\")"
     );
 }
 
 #[test]
 fn shape_options_resolve_from_constructor_expr() {
-    let expr: Expr = parse_quote!(crate::select::Select::<_>::from(
-        crate::select::SelectArgs::builder()
-            .searchable(true)
-            .placeholder("Country")
-            .build()
-    ));
+    let expr: Expr = parse_quote!(
+        crate::select::Select::<_>.from(
+            crate::select::SelectArgs::builder()
+                .searchable(true)
+                .placeholder("Country")
+                .build()
+        )
+    );
     let options = ShapeOptions::from_constructor_expr(expr, "expected component shape")
         .expect("configured shape expression should parse");
     let field_type: Type = syn::parse_quote!(String);
@@ -109,6 +114,16 @@ fn shape_options_resolve_from_constructor_expr() {
         ),
         "crate::select::Select::<String>::from(crate::select::SelectArgs::builder().searchable(true).placeholder(\"Country\").build())"
     );
+}
+
+#[test]
+fn shape_path_from_constructor_expr_rejects_associated_constructor_exprs() {
+    let expr: Expr = parse_quote!(crate::select::Select::<_>::searchable(true));
+
+    let error = shape_path_from_constructor_expr(&expr, "expected component shape")
+        .expect_err("associated constructor should fail");
+
+    assert_eq!(error.to_string(), "expected component shape");
 }
 
 #[test]

@@ -1,4 +1,6 @@
 use super::*;
+use attribute_dsl::{AttributeChain, ChainCall, ChainParseOptions};
+use quote::{ToTokens as _, quote};
 
 /// Derive a helper suffix from `field_name` and a shape/component suffix source.
 pub fn component_suffix_from_suffix(field_name: &str, suffix: &str) -> Option<String> {
@@ -46,9 +48,9 @@ pub fn shape_path_from_expr(expr: &Expr, expected: &'static str) -> syn::Result<
 /// Extract a shape path from a path or configured constructor expression.
 ///
 /// A plain path, such as `crate::Input::<_>`, is treated as the component shape
-/// itself. An associated function call, such as
-/// `crate::Select::<_>::searchable(true)`, is treated as a configured
-/// constructor expression for the base shape `crate::Select<_>`.
+/// itself. A dot-call chain, such as `crate::Select::<_>.searchable(true)`, is
+/// treated as a configured constructor expression for the base shape
+/// `crate::Select<_>`.
 pub fn shape_path_from_constructor_expr(expr: &Expr, expected: &'static str) -> syn::Result<Path> {
     component_shape_expression_parts(expr, expected).map(|parts| parts.shape)
 }
@@ -56,51 +58,61 @@ pub fn shape_path_from_constructor_expr(expr: &Expr, expected: &'static str) -> 
 pub(crate) struct ComponentShapeExpressionParts {
     pub(crate) shape: Path,
     pub(crate) configured: bool,
+    pub(crate) constructor: Option<Expr>,
 }
 
 pub(crate) fn component_shape_expression_parts(
     expr: &Expr,
     expected: &'static str,
 ) -> syn::Result<ComponentShapeExpressionParts> {
-    match expr {
-        Expr::Path(expr_path) => Ok(ComponentShapeExpressionParts {
-            shape: normalize_shape_path(expr_path.path.clone()),
-            configured: false,
-        }),
-        Expr::Call(call) => {
-            let Expr::Path(func) = &*call.func else {
-                return Err(syn::Error::new(call.func.span(), expected));
-            };
+    let options = ChainParseOptions::new().allow_completion_probe(false);
+    let chain = AttributeChain::parse_tokens_with_options(expr.to_token_stream(), &options)
+        .map_err(|_| syn::Error::new(expr.span(), expected))?;
 
-            Ok(ComponentShapeExpressionParts {
-                shape: shape_path_from_associated_constructor(&func.path, expected)?,
-                configured: true,
-            })
-        },
-        Expr::Group(group) => component_shape_expression_parts(&group.expr, expected),
-        Expr::Paren(paren) => component_shape_expression_parts(&paren.expr, expected),
-        _ => Err(syn::Error::new(expr.span(), expected)),
-    }
+    let shape = chain.root_path();
+    let constructor = if chain.calls().is_empty() {
+        None
+    } else {
+        Some(constructor_expr_from_path_chain(
+            shape,
+            chain.calls(),
+            expected,
+        )?)
+    };
+
+    Ok(ComponentShapeExpressionParts {
+        shape: normalize_shape_path(shape.clone()),
+        configured: constructor.is_some(),
+        constructor,
+    })
 }
 
-fn shape_path_from_associated_constructor(
-    func_path: &Path,
+fn constructor_expr_from_path_chain(
+    shape: &Path,
+    calls: &[ChainCall],
     expected: &'static str,
-) -> syn::Result<Path> {
-    let mut shape = func_path.clone();
-    let Some(associated_fn) = shape.segments.pop() else {
-        return Err(syn::Error::new(func_path.span(), expected));
+) -> syn::Result<Expr> {
+    let Some((first, rest)) = calls.split_first() else {
+        return Err(syn::Error::new(shape.span(), expected));
     };
-    shape.segments.pop_punct();
 
-    if shape.segments.is_empty() {
-        return Err(syn::Error::new_spanned(
-            associated_fn.into_value(),
-            expected,
-        ));
-    }
+    let first_method = first.method();
+    let first_turbofish = first.turbofish();
+    let first_args = first.args();
+    let rest = rest.iter().map(method_call_tokens);
 
-    Ok(normalize_shape_path(shape))
+    syn::parse2(quote! {
+        #shape :: #first_method #first_turbofish (#(#first_args),*) #(#rest)*
+    })
+    .map_err(|_| syn::Error::new(first_method.span(), expected))
+}
+
+fn method_call_tokens(call: &ChainCall) -> TokenStream {
+    let method = call.method();
+    let turbofish = call.turbofish();
+    let args = call.args();
+
+    quote! { .#method #turbofish (#(#args),*) }
 }
 
 /// Extract a shape path from a parsed type path.
