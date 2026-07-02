@@ -1,5 +1,5 @@
 use super::*;
-use attribute_dsl::{AttributeChain, ChainCall, ChainParseOptions};
+use attribute_dsl::{AttributeChain, ChainCall, ChainParseOptions, CompletionProbeParsing};
 use quote::{ToTokens as _, quote};
 
 /// Derive a helper suffix from `field_name` and a shape/component suffix source.
@@ -65,9 +65,17 @@ pub(crate) fn component_shape_expression_parts(
     expr: &Expr,
     expected: &'static str,
 ) -> syn::Result<ComponentShapeExpressionParts> {
-    let options = ChainParseOptions::new().allow_completion_probe(false);
-    let chain = AttributeChain::parse_tokens_with_options(expr.to_token_stream(), &options)
-        .map_err(|_| syn::Error::new(expr.span(), expected))?;
+    component_shape_expression_parts_from_tokens(expr.to_token_stream(), expr.span(), expected)
+}
+
+pub(crate) fn component_shape_expression_parts_from_tokens(
+    tokens: TokenStream,
+    span: Span,
+    expected: &'static str,
+) -> syn::Result<ComponentShapeExpressionParts> {
+    let options = ChainParseOptions::new().allow_completion_probe(CompletionProbeParsing::Disabled);
+    let chain = AttributeChain::parse_tokens_with_options(tokens, &options)
+        .map_err(|_| syn::Error::new(span, expected))?;
 
     let shape = chain.root_path();
     let constructor = if chain.calls().is_empty() {

@@ -58,6 +58,73 @@ fn shape_options_resolve_plain_constructor_expr_as_default_shape() {
 }
 
 #[test]
+fn component_shape_expression_parts_resolves_plain_shape_path() {
+    let expr: Expr = parse_quote!(crate::Input::<_>);
+
+    let parts = component_shape_expression_parts(&expr, "expected component shape")
+        .expect("plain shape expression should parse");
+
+    assert_eq!(compact_path(&parts.shape), "crate::Input<_>");
+    assert!(!parts.configured);
+    assert!(parts.constructor.is_none());
+}
+
+#[test]
+fn component_shape_expression_parts_rewrites_configured_constructor() {
+    let expr: Expr = parse_quote!(crate::Select::<_>.configured(value));
+
+    let parts = component_shape_expression_parts(&expr, "expected component shape")
+        .expect("configured shape expression should parse");
+
+    assert_eq!(compact_path(&parts.shape), "crate::Select<_>");
+    assert!(parts.configured);
+    assert_eq!(
+        compact_tokens(
+            parts
+                .constructor
+                .expect("configured constructor should be retained")
+                .to_token_stream()
+        ),
+        "crate::Select::<_>::configured(value)"
+    );
+}
+
+#[test]
+fn component_shape_expression_parts_rejects_trailing_dot_probe() {
+    let result = crate::paths::component_shape_expression_parts_from_tokens(
+        quote!(crate::Input::<_>.),
+        Span::call_site(),
+        "expected component shape",
+    );
+    assert!(result.is_err(), "trailing dot probe should fail");
+
+    let error = result.err().expect("error should be available");
+    assert_eq!(error.to_string(), "expected component shape");
+}
+
+#[test]
+fn component_shape_expression_parts_rejects_named_marker_probe() {
+    let expr: Expr = parse_quote!(crate::Input::<_>.raCompletionMarker);
+
+    let result = component_shape_expression_parts(&expr, "expected component shape");
+    assert!(result.is_err(), "named marker probe should fail");
+
+    let error = result.err().expect("error should be available");
+    assert_eq!(error.to_string(), "expected component shape");
+}
+
+#[test]
+fn component_shape_expression_parts_rejects_associated_constructor_roots() {
+    let expr: Expr = parse_quote!(crate::Shape::builder().x());
+
+    let result = component_shape_expression_parts(&expr, "expected component shape");
+    assert!(result.is_err(), "associated constructor root should fail");
+
+    let error = result.err().expect("error should be available");
+    assert_eq!(error.to_string(), "expected component shape");
+}
+
+#[test]
 fn shape_options_resolve_dot_chain_constructor_expr() {
     let expr: Expr = parse_quote!(
         crate::select::Select::<_>
