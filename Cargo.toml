@@ -18,7 +18,7 @@ rust-version = "1.96"
 version = "0.1.0"
 
 [workspace.dependencies]
-attribute-dsl = { path = "../attribute-dsl", version = "0.1.0" }
+attribute-dsl = "0.1"
 chrono = "0.4"
 component-shape = { path = "crates/component-shape", version = "0.1.0" }
 component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.1.0" }

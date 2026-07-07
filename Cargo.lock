@@ -176,6 +176,8 @@ checksum = "c59bdb34bc650a32731b31bd8f0829cc15d24a708ee31559e0bb34f2bc320cba"
 [[package]]
 name = "attribute-dsl"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16ca31bcd43c2f2dd67f22380297f8ee30a1c5e3fc544bb87a6f69d3bfd3e6fa"
 dependencies = [
  "proc-macro2",
  "quote",
