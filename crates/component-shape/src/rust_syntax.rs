@@ -4,27 +4,35 @@ use strum::{Display, IntoStaticStr};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RustType(&'static str);
 
+/// Rust path syntax stored as static metadata.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RustPath(&'static str);
 
+/// Rust expression syntax stored as static metadata.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RustExpr(&'static str);
 
+/// Kind of Rust syntax stored as static metadata.
 #[derive(Clone, Copy, Debug, Display, Eq, IntoStaticStr, PartialEq)]
 #[strum(serialize_all = "lowercase", const_into_str)]
 pub enum RustSyntaxKind {
+    /// A Rust type.
     Type,
+    /// A Rust path.
     Path,
+    /// A Rust expression.
     #[strum(to_string = "expression")]
     Expr,
 }
 
 impl RustSyntaxKind {
+    /// Returns the stable English label for this syntax kind.
     pub const fn label(self) -> &'static str {
         self.into_str()
     }
 }
 
+/// Error returned when Rust syntax metadata fails to parse.
 #[derive(Clone, Debug, Eq, thiserror::Error, PartialEq)]
 #[error("invalid Rust {kind} metadata `{value}`: {error}")]
 pub struct RustSyntaxError {
@@ -34,14 +42,17 @@ pub struct RustSyntaxError {
 }
 
 impl RustSyntaxError {
+    /// Returns the syntax kind that failed to parse.
     pub const fn kind(&self) -> RustSyntaxKind {
         self.kind
     }
 
+    /// Returns the original metadata string.
     pub fn value(&self) -> &str {
         &self.value
     }
 
+    /// Returns the parser error message from `syn`.
     pub fn source_error(&self) -> &str {
         &self.error
     }
@@ -59,19 +70,32 @@ fn parse_rust_syntax<T: syn::parse::Parse>(
 }
 
 impl RustType {
+    /// Validates Rust type syntax stored as static metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RustSyntaxError`] when `value` is not valid Rust type syntax.
     pub fn new(value: &'static str) -> Result<Self, RustSyntaxError> {
         parse_rust_syntax::<syn::Type>(RustSyntaxKind::Type, value)?;
         Ok(Self(value))
     }
 
+    /// Validates optional Rust type syntax stored as static metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RustSyntaxError`] when `value` is `Some` and the contained
+    /// string is not valid Rust type syntax.
     pub fn new_opt(value: Option<&'static str>) -> Result<Option<Self>, RustSyntaxError> {
         value.map(Self::new).transpose()
     }
 
+    /// Stores Rust type syntax emitted by a trusted macro expansion.
     pub const fn from_macro_tokens_unchecked(value: &'static str) -> Self {
         Self(value)
     }
 
+    /// Stores optional Rust type syntax emitted by a trusted macro expansion.
     pub const fn from_macro_tokens_opt_unchecked(value: Option<&'static str>) -> Option<Self> {
         match value {
             Some(value) => Some(Self::from_macro_tokens_unchecked(value)),
@@ -79,48 +103,82 @@ impl RustType {
         }
     }
 
+    /// Returns the stored Rust type syntax.
     pub const fn as_str(self) -> &'static str {
         self.0
     }
 
+    /// Parses the stored Rust type syntax.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RustSyntaxError`] when the stored string is not valid Rust type
+    /// syntax.
     pub fn parse(self) -> Result<syn::Type, RustSyntaxError> {
         parse_rust_syntax(RustSyntaxKind::Type, self.0)
     }
 }
 
 impl RustPath {
+    /// Validates Rust path syntax stored as static metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RustSyntaxError`] when `value` is not valid Rust path syntax.
     pub fn new(value: &'static str) -> Result<Self, RustSyntaxError> {
         parse_rust_syntax::<syn::Path>(RustSyntaxKind::Path, value)?;
         Ok(Self(value))
     }
 
+    /// Stores Rust path syntax emitted by a trusted macro expansion.
     pub const fn from_macro_tokens_unchecked(value: &'static str) -> Self {
         Self(value)
     }
 
+    /// Returns the stored Rust path syntax.
     pub const fn as_str(self) -> &'static str {
         self.0
     }
 
+    /// Parses the stored Rust path syntax.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RustSyntaxError`] when the stored string is not valid Rust path
+    /// syntax.
     pub fn parse(self) -> Result<syn::Path, RustSyntaxError> {
         parse_rust_syntax(RustSyntaxKind::Path, self.0)
     }
 }
 
 impl RustExpr {
+    /// Validates Rust expression syntax stored as static metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RustSyntaxError`] when `value` is not valid Rust expression
+    /// syntax.
     pub fn new(value: &'static str) -> Result<Self, RustSyntaxError> {
         parse_rust_syntax::<syn::Expr>(RustSyntaxKind::Expr, value)?;
         Ok(Self(value))
     }
 
+    /// Stores Rust expression syntax emitted by a trusted macro expansion.
     pub const fn from_macro_tokens_unchecked(value: &'static str) -> Self {
         Self(value)
     }
 
+    /// Returns the stored Rust expression syntax.
     pub const fn as_str(self) -> &'static str {
         self.0
     }
 
+    /// Parses the stored Rust expression syntax.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RustSyntaxError`] when the stored string is not valid Rust
+    /// expression syntax.
     pub fn parse(self) -> Result<syn::Expr, RustSyntaxError> {
         parse_rust_syntax(RustSyntaxKind::Expr, self.0)
     }

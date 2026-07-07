@@ -1,5 +1,11 @@
 use super::*;
 
+/// Build and validate an MCP tool definition.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the tool metadata is invalid or when the input
+/// or output schema is not an object-shaped MCP tool schema.
 pub fn tool_definition(
     name: impl Into<String>,
     title: Option<String>,
@@ -28,6 +34,12 @@ pub fn tool_definition(
     Ok(tool)
 }
 
+/// Build and validate a typed MCP tool definition from its input type.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the tool metadata is invalid or when the input
+/// type's generated schema or output schema is not accepted.
 pub fn tool_definition_for_input<Input>(
     name: impl Into<String>,
     title: Option<String>,
@@ -47,6 +59,12 @@ where
     .map(McpTypedTool::from_definition_unchecked)
 }
 
+/// Build and validate an MCP tool definition with tool annotations.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the annotations, metadata, input schema, or
+/// output schema are invalid.
 pub fn tool_definition_with_annotations(
     name: impl Into<String>,
     title: Option<String>,
@@ -63,6 +81,12 @@ pub fn tool_definition_with_annotations(
     Ok(tool)
 }
 
+/// Build and validate a typed MCP tool definition with tool annotations.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the annotations, metadata, input schema, or
+/// output schema are invalid.
 pub fn tool_definition_for_input_with_annotations<Input>(
     name: impl Into<String>,
     title: Option<String>,
@@ -84,6 +108,12 @@ where
     .map(McpTypedTool::from_definition_unchecked)
 }
 
+/// Build and validate an MCP tool definition from generated metadata.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the generated metadata, input schema, or output
+/// schema is invalid.
 pub fn tool_definition_with_metadata(
     default_name: impl Into<String>,
     metadata: McpToolMetadata,
@@ -106,6 +136,12 @@ pub fn tool_definition_with_metadata(
     Ok(tool)
 }
 
+/// Build and validate a typed MCP tool definition from generated metadata.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the generated metadata, typed input schema, or
+/// output schema is invalid.
 pub fn tool_definition_for_input_with_metadata<Input>(
     default_name: impl Into<String>,
     metadata: McpToolMetadata,
@@ -119,6 +155,11 @@ where
 }
 
 /// Build and validate a concrete MCP resource definition.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the resource URI, name, title, description, or
+/// MIME type is invalid.
 pub fn resource_definition(
     uri: impl Into<String>,
     name: impl Into<String>,
@@ -136,6 +177,11 @@ pub fn resource_definition(
 }
 
 /// Build and validate an MCP resource template definition.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the template URI, name, title, description, or
+/// MIME type is invalid.
 pub fn resource_template_definition(
     uri_template: impl Into<String>,
     name: impl Into<String>,
@@ -164,6 +210,10 @@ pub fn text_resource_result(
 }
 
 /// Encode a JSON value as a pretty-printed `application/json` resource result.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when `value` cannot be serialized as JSON.
 pub fn json_resource_result(
     uri: impl Into<String>,
     value: &Value,
@@ -184,6 +234,11 @@ pub struct McpJsonResourceSpec {
 
 impl McpJsonResourceSpec {
     /// Build and validate an `application/json` resource backed by `value`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when the resource URI, name, title, description,
+    /// or MIME type is invalid.
     pub fn new(
         uri: impl Into<String>,
         name: impl Into<String>,
@@ -223,6 +278,11 @@ impl McpJsonResourceSpec {
 }
 
 /// Return resource definitions for a distinct set of generated JSON resources.
+///
+/// # Errors
+///
+/// Returns [`McpToolError::DuplicateResource`] when `specs` contains the same
+/// URI more than once.
 pub fn json_resource_definitions(
     specs: &[McpJsonResourceSpec],
 ) -> Result<Vec<ResourceDefinition>, McpToolError> {
@@ -231,6 +291,11 @@ pub fn json_resource_definitions(
 }
 
 /// Register generated JSON resources, failing if any URI is duplicated.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when any spec URI is duplicated within the batch,
+/// is already registered on `server`, or cannot be registered by the server.
 pub fn register_json_resource_specs(
     server: &mut McpServer,
     specs: Vec<McpJsonResourceSpec>,
@@ -251,6 +316,11 @@ pub fn register_json_resource_specs(
 ///
 /// If only some resources are present, this fails with a duplicate-resource
 /// setup error instead of silently publishing a partial set.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the resource set is partially registered or
+/// contains duplicate URIs.
 pub fn register_json_resource_specs_if_missing(
     server: &mut McpServer,
     specs: Vec<McpJsonResourceSpec>,
@@ -265,6 +335,11 @@ pub fn register_json_resource_specs_if_missing(
 }
 
 /// Ensure generated JSON resource URIs are unique and not already registered.
+///
+/// # Errors
+///
+/// Returns [`McpToolError::DuplicateResource`] when a spec URI is duplicated
+/// within the batch or is already registered on `server`.
 pub fn ensure_json_resource_specs_available(
     server: &McpServer,
     specs: &[McpJsonResourceSpec],
@@ -279,6 +354,11 @@ pub fn ensure_json_resource_specs_available(
 }
 
 /// Ensure generated JSON resource URIs are unique within one batch.
+///
+/// # Errors
+///
+/// Returns [`McpToolError::DuplicateResource`] when a spec URI appears more
+/// than once.
 pub fn ensure_json_resource_specs_distinct(
     specs: &[McpJsonResourceSpec],
 ) -> Result<(), McpToolError> {
@@ -292,6 +372,11 @@ pub fn ensure_json_resource_specs_distinct(
 }
 
 /// Build and validate an MCP prompt definition.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the prompt name, title, description, or
+/// argument metadata is invalid.
 pub fn prompt_definition(
     name: impl Into<String>,
     title: Option<String>,
@@ -312,16 +397,33 @@ pub fn text_prompt_result(description: Option<String>, text: impl Into<String>) 
     result
 }
 
+/// Validate an MCP tool name accepted by generated integrations.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when `name` is outside the generated tool-name
+/// subset.
 pub fn validate_tool_name(name: &str) -> Result<(), McpToolError> {
     component_shape::validate_mcp_tool_name(name)
         .map_err(|error| McpToolError::validation(error.to_string()))
 }
 
+/// Validate human-readable MCP tool metadata text.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when `value` is empty or contains only whitespace.
 pub fn validate_tool_metadata_text(label: &str, value: &str) -> Result<(), McpToolError> {
     component_shape::validate_mcp_tool_metadata_text(label, value)
         .map_err(|error| McpToolError::validation(error.to_string()))
 }
 
+/// Validate MCP tool annotations accepted by generated integrations.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when annotation hints conflict or annotation text is
+/// invalid.
 pub fn validate_tool_annotations(annotations: &McpToolAnnotations) -> Result<(), McpToolError> {
     validate_tool_annotation_hints(annotations.read_only_hint, annotations.destructive_hint)?;
     if let Some(title) = annotations.title.as_deref() {
@@ -330,6 +432,12 @@ pub fn validate_tool_annotations(annotations: &McpToolAnnotations) -> Result<(),
     Ok(())
 }
 
+/// Validate an MCP tool definition accepted by this shared server.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the name, schemas, title, description,
+/// annotations, or icons are invalid.
 pub fn validate_tool_definition(definition: &ToolDefinition) -> Result<(), McpToolError> {
     validate_tool_name(definition.name.as_ref())?;
     validate_tool_input_schema("input_schema", definition.input_schema.as_ref())?;
@@ -354,6 +462,11 @@ pub fn validate_tool_definition(definition: &ToolDefinition) -> Result<(), McpTo
 }
 
 /// Validate a concrete MCP resource definition accepted by this shared server.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the URI, name, title, description, or MIME type
+/// is invalid.
 pub fn validate_resource_definition(definition: &ResourceDefinition) -> Result<(), McpToolError> {
     validate_required_metadata_text("resource uri", &definition.uri)?;
     validate_required_metadata_text("resource name", &definition.name)?;
@@ -370,6 +483,11 @@ pub fn validate_resource_definition(definition: &ResourceDefinition) -> Result<(
 }
 
 /// Validate an MCP resource template definition accepted by this shared server.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the URI template, name, title, description, or
+/// MIME type is invalid.
 pub fn validate_resource_template(
     definition: &ResourceTemplateDefinition,
 ) -> Result<(), McpToolError> {
@@ -388,6 +506,11 @@ pub fn validate_resource_template(
 }
 
 /// Validate an MCP prompt definition accepted by this shared server.
+///
+/// # Errors
+///
+/// Returns [`McpToolError`] when the prompt name, title, description, or
+/// argument metadata is invalid.
 pub fn validate_prompt_definition(definition: &PromptDefinition) -> Result<(), McpToolError> {
     validate_tool_name(&definition.name)?;
     if let Some(title) = definition.title.as_deref() {
@@ -445,6 +568,11 @@ pub(crate) fn validate_tool_annotation_hints(
     Ok(())
 }
 
+/// Converts an MCP schema wrapper into a JSON object.
+///
+/// # Errors
+///
+/// Returns [`McpToolError::InvalidSchema`] when `schema` is not a JSON object.
 pub fn schema_object(
     label: impl Into<String>,
     schema: McpSchema,

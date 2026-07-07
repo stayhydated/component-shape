@@ -386,16 +386,6 @@ fn parse_serde_attr(attr: &syn::Attribute, options: &mut FieldOptions) -> syn::R
         } else if meta.path.is_ident("flatten") {
             options.flatten = Some(meta.path.span());
             Ok(())
-        } else if meta.path.is_ident("skip_serializing")
-            || meta.path.is_ident("skip_serializing_if")
-            || meta.path.is_ident("with")
-            || meta.path.is_ident("serialize_with")
-            || meta.path.is_ident("deserialize_with")
-            || meta.path.is_ident("rename_all")
-            || meta.path.is_ident("bound")
-            || meta.path.is_ident("borrow")
-        {
-            consume_optional_serde_meta_value(&meta)
         } else {
             consume_optional_serde_meta_value(&meta)
         }

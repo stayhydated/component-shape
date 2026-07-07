@@ -28,7 +28,10 @@ pub fn shape_type_assertion_tokens(
 
 /// Emit a concrete field/shape compatibility assertion with consumer-specific
 /// assertion name suffixes.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "token helper exposes each generated assertion input explicitly"
+)]
 pub fn shape_type_assertion_tokens_with_suffixes(
     assertion_prefix: &str,
     field_name: &str,
@@ -82,7 +85,10 @@ pub fn shape_type_assertion_tokens_with_suffixes(
 ///
 /// Use this when the asserted field type may reference generics from the
 /// surrounding item. Nested const items cannot capture those generics.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "block assertion helper mirrors the item assertion token surface"
+)]
 pub fn shape_type_assertion_block_tokens_with_suffixes(
     assertion_prefix: &str,
     field_name: &str,

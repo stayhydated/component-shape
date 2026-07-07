@@ -15,6 +15,7 @@ pub enum McpPrimitiveKind {
 }
 
 impl McpPrimitiveKind {
+    /// Returns the stable schema label for this primitive kind.
     pub const fn as_str(self) -> &'static str {
         self.into_str()
     }
@@ -32,10 +33,12 @@ pub enum McpRangeBoundKind {
 }
 
 impl McpRangeBoundKind {
+    /// Returns the stable schema label for this range-bound kind.
     pub const fn as_str(self) -> &'static str {
         self.into_str()
     }
 
+    /// Returns the primitive kind used by this range-bound kind.
     pub const fn primitive_kind(self) -> McpPrimitiveKind {
         match self {
             Self::Integer => McpPrimitiveKind::Integer,
@@ -56,28 +59,44 @@ impl From<McpRangeBoundKind> for McpPrimitiveKind {
 /// Framework-neutral shape of structured MCP input accepted by a component.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum McpInputShape {
+    /// The component does not expose model-controlled MCP input.
     Unsupported,
+    /// A single primitive value.
     Scalar(McpPrimitiveKind),
+    /// An ordered array of primitive values.
     List(McpPrimitiveKind),
+    /// A unique array of primitive values.
     Set(McpPrimitiveKind),
+    /// A range object with `min` and `max` bounds.
     Range(McpRangeBoundKind),
+    /// An object with integration-defined structure.
     Object,
 }
 
 /// Validation error for generated MCP tool metadata.
 #[derive(Clone, Debug, Eq, thiserror::Error, PartialEq)]
 pub enum McpToolMetadataError {
+    /// The tool name is empty or contains only whitespace.
     #[error("tool name cannot be empty")]
     EmptyName,
+    /// The tool name starts with an unsupported character.
     #[error("tool name must start with an ASCII letter or number")]
     InvalidNameStart,
+    /// The tool name contains an unsupported character.
     #[error("tool name may only contain ASCII letters, digits, '_' '-' '.'")]
     InvalidNameCharacter,
+    /// A human-readable metadata field is empty or contains only whitespace.
     #[error("tool {label} cannot be empty")]
     EmptyText { label: String },
 }
 
 /// Validate the MCP tool-name subset used by generated integrations.
+///
+/// # Errors
+///
+/// Returns [`McpToolMetadataError`] when `name` is empty, starts with an
+/// unsupported character, or contains a character outside the generated tool
+/// name subset.
 pub fn validate_mcp_tool_name(name: &str) -> Result<(), McpToolMetadataError> {
     if name.trim().is_empty() {
         return Err(McpToolMetadataError::EmptyName);
@@ -104,6 +123,11 @@ fn is_mcp_tool_name_char(ch: char) -> bool {
 }
 
 /// Validate human-readable MCP tool metadata text.
+///
+/// # Errors
+///
+/// Returns [`McpToolMetadataError`] when `value` is empty or contains only
+/// whitespace.
 pub fn validate_mcp_tool_metadata_text(
     label: &str,
     value: &str,
@@ -118,6 +142,7 @@ pub fn validate_mcp_tool_metadata_text(
 }
 
 impl McpInputShape {
+    /// Returns whether this shape accepts model-controlled MCP input.
     pub const fn supported(self) -> bool {
         !matches!(self, Self::Unsupported)
     }

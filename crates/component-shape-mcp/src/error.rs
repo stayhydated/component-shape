@@ -1,44 +1,63 @@
 use super::*;
 
+/// Typed setup, decoding, validation, and handler error used by MCP helpers.
 #[derive(Clone, Debug, Eq, thiserror::Error, PartialEq)]
 pub enum McpToolError {
+    /// Tool arguments were omitted or supplied as a non-object JSON value.
     #[error("tool arguments must be a JSON object")]
     ArgumentsMustBeObject,
+    /// A required tool argument field is missing.
     #[error("missing required field `{field}`")]
     MissingField { field: String },
+    /// A non-nullable tool argument field was supplied as JSON null.
     #[error("field `{field}` does not accept null")]
     UnexpectedNull { field: String },
+    /// A field was supplied by multiple accepted wire names.
     #[error("field `{field}` was provided more than once")]
     DuplicateField { field: String },
+    /// A field could not be decoded into its typed Rust value.
     #[error("failed to decode field `{field}`: {message}")]
     DecodeField { field: String, message: String },
+    /// A raw argument field remains after typed decoding finishes.
     #[error("unknown field `{field}`")]
     UnknownField { field: String },
+    /// A field value is outside the accepted schema or enum values.
     #[error("unknown value `{value}` for field `{field}`")]
     InvalidFieldValue { field: String, value: String },
+    /// Validation rejected a value or metadata object.
     #[error("validation failed: {message}")]
     Validation {
         message: String,
         details: Vec<Value>,
     },
+    /// A handler returned structured content that does not match its output schema.
     #[error("tool `{name}` returned invalid structured content: {message}")]
     InvalidToolOutput { name: String, message: String },
+    /// A value conversion failed.
     #[error("conversion failed: {message}")]
     Conversion { message: String },
+    /// A handler returned an application-level failure.
     #[error("handler failed: {message}")]
     Handler { message: String },
+    /// A schema or metadata definition is invalid.
     #[error("invalid {label}: {message}")]
     InvalidSchema { label: String, message: String },
+    /// A tool with the same name is already registered.
     #[error("tool `{name}` is already registered")]
     DuplicateTool { name: String },
+    /// A requested tool name is not registered.
     #[error("unknown tool `{name}`")]
     UnknownTool { name: String },
+    /// A resource with the same URI is already registered.
     #[error("resource `{uri}` is already registered")]
     DuplicateResource { uri: String },
+    /// A requested resource URI is not registered.
     #[error("unknown resource `{uri}`")]
     UnknownResource { uri: String },
+    /// A prompt with the same name is already registered.
     #[error("prompt `{name}` is already registered")]
     DuplicatePrompt { name: String },
+    /// A requested prompt name is not registered.
     #[error("unknown prompt `{name}`")]
     UnknownPrompt { name: String },
 }
@@ -121,12 +140,14 @@ impl McpToolError {
         Value::Object(object)
     }
 
+    /// Build a missing-field error.
     pub fn missing_field(field: impl Into<String>) -> Self {
         Self::MissingField {
             field: field.into(),
         }
     }
 
+    /// Build a field decoding error.
     pub fn decode(field: impl Into<String>, message: impl Into<String>) -> Self {
         Self::DecodeField {
             field: field.into(),
@@ -134,6 +155,7 @@ impl McpToolError {
         }
     }
 
+    /// Build an invalid field value error.
     pub fn invalid_field_value(field: impl Into<String>, value: impl Into<String>) -> Self {
         Self::InvalidFieldValue {
             field: field.into(),
@@ -141,6 +163,7 @@ impl McpToolError {
         }
     }
 
+    /// Build a validation error with a text message.
     pub fn validation(message: impl Into<String>) -> Self {
         Self::Validation {
             message: message.into(),
@@ -148,6 +171,7 @@ impl McpToolError {
         }
     }
 
+    /// Build a validation error from text details.
     pub fn validation_details(details: impl IntoIterator<Item = impl Into<String>>) -> Self {
         let details = details.into_iter().map(Into::into).collect::<Vec<_>>();
         Self::Validation {
@@ -167,12 +191,14 @@ impl McpToolError {
         }
     }
 
+    /// Build a conversion error.
     pub fn conversion(message: impl Into<String>) -> Self {
         Self::Conversion {
             message: message.into(),
         }
     }
 
+    /// Build an invalid tool-output error.
     pub fn invalid_tool_output(name: impl Into<String>, message: impl Into<String>) -> Self {
         Self::InvalidToolOutput {
             name: name.into(),
@@ -180,12 +206,14 @@ impl McpToolError {
         }
     }
 
+    /// Build a handler error.
     pub fn handler(message: impl Into<String>) -> Self {
         Self::Handler {
             message: message.into(),
         }
     }
 
+    /// Build an invalid schema or metadata error.
     pub fn invalid_schema(label: impl Into<String>, message: impl Into<String>) -> Self {
         Self::InvalidSchema {
             label: label.into(),
@@ -193,22 +221,27 @@ impl McpToolError {
         }
     }
 
+    /// Build a duplicate tool registration error.
     pub fn duplicate_tool(name: impl Into<String>) -> Self {
         Self::DuplicateTool { name: name.into() }
     }
 
+    /// Build a duplicate resource registration error.
     pub fn duplicate_resource(uri: impl Into<String>) -> Self {
         Self::DuplicateResource { uri: uri.into() }
     }
 
+    /// Build an unknown resource lookup error.
     pub fn unknown_resource(uri: impl Into<String>) -> Self {
         Self::UnknownResource { uri: uri.into() }
     }
 
+    /// Build a duplicate prompt registration error.
     pub fn duplicate_prompt(name: impl Into<String>) -> Self {
         Self::DuplicatePrompt { name: name.into() }
     }
 
+    /// Build an unknown prompt lookup error.
     pub fn unknown_prompt(name: impl Into<String>) -> Self {
         Self::UnknownPrompt { name: name.into() }
     }
@@ -274,9 +307,7 @@ fn validate_value_against_any_closed_schema(
     value: &Value,
 ) -> Result<(), McpToolError> {
     let mut first_error = None;
-    let mut saw_applicable_schema = false;
     for schema in applicable_closed_schemas(schemas, value) {
-        saw_applicable_schema = true;
         match validate_value_against_closed_schema(field, schema, value) {
             Ok(()) => return Ok(()),
             Err(error) if first_error.is_none() => first_error = Some(error),
@@ -284,11 +315,7 @@ fn validate_value_against_any_closed_schema(
         }
     }
 
-    if saw_applicable_schema {
-        Err(first_error.expect("applicable schema should record validation result"))
-    } else {
-        Ok(())
-    }
+    first_error.map_or(Ok(()), Err)
 }
 
 fn applicable_closed_schemas<'a>(

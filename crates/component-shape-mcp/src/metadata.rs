@@ -38,18 +38,22 @@ impl McpToolIcon {
         self
     }
 
+    /// Returns the icon source URI.
     pub const fn src(self) -> &'static str {
         self.src
     }
 
+    /// Returns the icon MIME type.
     pub const fn mime_type(self) -> Option<&'static str> {
         self.mime_type
     }
 
+    /// Returns declared icon sizes.
     pub const fn sizes(self) -> &'static [&'static str] {
         self.sizes
     }
 
+    /// Returns the icon theme.
     pub const fn theme(self) -> Option<McpIconTheme> {
         self.theme
     }
@@ -95,6 +99,7 @@ pub struct McpToolMetadata {
 }
 
 impl McpToolMetadata {
+    /// Create empty tool metadata.
     pub const fn new() -> Self {
         Self {
             name: None,
@@ -109,87 +114,106 @@ impl McpToolMetadata {
         }
     }
 
+    /// Override the generated tool name.
     pub const fn with_name(mut self, name: &'static str) -> Self {
         self.name = Some(name);
         self
     }
 
+    /// Set the human-readable tool title.
     pub const fn with_title(mut self, title: &'static str) -> Self {
         self.title = Some(title);
         self
     }
 
+    /// Set the human-readable tool description.
     pub const fn with_description(mut self, description: &'static str) -> Self {
         self.description = Some(description);
         self
     }
 
+    /// Set the MCP read-only hint.
     pub const fn with_read_only_hint(mut self, read_only: bool) -> Self {
         self.read_only_hint = Some(read_only);
         self
     }
 
+    /// Set the MCP destructive hint.
     pub const fn with_destructive_hint(mut self, destructive: bool) -> Self {
         self.destructive_hint = Some(destructive);
         self
     }
 
+    /// Set the MCP idempotent hint.
     pub const fn with_idempotent_hint(mut self, idempotent: bool) -> Self {
         self.idempotent_hint = Some(idempotent);
         self
     }
 
+    /// Set the MCP open-world hint.
     pub const fn with_open_world_hint(mut self, open_world: bool) -> Self {
         self.open_world_hint = Some(open_world);
         self
     }
 
+    /// Set static icon metadata for the generated tool definition.
     pub const fn with_icons(mut self, icons: &'static [McpToolIcon]) -> Self {
         self.icons = icons;
         self
     }
 
+    /// Set task support advertised by the MCP tool definition.
     pub const fn with_task_support(mut self, task_support: McpToolTaskSupport) -> Self {
         self.task_support = Some(task_support);
         self
     }
 
+    /// Returns the explicit tool name override.
     pub const fn name(self) -> Option<&'static str> {
         self.name
     }
 
+    /// Returns the human-readable tool title.
     pub const fn title(self) -> Option<&'static str> {
         self.title
     }
 
+    /// Returns the human-readable tool description.
     pub const fn description(self) -> Option<&'static str> {
         self.description
     }
 
+    /// Returns the MCP read-only hint.
     pub const fn read_only_hint(self) -> Option<bool> {
         self.read_only_hint
     }
 
+    /// Returns the MCP destructive hint.
     pub const fn destructive_hint(self) -> Option<bool> {
         self.destructive_hint
     }
 
+    /// Returns the MCP idempotent hint.
     pub const fn idempotent_hint(self) -> Option<bool> {
         self.idempotent_hint
     }
 
+    /// Returns the MCP open-world hint.
     pub const fn open_world_hint(self) -> Option<bool> {
         self.open_world_hint
     }
 
+    /// Returns static icon metadata.
     pub const fn icons(self) -> &'static [McpToolIcon] {
         self.icons
     }
 
+    /// Returns task support advertised by the MCP tool definition.
     pub const fn task_support(self) -> Option<McpToolTaskSupport> {
         self.task_support
     }
 
+    /// Converts metadata hints into MCP tool annotations.
     pub fn tool_annotations(self) -> Option<McpToolAnnotations> {
         if self.read_only_hint.is_none()
             && self.destructive_hint.is_none()
@@ -208,6 +232,7 @@ impl McpToolMetadata {
         ))
     }
 
+    /// Converts static icon metadata into MCP icon definitions.
     pub fn tool_icons(self) -> Option<Vec<McpIcon>> {
         (!self.icons.is_empty()).then(|| {
             self.icons
@@ -217,11 +242,18 @@ impl McpToolMetadata {
         })
     }
 
+    /// Converts task support metadata into MCP tool execution metadata.
     pub fn tool_execution(self) -> Option<McpToolExecution> {
         self.task_support
             .map(|task_support| McpToolExecution::from_raw(Some(task_support)))
     }
 
+    /// Validate generated tool metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when hints conflict or text/icon metadata is
+    /// invalid.
     pub fn validate(self) -> Result<(), McpToolError> {
         validate_tool_annotation_hints(self.read_only_hint, self.destructive_hint)?;
         if let Some(name) = self.name {

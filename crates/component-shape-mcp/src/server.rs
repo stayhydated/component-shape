@@ -1,5 +1,6 @@
 use super::*;
 
+/// In-process MCP server that owns registered tools, resources, and prompts.
 #[derive(Clone)]
 pub struct McpServer {
     pub(crate) server_name: Cow<'static, str>,
@@ -34,6 +35,12 @@ impl McpServer {
         McpServerBuilder::new(server_name, server_version)
     }
 
+    /// Register a synchronous MCP tool handler.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a tool with the
+    /// same name is already registered.
     pub fn add_tool<Call>(
         &mut self,
         definition: ToolDefinition,
@@ -58,6 +65,12 @@ impl McpServer {
         Ok(())
     }
 
+    /// Register a synchronous typed MCP tool handler.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a tool with the
+    /// same name is already registered.
     pub fn add_typed_tool<Input, Call>(
         &mut self,
         definition: McpTypedTool<Input>,
@@ -76,6 +89,12 @@ impl McpServer {
         })
     }
 
+    /// Register an async MCP tool handler.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a tool with the
+    /// same name is already registered.
     pub fn add_tool_async<Call, Fut>(
         &mut self,
         definition: ToolDefinition,
@@ -101,6 +120,12 @@ impl McpServer {
         Ok(())
     }
 
+    /// Register an async typed MCP tool handler.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a tool with the
+    /// same name is already registered.
     pub fn add_typed_tool_async<Input, Call, Fut>(
         &mut self,
         definition: McpTypedTool<Input>,
@@ -124,6 +149,7 @@ impl McpServer {
         })
     }
 
+    /// Return registered MCP tool definitions.
     pub fn list_tools(&self) -> Vec<ToolDefinition> {
         self.tools
             .values()
@@ -131,15 +157,22 @@ impl McpServer {
             .collect()
     }
 
+    /// Whether a tool name is already registered.
     pub fn contains_tool(&self, name: &str) -> bool {
         self.tools.contains_key(name)
     }
 
+    /// Number of registered tools.
     pub fn tool_count(&self) -> usize {
         self.tools.len()
     }
 
     /// Register a static MCP resource reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a resource with
+    /// the same URI is already registered.
     pub fn add_resource<Read>(
         &mut self,
         definition: ResourceDefinition,
@@ -155,6 +188,11 @@ impl McpServer {
     }
 
     /// Register an async MCP resource reader.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a resource with
+    /// the same URI is already registered.
     pub fn add_resource_async<Read, Fut>(
         &mut self,
         definition: ResourceDefinition,
@@ -181,6 +219,10 @@ impl McpServer {
     }
 
     /// Register an MCP resource template advertised by `resources/templates/list`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid.
     pub fn add_resource_template(
         &mut self,
         definition: ResourceTemplateDefinition,
@@ -214,6 +256,11 @@ impl McpServer {
     }
 
     /// Register a static MCP prompt.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a prompt with
+    /// the same name is already registered.
     pub fn add_prompt<Get>(
         &mut self,
         definition: PromptDefinition,
@@ -229,6 +276,11 @@ impl McpServer {
     }
 
     /// Register an async MCP prompt.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a prompt with
+    /// the same name is already registered.
     pub fn add_prompt_async<Get, Fut>(
         &mut self,
         definition: PromptDefinition,
@@ -272,6 +324,8 @@ impl McpServer {
         self.prompts.len()
     }
 
+    /// Calls a registered tool and converts validation or handler failures into
+    /// a protocol-level tool result.
     pub fn call_tool(&self, name: &str, arguments: Option<Value>) -> ToolCallResult {
         match self.tools.get(name) {
             Some(executor) => {
@@ -292,12 +346,23 @@ impl McpServer {
         }
     }
 
+    /// Serve this server over stdin/stdout using the MCP stdio transport.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when stdio serving fails or the service task fails.
     pub async fn serve_stdio(self) -> ServeStdioResult {
         let service = self.serve(stdio()).await?;
         service.waiting().await?;
         Ok(())
     }
 
+    /// Serve this server over stdin/stdout on a new Tokio runtime.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the Tokio runtime cannot be created, stdio serving
+    /// fails, or the service task fails.
     pub fn serve_stdio_blocking(self) -> ServeStdioResult {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -306,12 +371,14 @@ impl McpServer {
     }
 }
 
+/// Builder for composing generated MCP server registrars.
 #[derive(Clone)]
 pub struct McpServerBuilder {
     server: Result<McpServer, McpToolError>,
 }
 
 impl McpServerBuilder {
+    /// Create a builder with advertised server metadata.
     pub fn new(
         server_name: impl Into<Cow<'static, str>>,
         server_version: impl Into<Cow<'static, str>>,
@@ -321,6 +388,7 @@ impl McpServerBuilder {
         }
     }
 
+    /// Runs a registrar against the server being built.
     pub fn register<Register>(mut self, register: Register) -> Self
     where
         Register: FnOnce(&mut McpServer) -> Result<(), McpToolError>,
@@ -333,6 +401,7 @@ impl McpServerBuilder {
         self
     }
 
+    /// Add a synchronous MCP tool to the server being built.
     pub fn tool<Call>(self, definition: ToolDefinition, call: Call) -> Self
     where
         Call: Fn(McpToolCall) -> ToolCallResult + Send + Sync + 'static,
@@ -340,6 +409,7 @@ impl McpServerBuilder {
         self.register(move |server| server.add_tool(definition, call))
     }
 
+    /// Add a synchronous typed MCP tool to the server being built.
     pub fn typed_tool<Input, Call>(self, definition: McpTypedTool<Input>, call: Call) -> Self
     where
         Input: McpToolInput,
@@ -348,6 +418,7 @@ impl McpServerBuilder {
         self.register(move |server| server.add_typed_tool(definition, call))
     }
 
+    /// Add an async MCP tool to the server being built.
     pub fn tool_async<Call, Fut>(self, definition: ToolDefinition, call: Call) -> Self
     where
         Call: Fn(McpToolCall) -> Fut + Send + Sync + 'static,
@@ -356,6 +427,7 @@ impl McpServerBuilder {
         self.register(move |server| server.add_tool_async(definition, call))
     }
 
+    /// Add an async typed MCP tool to the server being built.
     pub fn typed_tool_async<Input, Call, Fut>(
         self,
         definition: McpTypedTool<Input>,
@@ -408,14 +480,31 @@ impl McpServerBuilder {
         self.register(move |server| server.add_prompt_async(definition, get))
     }
 
+    /// Finish the builder and return the composed server.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first [`McpToolError`] produced by a builder registrar.
     pub fn build(self) -> Result<McpServer, McpToolError> {
         self.server
     }
 
+    /// Build and serve this server over stdin/stdout using the MCP stdio transport.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a builder registrar fails, stdio serving fails, or
+    /// the service task fails.
     pub async fn serve_stdio(self) -> ServeStdioResult {
         self.build()?.serve_stdio().await
     }
 
+    /// Build and serve this server over stdin/stdout on a new Tokio runtime.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a builder registrar fails, the Tokio runtime cannot
+    /// be created, stdio serving fails, or the service task fails.
     pub fn serve_stdio_blocking(self) -> ServeStdioResult {
         self.build()?.serve_stdio_blocking()
     }

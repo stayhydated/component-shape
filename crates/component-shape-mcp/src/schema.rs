@@ -13,6 +13,7 @@ pub enum McpSchemaType {
 }
 
 impl McpSchemaType {
+    /// Returns the JSON Schema type keyword value.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Null => "null",
@@ -34,6 +35,7 @@ pub enum McpStringFormat {
 }
 
 impl McpStringFormat {
+    /// Returns the JSON Schema string format keyword value.
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Date => "date",
@@ -47,10 +49,12 @@ impl McpStringFormat {
 pub struct McpSchemaNumber(Number);
 
 impl McpSchemaNumber {
+    /// Converts a finite `f64` into a JSON Schema number.
     pub fn from_f64(value: f64) -> Option<Self> {
         Number::from_f64(value).map(Self)
     }
 
+    /// Converts this number into a JSON value.
     pub fn into_value(self) -> Value {
         Value::Number(self.0)
     }
@@ -84,7 +88,9 @@ impl From<usize> for McpSchemaNumber {
 
 /// Value accepted by the JSON Schema `additionalProperties` keyword.
 pub enum McpAdditionalProperties {
+    /// Whether additional properties are allowed.
     Allowed(bool),
+    /// Schema applied to additional property values.
     Schema(McpSchema),
 }
 
@@ -435,6 +441,7 @@ where
 /// publishes an unconstrained schema for dynamic argument fields; tool output
 /// schemas must still declare an object root.
 pub trait McpJsonSchema {
+    /// Returns the JSON Schema for this type.
     fn json_schema() -> McpSchema;
 }
 
@@ -448,14 +455,17 @@ pub trait McpJsonSchema {
 pub struct McpAny(Value);
 
 impl McpAny {
+    /// Creates an unconstrained MCP value from raw JSON.
     pub fn new(value: Value) -> Self {
         Self(value)
     }
 
+    /// Returns the raw JSON value.
     pub fn as_value(&self) -> &Value {
         &self.0
     }
 
+    /// Returns the raw JSON value.
     pub fn into_value(self) -> Value {
         self.0
     }
@@ -502,8 +512,15 @@ impl McpJsonSchema for Value {
 /// struct, so object-shaped tool inputs can be reused as nested field or filter
 /// values.
 pub trait McpToolInput: Sized {
+    /// Returns the input object's JSON Schema.
     fn input_schema() -> McpSchema;
 
+    /// Decodes a normalized tool call into this input type.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when required fields are missing, unknown fields
+    /// remain, a field value fails schema validation, or serde rejects a field.
     fn from_tool_call(call: McpToolCall) -> Result<Self, McpToolError>;
 }
 
@@ -535,14 +552,17 @@ impl<Input> McpTypedTool<Input> {
         }
     }
 
+    /// Returns the wrapped MCP tool definition.
     pub fn definition(&self) -> &ToolDefinition {
         &self.definition
     }
 
+    /// Returns the wrapped MCP tool definition mutably.
     pub fn definition_mut(&mut self) -> &mut ToolDefinition {
         &mut self.definition
     }
 
+    /// Returns the wrapped MCP tool definition.
     pub fn into_definition(self) -> ToolDefinition {
         self.definition
     }
@@ -571,8 +591,15 @@ impl<Input> std::ops::Deref for McpTypedTool<Input> {
 /// default implementation; JSON null is accepted only when the generated schema
 /// allows null.
 pub trait McpToolValue: Sized {
+    /// Returns the schema used for this value inside an MCP argument object.
     fn tool_value_schema() -> McpSchema;
 
+    /// Decodes one JSON field value into this type.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when the value is unexpectedly null, fails
+    /// schema validation, or serde rejects the normalized JSON value.
     fn from_tool_value(field: &str, value: Value) -> Result<Self, McpToolError>;
 }
 
@@ -608,15 +635,19 @@ where
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct McpRange<T> {
+    /// Inclusive lower range bound.
     pub min: Option<T>,
+    /// Inclusive upper range bound.
     pub max: Option<T>,
 }
 
 impl<T> McpRange<T> {
+    /// Creates a range argument from optional bounds.
     pub fn new(min: Option<T>, max: Option<T>) -> Self {
         Self { min, max }
     }
 
+    /// Returns this range as `(min, max)`.
     pub fn into_tuple(self) -> (Option<T>, Option<T>) {
         (self.min, self.max)
     }
@@ -864,14 +895,17 @@ where
     }
 }
 
+/// Build an array schema for items of `item_schema`.
 pub fn array_schema(item_schema: McpSchema) -> McpSchema {
     McpSchema::array(item_schema)
 }
 
+/// Build a unique-array schema for items of `item_schema`.
 pub fn unique_array_schema(item_schema: McpSchema) -> McpSchema {
     array_schema(item_schema).with_unique_items(true)
 }
 
+/// Build a fixed-length tuple schema.
 pub fn tuple_schema<I>(item_schemas: I) -> McpSchema
 where
     I: IntoIterator<Item = McpSchema>,
@@ -885,10 +919,12 @@ where
         .with_max_items(len)
 }
 
+/// Build an object schema whose string keys all use `value_schema`.
 pub fn string_keyed_object_schema(value_schema: McpSchema) -> McpSchema {
     McpSchema::object().with_additional_properties(value_schema)
 }
 
+/// Build a closed object schema from properties and required field names.
 pub fn object_schema<I, S>(properties: McpSchemaProperties, required: I) -> McpSchema
 where
     I: IntoIterator<Item = S>,

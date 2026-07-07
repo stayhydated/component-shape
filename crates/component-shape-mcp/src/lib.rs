@@ -63,7 +63,7 @@ pub use rmcp::model::{
 use rmcp::{
     ErrorData, RoleServer, ServerHandler, ServiceExt as _,
     model::{
-        AnnotateAble, CallToolRequestParams, GetPromptRequestParams, GetPromptResult,
+        AnnotateAble as _, CallToolRequestParams, GetPromptRequestParams, GetPromptResult,
         Implementation, JsonObject, ListPromptsResult, ListResourceTemplatesResult,
         ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt, PromptMessage,
         PromptMessageRole, ProtocolVersion, RawResource, RawResourceTemplate,

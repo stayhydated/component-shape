@@ -10,14 +10,17 @@ pub enum ValueChange<T> {
 }
 
 impl<T> ValueChange<T> {
+    /// Creates a value replacement change.
     pub const fn set(value: T) -> Self {
         Self::Set(value)
     }
 
+    /// Creates an optional value clear change.
     pub const fn clear() -> Self {
         Self::Clear
     }
 
+    /// Creates a no-op value change.
     pub const fn unchanged() -> Self {
         Self::Unchanged
     }
