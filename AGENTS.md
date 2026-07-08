@@ -167,6 +167,9 @@ diagnostic text changes:
   command when the change spans code surfaces.
 - Run `just test-publish` before handoff for public crate layout or
   publishability-sensitive Cargo metadata changes.
+- For rustdoc changes, match CI with
+  `cargo doc --workspace --all-features --no-deps --locked`.
+- CI runs docs and package dry-run jobs from `.github/workflows/ci.yml`.
 - If validation cannot run, state why and what remains unvalidated.
 - Do not claim a change works unless it was validated or the remaining risk is
   explicitly documented.
