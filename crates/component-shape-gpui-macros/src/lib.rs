@@ -1,7 +1,6 @@
 mod derives;
 
 use proc_macro::TokenStream;
-use proc_macro_error2::proc_macro_error;
 
 /// Derive macro for GPUI component shape metadata.
 ///
@@ -23,7 +22,6 @@ use proc_macro_error2::proc_macro_error;
 /// when a generic or custom shape knows its model-facing MCP input better than
 /// the value type can be inferred.
 #[proc_macro_derive(GpuiComponentShape, attributes(gpui_component_shape))]
-#[proc_macro_error]
 pub fn derive_gpui_component_shape(input: TokenStream) -> TokenStream {
     derives::component_shape_state::from(input)
 }
@@ -45,7 +43,6 @@ pub fn derive_gpui_component_shape(input: TokenStream) -> TokenStream {
 /// when a generic or custom shape knows its model-facing MCP input better than
 /// the value type can be inferred.
 #[proc_macro]
-#[proc_macro_error]
 pub fn component_shape(input: TokenStream) -> TokenStream {
     derives::component_shape::function(input)
 }

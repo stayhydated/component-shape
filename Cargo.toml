@@ -31,7 +31,6 @@ gpui = { git = "https://github.com/zed-industries/zed", rev = "c545fb67d0ce13e33
 heck = "0.5"
 prettyplease = "0.2"
 proc-macro-crate = "3.2"
-proc-macro-error2 = "2.0"
 proc-macro2 = "1.0"
 quote = "1.0"
 rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "1.7.0" }
