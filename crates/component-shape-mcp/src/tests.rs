@@ -1752,3 +1752,716 @@ fn server_accepts_owned_metadata() {
     assert_eq!(server.server_name, "owned-server");
     assert_eq!(server.server_version, "1.2.3");
 }
+
+#[test]
+fn validation_schema_hints_cover_ranges_non_empty_values_and_arrays() {
+    static RANGE_PARAMS: &[super::McpValidationParam] = &[
+        super::McpValidationParam::literal("min", "-2.5"),
+        super::McpValidationParam::literal("max", "18446744073709551615"),
+        super::McpValidationParam::literal("exclusive_min", "true"),
+        super::McpValidationParam::literal("exclusive_max", "false"),
+    ];
+    static LEN_PARAMS: &[super::McpValidationParam] = &[
+        super::McpValidationParam::literal("min", "2"),
+        super::McpValidationParam::literal("max", "4"),
+    ];
+    let range = super::McpValidationRule::new(
+        super::McpValidationScope::Field,
+        "RangeValidation",
+        "validators::RangeValidation",
+        None,
+        super::McpValidationTypeArgMode::None,
+        RANGE_PARAMS,
+    );
+    let len = super::McpValidationRule::new(
+        super::McpValidationScope::Field,
+        "LenValidation",
+        "validators::LenValidation",
+        None,
+        super::McpValidationTypeArgMode::None,
+        LEN_PARAMS,
+    );
+    let non_empty = super::McpValidationRule::new(
+        super::McpValidationScope::Field,
+        "NonEmptyValidation",
+        "validators::NonEmptyValidation",
+        None,
+        super::McpValidationTypeArgMode::None,
+        super::MCP_VALIDATION_PARAMS_NONE,
+    );
+
+    let mut number = super::McpSchema::number().into_value();
+    super::apply_validation_schema_hints(
+        number
+            .as_object_mut()
+            .expect("number schema should be object"),
+        &[range],
+    );
+    assert_eq!(number["exclusiveMinimum"], json!(-2.5));
+    assert_eq!(number["maximum"], json!(18446744073709551615_u64));
+
+    let mut array = super::McpSchema::array(super::McpSchema::string()).into_value();
+    super::apply_validation_schema_hints(
+        array
+            .as_object_mut()
+            .expect("array schema should be object"),
+        &[len, non_empty],
+    );
+    assert_eq!(array["minItems"], 2);
+    assert_eq!(array["maxItems"], 4);
+
+    let mut string = super::McpSchema::string().into_value();
+    super::apply_validation_schema_hints(
+        string
+            .as_object_mut()
+            .expect("string schema should be object"),
+        &[non_empty],
+    );
+    assert_eq!(string["minLength"], 1);
+
+    let mut any_of = json!({ "anyOf": [false, { "type": "string" }] });
+    super::apply_validation_schema_hints(
+        any_of.as_object_mut().expect("schema should be object"),
+        &[non_empty],
+    );
+    assert_eq!(any_of["minLength"], 1);
+
+    let mut object = json!({ "type": "object" });
+    super::apply_validation_schema_hints(
+        object.as_object_mut().expect("schema should be object"),
+        &[range, len, non_empty],
+    );
+    assert_eq!(object, json!({ "type": "object" }));
+}
+
+#[test]
+fn validation_metadata_accessors_and_issue_builders_are_structured() {
+    static PARAMS: &[super::McpValidationParam] = &[
+        super::McpValidationParam::literal("min", "1"),
+        super::McpValidationParam::expr("max", "limits.max"),
+    ];
+    let rule = super::McpValidationRule::new(
+        super::McpValidationScope::Element,
+        "LenValidation",
+        "validators::LenValidation::<String>",
+        Some("tag length"),
+        super::McpValidationTypeArgMode::Explicit,
+        PARAMS,
+    )
+    .with_target(super::McpValidationTarget::Unwrapped);
+
+    assert_eq!(PARAMS[1].expr_value(), Some("limits.max"));
+    assert_eq!(
+        rule.type_arg_mode(),
+        super::McpValidationTypeArgMode::Explicit
+    );
+    assert_eq!(rule.to_value()["target"], "unwrapped");
+    assert_eq!(rule.to_value()["params"][1]["expr"], "limits.max");
+
+    let issue = super::McpValidationIssue::for_rule("tags", rule, "too long").with_element_index(3);
+    assert_eq!(issue.field(), Some("tags"));
+    assert_eq!(issue.filter(), None);
+    assert_eq!(issue.to_value()["label"], "tag length");
+    assert_eq!(issue.to_value()["target"], "unwrapped");
+    assert_eq!(issue.to_value()["element_index"], 3);
+
+    let issue = super::McpValidationIssue::form("invalid form").with_label("form");
+    assert_eq!(issue.to_value()["scope"], "form");
+    assert_eq!(issue.to_value()["label"], "form");
+}
+
+#[test]
+fn schema_conversions_and_remaining_json_schema_impls_are_exercised() {
+    use std::{
+        borrow::Cow,
+        collections::{BTreeMap, BTreeSet, HashMap},
+        path::{Path, PathBuf},
+    };
+
+    assert_eq!(super::McpSchemaType::Number.as_str(), "number");
+    assert_eq!(super::McpStringFormat::DateTime.as_str(), "date-time");
+    assert_eq!(
+        super::McpSchemaNumber::from_f64(1.5)
+            .expect("finite number should convert")
+            .into_value(),
+        json!(1.5)
+    );
+    assert!(super::McpSchemaNumber::from_f64(f64::NAN).is_none());
+    assert_eq!(
+        super::McpSchemaNumber::from(-2_isize).into_value(),
+        json!(-2)
+    );
+    assert_eq!(super::McpSchemaNumber::from(2_usize).into_value(), json!(2));
+
+    let schema = super::McpSchema::one_of([super::McpSchema::string(), super::McpSchema::number()])
+        .with_extension("x-test", json!(true))
+        .with_const("fixed");
+    assert_eq!(schema["oneOf"].as_array().map(Vec::len), Some(2));
+    assert_eq!(schema["x-test"], true);
+    assert_eq!(schema["const"], "fixed");
+
+    let any = super::McpAny::from(json!({ "value": 1 }));
+    assert_eq!(any.as_value()["value"], 1);
+    assert_eq!((*any)["value"], 1);
+    let value: Value = any.into();
+    assert_eq!(value["value"], 1);
+
+    let range = super::McpRange::from((Some(1_i32), Some(3_i32)));
+    let tuple: (Option<i32>, Option<i32>) = range.into();
+    assert_eq!(tuple, (Some(1), Some(3)));
+
+    let schemas = [
+        <f32 as super::McpJsonSchema>::json_schema(),
+        <f64 as super::McpJsonSchema>::json_schema(),
+        <rust_decimal::Decimal as super::McpJsonSchema>::json_schema(),
+        <char as super::McpJsonSchema>::json_schema(),
+        <PathBuf as super::McpJsonSchema>::json_schema(),
+        <Path as super::McpJsonSchema>::json_schema(),
+        <chrono::NaiveDate as super::McpJsonSchema>::json_schema(),
+        <chrono::NaiveDateTime as super::McpJsonSchema>::json_schema(),
+        <chrono::DateTime<chrono::Utc> as super::McpJsonSchema>::json_schema(),
+        <[String; 2] as super::McpJsonSchema>::json_schema(),
+        <BTreeSet<String> as super::McpJsonSchema>::json_schema(),
+        <HashMap<String, i32> as super::McpJsonSchema>::json_schema(),
+        <BTreeMap<String, i32> as super::McpJsonSchema>::json_schema(),
+        <Box<String> as super::McpJsonSchema>::json_schema(),
+        <() as super::McpJsonSchema>::json_schema(),
+        <&str as super::McpJsonSchema>::json_schema(),
+        <Cow<'static, str> as super::McpJsonSchema>::json_schema(),
+    ];
+    assert_eq!(schemas[0]["type"], "number");
+    assert_eq!(schemas[3]["type"], "string");
+    assert_eq!(schemas[8]["format"], "date-time");
+    assert_eq!(schemas[9]["minItems"], 2);
+    assert_eq!(schemas[10]["uniqueItems"], true);
+    assert_eq!(schemas[11]["additionalProperties"]["type"], "integer");
+    assert_eq!(schemas[14]["type"], "null");
+}
+
+#[test]
+fn typed_tool_metadata_arguments_and_ranges_expose_adapters() {
+    #[derive(crate::McpToolInput)]
+    #[allow(dead_code)]
+    struct Input {
+        value: String,
+    }
+
+    let mut tool = super::tool_definition_for_input::<Input>("adapter", None, None, None)
+        .expect("tool should build");
+    assert_eq!(tool.as_ref().name.as_ref(), "adapter");
+    tool.definition_mut().title = Some("Adapter".to_string());
+    assert_eq!(tool.definition().title.as_deref(), Some("Adapter"));
+
+    let call = super::McpToolCall::from_value(Some(json!({ "value": "x" })))
+        .expect("call should normalize");
+    let arguments: super::McpArguments = call.into();
+    assert!(!arguments.is_empty());
+    assert_eq!(arguments.as_inner()["value"], "x");
+    let raw = arguments.into_inner();
+    let arguments: super::McpArguments = raw.into();
+    assert_eq!(arguments.as_inner()["value"], "x");
+
+    let icon = super::McpToolIcon::new("data:image/svg+xml,x")
+        .with_mime_type("image/svg+xml")
+        .with_sizes(&["16x16"])
+        .with_theme(super::McpIconTheme::Light);
+    assert_eq!(icon.src(), "data:image/svg+xml,x");
+    assert_eq!(icon.mime_type(), Some("image/svg+xml"));
+    assert_eq!(icon.sizes(), &["16x16"]);
+    assert_eq!(icon.theme(), Some(super::McpIconTheme::Light));
+    assert_eq!(super::McpToolMetadata::new().tool_annotations(), None);
+}
+
+#[test]
+fn every_typed_tool_error_has_stable_structured_content() {
+    let errors = vec![
+        super::McpToolError::ArgumentsMustBeObject,
+        super::McpToolError::missing_field("name"),
+        super::McpToolError::UnexpectedNull {
+            field: "name".to_string(),
+        },
+        super::McpToolError::DuplicateField {
+            field: "name".to_string(),
+        },
+        super::McpToolError::decode("name", "bad string"),
+        super::McpToolError::UnknownField {
+            field: "extra".to_string(),
+        },
+        super::McpToolError::invalid_field_value("state", "missing"),
+        super::McpToolError::validation("invalid"),
+        super::McpToolError::invalid_tool_output("tool", "bad output"),
+        super::McpToolError::conversion("bad conversion"),
+        super::McpToolError::handler("handler failed"),
+        super::McpToolError::invalid_schema("input", "bad schema"),
+        super::McpToolError::duplicate_tool("tool"),
+        super::McpToolError::UnknownTool {
+            name: "tool".to_string(),
+        },
+        super::McpToolError::duplicate_resource("shape://one"),
+        super::McpToolError::unknown_resource("shape://one"),
+        super::McpToolError::duplicate_prompt("prompt"),
+        super::McpToolError::unknown_prompt("prompt"),
+    ];
+
+    for error in errors {
+        let structured = error.to_structured_value();
+        assert_eq!(structured["kind"], error.kind());
+        assert_eq!(structured["message"], error.to_string());
+    }
+}
+
+#[test]
+fn response_serialization_covers_success_and_failure() {
+    struct FailsToSerialize;
+
+    impl serde::Serialize for FailsToSerialize {
+        fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            Err(serde::ser::Error::custom("expected failure"))
+        }
+    }
+
+    let success = super::serialize_handler_response::<_, &str>(Ok(json!({ "ok": true })));
+    assert_eq!(success.is_error, Some(false));
+    assert_eq!(success.structured_content.expect("structured")["ok"], true);
+
+    let failure = super::serialize_response_value(FailsToSerialize);
+    assert_eq!(failure.is_error, Some(true));
+    assert_eq!(
+        failure.structured_content.expect("structured error")["error"]["kind"],
+        "handler"
+    );
+}
+
+#[test]
+fn server_builder_registers_sync_async_raw_and_typed_tools() {
+    #[derive(crate::McpToolInput)]
+    struct Input {
+        value: String,
+    }
+
+    fn raw_tool(name: &str) -> super::ToolDefinition {
+        super::tool_definition(name, None, None, super::McpSchema::object(), None)
+            .expect("tool should build")
+    }
+
+    let typed_sync = super::tool_definition_for_input_with_annotations::<Input>(
+        "typed_sync",
+        None,
+        None,
+        None,
+        Some(super::McpToolAnnotations::new().read_only(true)),
+    )
+    .expect("typed tool should build");
+    let typed_async = super::tool_definition_for_input::<Input>("typed_async", None, None, None)
+        .expect("typed tool should build");
+
+    let server = super::McpServer::builder("builder", "0.0.0")
+        .tool(raw_tool("raw_sync"), |call| {
+            super::tool_structured_result(Value::Object(call.into_arguments().into_inner()))
+        })
+        .typed_tool(typed_sync, |input| {
+            super::tool_structured_result(json!({ "value": input.value }))
+        })
+        .tool_async(raw_tool("raw_async"), |call| async move {
+            super::tool_structured_result(Value::Object(call.into_arguments().into_inner()))
+        })
+        .typed_tool_async(typed_async, |input| async move {
+            super::tool_structured_result(json!({ "value": input.value }))
+        })
+        .build()
+        .expect("builder should register tools");
+
+    for name in ["raw_sync", "typed_sync", "raw_async", "typed_async"] {
+        let result = server.call_tool(name, Some(json!({ "value": name })));
+        assert_eq!(result.is_error, Some(false), "tool: {name}");
+        assert_eq!(
+            result.structured_content.expect("structured")["value"],
+            name
+        );
+    }
+
+    let invalid = server.call_tool("typed_async", Some(json!({ "extra": true })));
+    assert_eq!(invalid.is_error, Some(true));
+    let unknown = server.call_tool("missing", Some(json!({})));
+    assert_eq!(unknown.is_error, Some(true));
+
+    let duplicate = super::McpServer::builder("builder", "0.0.0")
+        .tool(raw_tool("duplicate"), |_| {
+            super::tool_structured_result(json!({}))
+        })
+        .tool(raw_tool("duplicate"), |_| {
+            super::tool_structured_result(json!({}))
+        })
+        .build();
+    assert!(matches!(
+        duplicate,
+        Err(super::McpToolError::DuplicateTool { .. })
+    ));
+}
+
+#[test]
+fn server_builder_registers_resources_templates_and_prompts() {
+    let resource = || {
+        super::resource_definition(
+            "shape://sync",
+            "sync_resource",
+            None,
+            None,
+            Some("text/plain".to_string()),
+        )
+        .expect("resource should build")
+    };
+    let async_resource = super::resource_definition(
+        "shape://async",
+        "async_resource",
+        None,
+        None,
+        Some("text/plain".to_string()),
+    )
+    .expect("resource should build");
+    let template = super::resource_template_definition(
+        "shape://{name}",
+        "shape_template",
+        None,
+        None,
+        Some("text/plain".to_string()),
+    )
+    .expect("template should build");
+    let prompt =
+        super::prompt_definition("sync_prompt", None, None, None).expect("prompt should build");
+    let async_prompt =
+        super::prompt_definition("async_prompt", None, None, None).expect("prompt should build");
+
+    let server = super::McpServer::builder("builder", "0.0.0")
+        .resource(resource(), || {
+            super::text_resource_result("shape://sync", "sync", "text/plain")
+        })
+        .resource_async(async_resource, || async {
+            Ok(super::text_resource_result(
+                "shape://async",
+                "async",
+                "text/plain",
+            ))
+        })
+        .resource_template(template)
+        .prompt(prompt, |_| super::text_prompt_result(None, "sync"))
+        .prompt_async(async_prompt, |_| async {
+            Ok(super::text_prompt_result(None, "async"))
+        })
+        .build()
+        .expect("builder should register resources and prompts");
+
+    assert_eq!(server.resource_count(), 2);
+    assert_eq!(server.list_resource_templates().len(), 1);
+    assert_eq!(server.prompt_count(), 2);
+    assert!(server.contains_prompt("sync_prompt"));
+
+    let mut duplicates = super::McpServer::new("duplicates", "0.0.0");
+    duplicates
+        .add_resource(resource(), || {
+            super::text_resource_result("shape://sync", "sync", "text/plain")
+        })
+        .expect("first resource should register");
+    assert!(matches!(
+        duplicates.add_resource(resource(), || {
+            super::text_resource_result("shape://sync", "sync", "text/plain")
+        }),
+        Err(super::McpToolError::DuplicateResource { .. })
+    ));
+
+    let prompt = || {
+        super::prompt_definition("duplicate_prompt", None, None, None).expect("prompt should build")
+    };
+    duplicates
+        .add_prompt(prompt(), |_| super::text_prompt_result(None, "prompt"))
+        .expect("first prompt should register");
+    assert!(matches!(
+        duplicates.add_prompt(prompt(), |_| super::text_prompt_result(None, "prompt")),
+        Err(super::McpToolError::DuplicatePrompt { .. })
+    ));
+}
+
+#[test]
+fn closed_schema_validation_covers_composites_arrays_and_nested_objects() {
+    let object_a = json!({
+        "type": "object",
+        "required": ["a"],
+        "additionalProperties": false,
+        "properties": { "a": { "type": "integer" } }
+    });
+    let object_b = json!({
+        "type": ["null", "object"],
+        "required": ["b"],
+        "additionalProperties": false,
+        "properties": { "b": { "type": "integer" } }
+    });
+
+    for schema in [
+        json!({ "anyOf": [false, object_a, object_b] }),
+        json!({ "oneOf": [object_a, object_b] }),
+    ] {
+        super::validate_value_against_closed_schema("input", &schema, &json!({ "b": 1 }))
+            .expect("one applicable object branch should accept the value");
+        assert!(
+            super::validate_value_against_closed_schema("input", &schema, &json!({ "c": 1 }))
+                .is_err()
+        );
+    }
+
+    let all_of = json!({
+        "allOf": [
+            { "type": "object", "required": ["a"] },
+            { "type": "object", "required": ["b"] }
+        ]
+    });
+    super::validate_value_against_closed_schema("", &all_of, &json!({ "a": 1, "b": 2 }))
+        .expect("all object branches should accept the value");
+
+    let array = json!({
+        "anyOf": [{ "type": "array" }],
+        "items": {
+            "type": "object",
+            "required": ["value"],
+            "additionalProperties": false,
+            "properties": { "value": { "type": "string" } }
+        },
+        "prefixItems": [
+            {
+                "type": "object",
+                "required": ["value"],
+                "additionalProperties": false,
+                "properties": { "value": { "type": "string" } }
+            }
+        ]
+    });
+    super::validate_value_against_closed_schema("items", &array, &json!([{ "value": "ok" }]))
+        .expect("nested array objects should validate");
+    assert!(
+        super::validate_value_against_closed_schema("items", &array, &json!([{ "extra": true }]))
+            .is_err()
+    );
+
+    assert!(super::validate_value_against_closed_schema("value", &json!(true), &json!(1)).is_ok());
+    assert!(super::validate_value_against_closed_schema("value", &json!({}), &Value::Null).is_ok());
+}
+
+#[test]
+fn schema_normalization_covers_composites_aliases_and_collection_items() {
+    let enum_alias = json!({
+        "type": "string",
+        "enum": ["ready"],
+        "x-mcpEnumDecodeAliases": { "prepared": "ready" }
+    });
+    let any_of = json!({
+        "anyOf": [
+            { "type": "integer" },
+            enum_alias
+        ]
+    });
+    assert_eq!(
+        super::normalize_value_against_schema(&any_of, json!("prepared")),
+        json!("ready")
+    );
+    assert_eq!(
+        super::normalize_value_against_schema(
+            &json!({ "oneOf": [false, enum_alias] }),
+            json!("prepared")
+        ),
+        json!("ready")
+    );
+
+    let object_schema = json!({
+        "type": "object",
+        "properties": {
+            "wire": {
+                "type": "string",
+                "x-mcpAliases": ["alias"],
+                "x-mcpDecodeName": "rust_name",
+                "x-mcpEnumDecodeAliases": { "prepared": "ready" }
+            }
+        },
+        "additionalProperties": enum_alias
+    });
+    assert_eq!(
+        super::normalize_value_against_schema(
+            &object_schema,
+            json!({ "alias": "prepared", "extra": "prepared" })
+        ),
+        json!({ "rust_name": "ready", "extra": "ready" })
+    );
+
+    let all_of = json!({ "allOf": [true, object_schema] });
+    assert_eq!(
+        super::normalize_value_against_schema(&all_of, json!({ "wire": "prepared" })),
+        json!({ "rust_name": "ready" })
+    );
+    assert_eq!(
+        super::normalize_value_against_schema(&json!({ "items": enum_alias }), json!(["prepared"])),
+        json!(["ready"])
+    );
+    assert_eq!(
+        super::normalize_value_against_schema(
+            &json!({ "prefixItems": [enum_alias] }),
+            json!(["prepared", "unchanged"])
+        ),
+        json!(["ready", "unchanged"])
+    );
+
+    for value in [
+        json!(null),
+        json!(true),
+        json!(1),
+        json!(1.5),
+        json!("ready"),
+        json!([]),
+    ] {
+        let schema = json!({ "anyOf": [true] });
+        assert_eq!(
+            super::normalize_value_against_schema(&schema, value.clone()),
+            value
+        );
+    }
+}
+
+#[test]
+fn input_descriptors_and_schema_hints_cover_remaining_shape_boundaries() {
+    assert_eq!(
+        super::schema_for_input(super::McpInput::object())["type"],
+        "object"
+    );
+    assert_eq!(
+        super::mcp_input_descriptor_value(super::McpInput::number()),
+        json!({ "supported": true, "shape": "scalar", "primitive": "number" })
+    );
+    assert_eq!(
+        super::mcp_input_descriptor_value(super::McpInput::boolean_list()),
+        json!({ "supported": true, "shape": "list", "items": "boolean" })
+    );
+    assert_eq!(
+        super::mcp_input_descriptor_value(super::McpInput::object()),
+        json!({ "supported": true, "shape": "object" })
+    );
+
+    static INCLUSIVE_PARAMS: &[super::McpValidationParam] = &[
+        super::McpValidationParam::literal("min", "1"),
+        super::McpValidationParam::literal("max", "2.5"),
+        super::McpValidationParam::literal("exclusive_min", "not-a-bool"),
+        super::McpValidationParam::literal("exclusive_max", "true"),
+    ];
+    let range = super::McpValidationRule::new(
+        super::McpValidationScope::Field,
+        "RangeValidation",
+        "RangeValidation",
+        None,
+        super::McpValidationTypeArgMode::None,
+        INCLUSIVE_PARAMS,
+    );
+    let unknown = super::McpValidationRule::new(
+        super::McpValidationScope::Field,
+        "CustomValidation",
+        "CustomValidation",
+        None,
+        super::McpValidationTypeArgMode::None,
+        super::MCP_VALIDATION_PARAMS_NONE,
+    );
+    let mut schema = json!({ "type": "integer" });
+    super::apply_validation_schema_metadata(
+        schema.as_object_mut().expect("schema object"),
+        "x-rules",
+        &[range, unknown],
+    );
+    assert_eq!(schema["minimum"], 1);
+    assert_eq!(schema["exclusiveMaximum"], 2.5);
+    assert_eq!(schema["x-rules"].as_array().map(Vec::len), Some(2));
+
+    let mut unconstrained = serde_json::Map::new();
+    super::apply_validation_schema_metadata(&mut unconstrained, "x-rules", &[]);
+    assert!(unconstrained.is_empty());
+
+    assert!(super::schema_allows_null(&super::McpSchema::new(json!(
+        true
+    ))));
+    assert!(!super::schema_allows_null(&super::McpSchema::new(json!(
+        false
+    ))));
+    assert!(!super::schema_allows_null(&super::McpSchema::new(json!(
+        "invalid"
+    ))));
+    assert!(!super::schema_allows_null(&super::McpSchema::new(
+        json!({ "type": true })
+    )));
+}
+
+#[test]
+fn definition_validation_covers_icons_prompt_arguments_and_resource_specs() {
+    let mut tool = super::tool_definition(
+        "validated",
+        None,
+        Some("Description".to_string()),
+        super::McpSchema::new(json!({ "type": ["null", "object"] })),
+        None,
+    )
+    .expect("object type union should be accepted");
+    tool.annotations = Some(super::McpToolAnnotations::with_title("Annotation").read_only(true));
+    tool.icons = Some(vec![
+        super::McpIcon::new("data:image/svg+xml,x")
+            .with_mime_type("image/svg+xml")
+            .with_sizes(vec!["any".to_string()]),
+    ]);
+    super::validate_tool_definition(&tool).expect("complete definition should validate");
+
+    let mut invalid = tool.clone();
+    invalid.description = Some(" ".into());
+    assert!(super::validate_tool_definition(&invalid).is_err());
+    let mut invalid = tool.clone();
+    invalid.annotations = Some(super::McpToolAnnotations::with_title(" "));
+    assert!(super::validate_tool_definition(&invalid).is_err());
+    for icon in [
+        super::McpIcon::new(" "),
+        super::McpIcon::new("icon").with_mime_type(" "),
+        super::McpIcon::new("icon").with_sizes(vec![" ".to_string()]),
+    ] {
+        let mut invalid = tool.clone();
+        invalid.icons = Some(vec![icon]);
+        assert!(super::validate_tool_definition(&invalid).is_err());
+    }
+
+    let arguments = vec![
+        super::McpPromptArgument::new("topic")
+            .with_title("Topic")
+            .with_description("Prompt topic"),
+    ];
+    super::prompt_definition(
+        "draft",
+        Some("Draft".to_string()),
+        Some("Draft content".to_string()),
+        Some(arguments),
+    )
+    .expect("prompt arguments should validate");
+    for argument in [
+        super::McpPromptArgument::new("bad name"),
+        super::McpPromptArgument::new("topic").with_title(" "),
+        super::McpPromptArgument::new("topic").with_description(" "),
+    ] {
+        assert!(super::prompt_definition("draft", None, None, Some(vec![argument])).is_err());
+    }
+
+    let spec = super::McpJsonResourceSpec::new(
+        "shape://definition",
+        "definition",
+        None,
+        None,
+        json!({ "ok": true }),
+    )
+    .expect("spec should build");
+    assert_eq!(spec.definition().uri, "shape://definition");
+    assert_eq!(spec.clone().into_definition().uri, "shape://definition");
+
+    let mut server = super::McpServer::new("resources", "0.0.0");
+    super::register_json_resource_specs(&mut server, vec![spec.clone()])
+        .expect("resource should register");
+    assert!(super::ensure_json_resource_specs_available(&server, &[spec]).is_err());
+}

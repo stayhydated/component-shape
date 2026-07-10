@@ -644,3 +644,198 @@ pub(crate) fn claim_wire_name(
     names.insert(name.to_string(), span);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use quote::ToTokens as _;
+    use syn::parse_quote;
+
+    use super::*;
+
+    fn compact(tokens: proc_macro2::TokenStream) -> String {
+        tokens
+            .to_string()
+            .chars()
+            .filter(|ch| !ch.is_whitespace())
+            .collect()
+    }
+
+    #[test]
+    fn rename_rules_cover_every_supported_case_and_word_boundary() {
+        let cases = [
+            (RenameRule::Lower, "httpserver2"),
+            (RenameRule::Upper, "HTTPSERVER2"),
+            (RenameRule::Pascal, "HttpServer2"),
+            (RenameRule::Camel, "httpServer2"),
+            (RenameRule::Snake, "http_server_2"),
+            (RenameRule::ScreamingSnake, "HTTP_SERVER_2"),
+            (RenameRule::Kebab, "http-server-2"),
+            (RenameRule::ScreamingKebab, "HTTP-SERVER-2"),
+        ];
+        for (rule, expected) in cases {
+            assert_eq!(rule.apply("HTTPServer2"), expected);
+        }
+        assert_eq!(
+            RenameRule::Snake.apply("dash-separated value"),
+            "dash_separated_value"
+        );
+
+        assert_eq!(
+            RenameRule::parse_lit(&parse_quote!("SCREAMING-KEBAB-CASE"))
+                .expect("rule should parse"),
+            RenameRule::ScreamingKebab
+        );
+        assert!(RenameRule::parse_lit(&parse_quote!("unsupported")).is_err());
+        assert_eq!(capitalize(""), "");
+    }
+
+    #[test]
+    fn schema_options_parse_mcp_and_directional_serde_metadata() {
+        let input: DeriveInput = parse_quote! {
+            #[mcp(
+                crate = "crate::mcp",
+                description = "Input schema",
+                rename_all = "snake_case",
+                default = false,
+                transparent
+            )]
+            #[serde(
+                rename_all(serialize = "camelCase", deserialize = "SCREAMING_SNAKE_CASE"),
+                default = "make_default",
+                transparent,
+                deny_unknown_fields
+            )]
+            struct Input;
+        };
+        let options = SchemaOptions::parse(&input).expect("options should parse");
+
+        assert_eq!(
+            options.crate_path.to_token_stream().to_string(),
+            "crate :: mcp"
+        );
+        assert_eq!(options.description.as_deref(), Some("Input schema"));
+        assert_eq!(options.mcp_rename_all, Some(RenameRule::Snake));
+        assert_eq!(options.serde_rename_all, Some(RenameRule::ScreamingSnake));
+        assert!(options.defaulted);
+        assert!(options.transparent);
+
+        let duplicate: DeriveInput = parse_quote! {
+            #[mcp(description = "one", description = "two")]
+            struct Input;
+        };
+        assert!(SchemaOptions::parse(&duplicate).is_err());
+    }
+
+    #[test]
+    fn field_options_cover_mcp_and_serde_defaults_aliases_and_flags() {
+        let field: syn::Field = parse_quote! {
+            #[mcp(
+                rename = "wire_name",
+                alias = "old_name",
+                description = "Value",
+                required = false,
+                skip = false,
+                default = make_value()
+            )]
+            #[serde(
+                rename(serialize = "ignored", deserialize = "serde_name"),
+                alias = "legacy_name",
+                default = "default_value",
+                skip_serializing_if = "Option::is_none"
+            )]
+            value: Option<String>
+        };
+        let options = FieldOptions::parse(&field).expect("field options should parse");
+
+        assert_eq!(options.mcp_rename.as_deref(), Some("wire_name"));
+        assert_eq!(options.serde_rename.as_deref(), Some("serde_name"));
+        assert_eq!(options.aliases, ["old_name", "legacy_name"]);
+        assert_eq!(options.description.as_deref(), Some("Value"));
+        assert_eq!(options.required, Some(false));
+        assert!(!options.skip);
+        assert!(options.defaulted());
+        assert_eq!(
+            compact(options.default_value.expect("default").tokens()),
+            "make_value()"
+        );
+
+        let serde_default: syn::Field = parse_quote! {
+            #[serde(default)]
+            value: String
+        };
+        assert_eq!(
+            compact(
+                FieldOptions::parse(&serde_default)
+                    .expect("default should parse")
+                    .default_value
+                    .expect("default")
+                    .tokens()
+            ),
+            "::core::default::Default::default()"
+        );
+
+        let serde_call: syn::Field = parse_quote! {
+            #[serde(default = "make_default")]
+            value: String
+        };
+        assert_eq!(
+            compact(
+                FieldOptions::parse(&serde_call)
+                    .expect("default should parse")
+                    .default_value
+                    .expect("default")
+                    .tokens()
+            ),
+            "make_default()"
+        );
+    }
+
+    #[test]
+    fn variant_options_and_option_detection_cover_boundaries() {
+        let variant: syn::Variant = parse_quote! {
+            #[mcp(rename = "ready", alias = "prepared", skip = false)]
+            #[serde(rename(deserialize = "serde_ready"), alias = "legacy")]
+            Ready
+        };
+        let options = VariantOptions::parse(&variant).expect("variant options should parse");
+        assert_eq!(options.mcp_rename.as_deref(), Some("ready"));
+        assert_eq!(options.serde_rename.as_deref(), Some("serde_ready"));
+        assert_eq!(options.aliases, ["prepared", "legacy"]);
+        assert!(!options.skip);
+
+        let skipped: syn::Variant = parse_quote! {
+            #[serde(skip_deserializing = "true", other)]
+            Other
+        };
+        assert!(
+            VariantOptions::parse(&skipped)
+                .expect("variant should parse")
+                .skip
+        );
+
+        assert!(is_option_type(&parse_quote!(Option<String>)));
+        assert!(is_option_type(&parse_quote!(std::option::Option<String>)));
+        assert!(!is_option_type(&parse_quote!(Option<String, String>)));
+        assert!(!is_option_type(&parse_quote!(Result<String, String>)));
+        assert!(!is_option_type(&parse_quote!(&Option<String>)));
+        assert!(!is_option_type(&parse_quote!(<T as Trait>::Option)));
+    }
+
+    #[test]
+    fn wire_name_claims_and_doc_extraction_report_edge_cases() {
+        let mut names = BTreeMap::new();
+        claim_wire_name(&mut names, "value", proc_macro2::Span::call_site(), "field")
+            .expect("first name should be accepted");
+        assert!(
+            claim_wire_name(&mut names, "value", proc_macro2::Span::call_site(), "field").is_err()
+        );
+
+        let input: DeriveInput = parse_quote! {
+            #[allow(dead_code)]
+            #[doc = 1]
+            #[doc(hidden)]
+            struct Input;
+        };
+        assert_eq!(doc_description(&input.attrs), None);
+    }
+}

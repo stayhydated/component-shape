@@ -419,6 +419,99 @@ mod tests {
     }
 
     #[test]
+    fn all_mcp_input_convenience_constructors_match_their_shapes() {
+        let scalar_cases: [(fn() -> McpInput, McpPrimitiveKind); 8] = [
+            (McpInput::any, McpPrimitiveKind::Any),
+            (McpInput::boolean, McpPrimitiveKind::Boolean),
+            (McpInput::integer, McpPrimitiveKind::Integer),
+            (McpInput::number, McpPrimitiveKind::Number),
+            (McpInput::decimal, McpPrimitiveKind::Decimal),
+            (McpInput::string, McpPrimitiveKind::String),
+            (McpInput::date, McpPrimitiveKind::Date),
+            (McpInput::date_time, McpPrimitiveKind::DateTime),
+        ];
+        for (constructor, kind) in scalar_cases {
+            assert_eq!(constructor().input_shape(), McpInputShape::Scalar(kind));
+        }
+
+        let collection_cases: [(fn() -> McpInput, McpInputShape); 14] = [
+            (
+                McpInput::string_list,
+                McpInputShape::List(McpPrimitiveKind::String),
+            ),
+            (
+                McpInput::boolean_list,
+                McpInputShape::List(McpPrimitiveKind::Boolean),
+            ),
+            (
+                McpInput::integer_list,
+                McpInputShape::List(McpPrimitiveKind::Integer),
+            ),
+            (
+                McpInput::number_list,
+                McpInputShape::List(McpPrimitiveKind::Number),
+            ),
+            (
+                McpInput::decimal_list,
+                McpInputShape::List(McpPrimitiveKind::Decimal),
+            ),
+            (
+                McpInput::date_list,
+                McpInputShape::List(McpPrimitiveKind::Date),
+            ),
+            (
+                McpInput::date_time_list,
+                McpInputShape::List(McpPrimitiveKind::DateTime),
+            ),
+            (
+                McpInput::string_set,
+                McpInputShape::Set(McpPrimitiveKind::String),
+            ),
+            (
+                McpInput::boolean_set,
+                McpInputShape::Set(McpPrimitiveKind::Boolean),
+            ),
+            (
+                McpInput::integer_set,
+                McpInputShape::Set(McpPrimitiveKind::Integer),
+            ),
+            (
+                McpInput::number_set,
+                McpInputShape::Set(McpPrimitiveKind::Number),
+            ),
+            (
+                McpInput::decimal_set,
+                McpInputShape::Set(McpPrimitiveKind::Decimal),
+            ),
+            (
+                McpInput::date_set,
+                McpInputShape::Set(McpPrimitiveKind::Date),
+            ),
+            (
+                McpInput::date_time_set,
+                McpInputShape::Set(McpPrimitiveKind::DateTime),
+            ),
+        ];
+        for (constructor, shape) in collection_cases {
+            assert_eq!(constructor().input_shape(), shape);
+        }
+
+        let range_cases: [(fn() -> McpInput, McpRangeBoundKind); 5] = [
+            (McpInput::integer_range, McpRangeBoundKind::Integer),
+            (McpInput::number_range, McpRangeBoundKind::Number),
+            (McpInput::decimal_range, McpRangeBoundKind::Decimal),
+            (McpInput::date_range, McpRangeBoundKind::Date),
+            (McpInput::date_time_range, McpRangeBoundKind::DateTime),
+        ];
+        for (constructor, kind) in range_cases {
+            assert_eq!(constructor().input_shape(), McpInputShape::Range(kind));
+            assert_eq!(McpPrimitiveKind::from(kind), kind.primitive_kind());
+        }
+
+        assert_eq!(McpInput::object().input_shape(), McpInputShape::Object);
+    }
+
+    #[test]
     fn mcp_kind_names_are_stable_metadata() {
         assert_eq!(McpPrimitiveKind::Any.as_str(), "any");
         assert_eq!(McpPrimitiveKind::Boolean.as_str(), "boolean");
@@ -459,5 +552,6 @@ mod tests {
             validate_mcp_tool_metadata_text("title", "  ").expect_err("blank title should fail");
 
         assert_eq!(error.to_string(), "tool title cannot be empty");
+        assert!(validate_mcp_tool_metadata_text("title", "Readable title").is_ok());
     }
 }

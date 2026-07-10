@@ -342,6 +342,35 @@ fn shape_type_assertion_tokens_include_field_specific_bounds() {
 }
 
 #[test]
+fn block_shape_assertion_tokens_use_custom_suffixes() {
+    let tokens = shape_type_assertion_block_tokens_with_suffixes(
+        "form",
+        "type",
+        &quote!(InputShape),
+        &quote!(String),
+        Span::call_site(),
+        [quote!(DeclaredShape)],
+        quote!(ShapeFor),
+        "declared",
+        "compatible",
+    );
+    let tokens = compact_tokens(tokens);
+
+    assert!(tokens.contains("fn__form_assert_type_declared<Shape>()"));
+    assert!(tokens.contains("fn__form_assert_type_compatible<Shape,Field>()"));
+    assert!(tokens.contains("Shape:ShapeFor<Field>"));
+}
+
+#[test]
+fn identifier_helpers_handle_empty_numeric_raw_and_invalid_names() {
+    assert_eq!(field_assertion_ident_fragment(""), "field");
+    assert_eq!(field_assertion_ident_fragment("123-name"), "_123_name");
+    assert_eq!(field_assertion_ident_fragment("r#type"), "type");
+    assert!(validate_shape_field_suffix("input_2").is_ok());
+    assert!(validate_shape_field_suffix("input-name").is_err());
+}
+
+#[test]
 fn doc_description_trims_outer_blank_doc_lines() {
     let input: syn::ItemStruct = syn::parse_quote! {
         ///
@@ -356,6 +385,18 @@ fn doc_description_trims_outer_blank_doc_lines() {
         doc_description(&input.attrs),
         Some("Search arguments.\n\nIncludes pagination.".to_string())
     );
+}
+
+#[test]
+fn doc_description_ignores_non_string_and_non_doc_attributes() {
+    let input: syn::ItemStruct = syn::parse_quote! {
+        #[allow(dead_code)]
+        #[doc = 1]
+        #[doc(hidden)]
+        struct Search;
+    };
+
+    assert_eq!(doc_description(&input.attrs), None);
 }
 
 #[test]
@@ -436,6 +477,114 @@ fn mcp_tool_metadata_tokens_validates_metadata() {
             .to_string()
             .contains("cannot be both read-only and destructive"),
         "unexpected error: {error}"
+    );
+
+    for metadata in [
+        McpToolMetadataParts {
+            name: None,
+            title: Some(" "),
+            description: None,
+            read_only: None,
+            destructive: None,
+            idempotent: None,
+            open_world: None,
+        },
+        McpToolMetadataParts {
+            name: None,
+            title: None,
+            description: Some(" "),
+            read_only: None,
+            destructive: None,
+            idempotent: None,
+            open_world: None,
+        },
+    ] {
+        assert!(mcp_tool_metadata_tokens(&mcp_crate, &[], metadata, Span::call_site()).is_err());
+    }
+}
+
+#[test]
+fn mcp_input_shape_tokens_cover_all_shape_variants() {
+    use component_shape::{McpInputShape, McpPrimitiveKind, McpRangeBoundKind};
+
+    let component_shape_crate: Path = parse_quote!(component_shape);
+    let primitive_cases = [
+        (McpPrimitiveKind::Any, "any"),
+        (McpPrimitiveKind::Boolean, "boolean"),
+        (McpPrimitiveKind::Integer, "integer"),
+        (McpPrimitiveKind::Number, "number"),
+        (McpPrimitiveKind::Decimal, "decimal"),
+        (McpPrimitiveKind::String, "string"),
+        (McpPrimitiveKind::Date, "date"),
+        (McpPrimitiveKind::DateTime, "date_time"),
+    ];
+    for (kind, constructor) in primitive_cases {
+        assert_eq!(
+            compact_tokens(mcp_input_shape_tokens(
+                &component_shape_crate,
+                McpInputShape::Scalar(kind)
+            )),
+            format!("component_shape::McpInput::{constructor}()")
+        );
+
+        let list = compact_tokens(mcp_input_shape_tokens(
+            &component_shape_crate,
+            McpInputShape::List(kind),
+        ));
+        let set = compact_tokens(mcp_input_shape_tokens(
+            &component_shape_crate,
+            McpInputShape::Set(kind),
+        ));
+        if kind == McpPrimitiveKind::Any {
+            assert_eq!(
+                list,
+                "component_shape::McpInput::list(component_shape::McpPrimitiveKind::Any)"
+            );
+            assert_eq!(
+                set,
+                "component_shape::McpInput::set(component_shape::McpPrimitiveKind::Any)"
+            );
+        } else {
+            assert_eq!(
+                list,
+                format!("component_shape::McpInput::{constructor}_list()")
+            );
+            assert_eq!(
+                set,
+                format!("component_shape::McpInput::{constructor}_set()")
+            );
+        }
+    }
+
+    let range_cases = [
+        (McpRangeBoundKind::Integer, "integer_range"),
+        (McpRangeBoundKind::Number, "number_range"),
+        (McpRangeBoundKind::Decimal, "decimal_range"),
+        (McpRangeBoundKind::Date, "date_range"),
+        (McpRangeBoundKind::DateTime, "date_time_range"),
+    ];
+    for (kind, constructor) in range_cases {
+        assert_eq!(
+            compact_tokens(mcp_input_shape_tokens(
+                &component_shape_crate,
+                McpInputShape::Range(kind)
+            )),
+            format!("component_shape::McpInput::{constructor}()")
+        );
+    }
+    assert_eq!(
+        compact_tokens(mcp_input_shape_tokens(
+            &component_shape_crate,
+            McpInputShape::Unsupported
+        )),
+        "component_shape::McpInput::unsupported()"
+    );
+    assert_eq!(
+        compact_tokens(mcp_input_shape_tokens(
+            &component_shape_crate,
+            McpInputShape::Object
+        )),
+        "component_shape::McpInput::object()"
     );
 }
 
@@ -537,6 +686,59 @@ fn inferred_mcp_input_shape_handles_collections_and_ranges() {
 }
 
 #[test]
+fn inferred_mcp_input_shape_covers_supported_and_rejected_boundaries() {
+    use component_shape::{McpInputShape, McpPrimitiveKind, McpRangeBoundKind};
+
+    let cases: Vec<(Type, Option<McpInputShape>)> = vec![
+        (
+            parse_quote!(f64),
+            Some(McpInputShape::Scalar(McpPrimitiveKind::Number)),
+        ),
+        (
+            parse_quote!(time::OffsetDateTime),
+            Some(McpInputShape::Scalar(McpPrimitiveKind::DateTime)),
+        ),
+        (
+            parse_quote!(std::collections::LinkedList<char>),
+            Some(McpInputShape::List(McpPrimitiveKind::String)),
+        ),
+        (
+            parse_quote!(std::collections::HashSet<PathBuf>),
+            Some(McpInputShape::Set(McpPrimitiveKind::String)),
+        ),
+        (
+            parse_quote!(std::collections::BTreeMap<Box<str>, bool>),
+            Some(McpInputShape::Object),
+        ),
+        (
+            parse_quote!(std::collections::HashMap<std::borrow::Cow<'static, str>, bool>),
+            Some(McpInputShape::Object),
+        ),
+        (
+            parse_quote!((Option<f32>, Option<f64>)),
+            Some(McpInputShape::Range(McpRangeBoundKind::Number)),
+        ),
+        (parse_quote!((Option<u64>, Option<f64>)), None),
+        (parse_quote!((Option<bool>, Option<bool>)), None),
+        (parse_quote!(Vec<Option<String>>), None),
+        (parse_quote!(std::collections::HashMap<u64, String>), None),
+        (parse_quote!(component_shape_mcp::McpRange<bool>), None),
+        (parse_quote!(fn() -> String), None),
+    ];
+
+    for (ty, expected) in cases {
+        assert_eq!(
+            inferred_mcp_input_shape_for_type(&ty),
+            expected,
+            "type: {}",
+            compact_type(&ty)
+        );
+    }
+
+    assert_eq!(common_inferred_mcp_input_shape_for_types([]), None);
+}
+
+#[test]
 fn common_inferred_mcp_input_shape_requires_agreement() {
     let string_ty: Type = parse_quote!(String);
     let string_ref_ty: Type = parse_quote!(&str);
@@ -575,4 +777,56 @@ fn mcp_input_expr_tokens_support_constructor_shorthand() {
             .to_string()
             .contains("unknown `mcp_input` shorthand `strings`")
     );
+}
+
+#[test]
+fn mcp_input_shorthand_handles_calls_arguments_and_explicit_expressions() {
+    let component_shape_crate: Path = parse_quote!(component_shape);
+    let call: Expr = parse_quote!(string());
+    let qualified: Expr = parse_quote!(component_shape::McpInput::string());
+    let with_args: Expr = parse_quote!(string("unexpected"));
+    let closure_call: Expr = parse_quote!((make_input())());
+
+    assert_eq!(
+        mcp_input_constructor_shorthand(&call)
+            .expect("empty call shorthand should resolve")
+            .to_string(),
+        "string"
+    );
+    assert!(mcp_input_constructor_shorthand(&qualified).is_none());
+    assert!(validate_mcp_input_expr(&qualified).is_ok());
+    assert!(validate_mcp_input_expr(&closure_call).is_ok());
+    assert!(
+        validate_mcp_input_expr(&with_args)
+            .expect_err("constructor arguments should fail")
+            .to_string()
+            .contains("does not accept arguments")
+    );
+    assert_eq!(
+        compact_tokens(mcp_input_expr_tokens(&component_shape_crate, &qualified)),
+        "component_shape::McpInput::string()"
+    );
+    assert!(is_mcp_input_constructor("object"));
+    assert!(!is_mcp_input_constructor("strings"));
+}
+
+#[test]
+fn shape_paths_and_resolved_shape_accessors_cover_error_and_metadata_paths() {
+    let qualified: syn::TypePath = parse_quote!(<T as Shape>::Output);
+    assert!(shape_path_from_type_path(qualified).is_err());
+
+    let options =
+        ShapeOptions::from_shape_with_span(parse_quote!(InputShape<_>), Span::call_site());
+    let _ = options.span();
+    let resolved = options.resolve("input".to_string(), parse_quote!(String));
+    assert!(matches!(
+        resolved.constructor(),
+        ComponentShapeConstructor::Default
+    ));
+    assert_eq!(resolved.field_name(), "input");
+    assert_eq!(compact_type(resolved.field_type()), "String");
+    let _ = resolved.span();
+
+    let tokens = tokens_with_span(&quote!((value, "literal")), Span::call_site());
+    assert_eq!(compact_tokens(tokens), "(value,\"literal\")");
 }

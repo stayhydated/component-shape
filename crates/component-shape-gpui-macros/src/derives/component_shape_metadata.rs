@@ -605,3 +605,145 @@ fn set_once<T, S: quote::ToTokens>(
 pub(super) fn crate_paths() -> CratePaths {
     CratePaths::resolve()
 }
+
+#[cfg(test)]
+mod tests {
+    use quote::quote;
+    use syn::{parse::Parser as _, parse_quote};
+
+    use super::*;
+
+    fn parse_function(tokens: TokenStream) -> syn::Result<ShapeOption> {
+        (|input: ParseStream<'_>| ShapeOption::parse_function(input)).parse2(tokens)
+    }
+
+    fn compact(tokens: impl quote::ToTokens) -> String {
+        tokens
+            .to_token_stream()
+            .to_string()
+            .chars()
+            .filter(|ch| !ch.is_whitespace())
+            .collect()
+    }
+
+    #[test]
+    fn function_options_parse_and_apply_every_metadata_variant() {
+        let mut metadata = ComponentShapeMetadata::default();
+        for tokens in [
+            quote!(new = State::new),
+            quote!(state = State<String>),
+            quote!(component = Input<String>),
+            quote!(value = String),
+            quote!(values(u64, bool)),
+            quote!(value_binding),
+            quote!(field_suffix = "input"),
+            quote!(mcp_input = string),
+        ] {
+            parse_function(tokens)
+                .expect("option should parse")
+                .apply(&mut metadata)
+                .expect("option should apply");
+        }
+
+        assert_eq!(compact(metadata.state().expect("state")), "State<String>");
+        assert_eq!(
+            compact(metadata.component().expect("component")),
+            "Input<String>"
+        );
+        assert!(metadata.has_value_metadata());
+        assert!(metadata.has_value_binding());
+        assert_eq!(
+            compact(metadata.constructor_body_or(quote!(fallback))),
+            "(State::new)(window,cx)"
+        );
+        assert!(parse_function(quote!(unknown = true)).is_err());
+    }
+
+    #[test]
+    fn derive_attribute_options_parse_and_reject_unknown_metadata() {
+        let attr: syn::Attribute = parse_quote! {
+            #[gpui_component_shape(
+                new = State::new,
+                state = State,
+                component = Input,
+                value = String,
+                values(u64, bool),
+                value_binding,
+                field_suffix = "input",
+                mcp_input = string
+            )]
+        };
+        let mut metadata = ComponentShapeMetadata::default();
+        attr.parse_nested_meta(|meta| ShapeOption::from_nested_meta(&meta)?.apply(&mut metadata))
+            .expect("attribute should parse");
+        assert!(metadata.has_value_binding());
+
+        let unknown: syn::Attribute = parse_quote!(#[gpui_component_shape(unknown = true)]);
+        assert!(
+            unknown
+                .parse_nested_meta(|meta| ShapeOption::from_nested_meta(&meta).map(|_| ()))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn metadata_rejects_duplicates_empty_values_and_invalid_components() {
+        let mut metadata = ComponentShapeMetadata::default();
+        metadata
+            .set_new(parse_quote!(State::new), quote!(new))
+            .expect("first new should apply");
+        assert!(
+            metadata
+                .set_new(parse_quote!(State::default), quote!(new))
+                .is_err()
+        );
+
+        assert!(
+            metadata
+                .set_component(parse_quote!(_), quote!(component))
+                .is_err()
+        );
+        assert!(
+            metadata
+                .set_component(parse_quote!((Input, Output)), quote!(component))
+                .is_err()
+        );
+        metadata
+            .add_value(parse_quote!(String), quote!(value))
+            .expect("first value should apply");
+        assert!(
+            metadata
+                .add_value(parse_quote!(String), quote!(value))
+                .is_err()
+        );
+        assert!(
+            metadata
+                .add_values(Vec::<Type>::new(), quote!(values))
+                .is_err()
+        );
+
+        metadata
+            .enable_value_binding(quote!(value_binding))
+            .expect("first binding should apply");
+        assert!(
+            metadata
+                .enable_value_binding(quote!(value_binding))
+                .is_err()
+        );
+        assert!(
+            metadata
+                .set_field_suffix(parse_quote!("bad-suffix"), quote!(field_suffix))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn phantom_type_tokens_include_types_and_lifetimes_but_not_consts() {
+        let generics: syn::Generics = parse_quote!(<'a, T, const N: usize>);
+        assert_eq!(compact(phantom_type_tokens(&generics)), "(&'a(),T)");
+        assert_eq!(
+            compact(phantom_type_tokens(&syn::Generics::default())),
+            "()"
+        );
+    }
+}

@@ -14,6 +14,57 @@ env:
   RUSTC_WRAPPER: sccache
 
 jobs:
+  rust-coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
+
+      - name: Install Linux dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends \
+            libasound2-dev \
+            libfontconfig1-dev \
+            libglib2.0-dev \
+            libgtk-3-dev \
+            libudev-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            pkg-config
+
+      - uses: cargo-bins/cargo-binstall@main
+
+      - name: Install cargo-llvm-cov
+        shell: bash
+        run: cargo binstall cargo-llvm-cov --locked --no-confirm
+
+      - name: Run coverage
+        shell: bash
+        run: |
+          cargo llvm-cov clean --workspace
+          cargo llvm-cov --workspace --all-features --all-targets --locked \
+            --cobertura --output-path=target/cobertura.xml
+
+      - name: Codecov publish
+        uses: codecov/codecov-action@v7
+        with:
+          files: target/cobertura.xml
+          disable_search: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Codecov housekeeping
+        shell: bash
+        run: |
+          rm -f codecov codecov.SHA256SUM codecov.SHA256SUM.sig
+
   docs:
     runs-on: ubuntu-latest
 

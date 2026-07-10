@@ -194,3 +194,19 @@ where
 {
     Shape::value_change(state, event)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{DefaultGpuiComponentShapeBuilder, GpuiComponentRender, NoGpuiRenderComponent};
+
+    #[test]
+    fn marker_and_default_builder_metadata_are_stable() {
+        assert_eq!(
+            DefaultGpuiComponentShapeBuilder::<()>::new(),
+            DefaultGpuiComponentShapeBuilder::default()
+        );
+        const {
+            assert!(!<NoGpuiRenderComponent as GpuiComponentRender<()>>::RENDERS);
+        }
+    }
+}

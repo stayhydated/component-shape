@@ -268,6 +268,55 @@ fn derive_tool_input_rejects_tuple_structs() {
 }
 
 #[test]
+fn derive_tool_input_rejects_transparent_and_non_struct_inputs() {
+    let transparent: DeriveInput = syn::parse_quote! {
+        #[mcp(transparent)]
+        struct SearchArgs { value: String }
+    };
+    assert!(
+        expand_mcp_tool_input(transparent)
+            .unwrap_err()
+            .to_string()
+            .contains("requires an object-shaped struct")
+    );
+
+    let enum_input: DeriveInput = syn::parse_quote! {
+        enum SearchArgs { Empty }
+    };
+    assert!(
+        expand_mcp_tool_input(enum_input)
+            .unwrap_err()
+            .to_string()
+            .contains("can only be derived for structs")
+    );
+}
+
+#[test]
+fn derive_tool_input_covers_required_options_container_defaults_and_descriptions() {
+    let input: DeriveInput = syn::parse_quote! {
+        #[mcp(default)]
+        struct SearchArgs {
+            /// Explicitly required optional value.
+            #[mcp(required, alias = "q")]
+            query: Option<String>,
+            page_size: usize,
+            #[mcp(skip, default = 3)]
+            internal: usize,
+        }
+    };
+
+    let expanded = expand_mcp_tool_input(input)
+        .expect("tool input should expand")
+        .to_token_stream()
+        .to_string();
+
+    assert!(expanded.contains("set_description"));
+    assert!(expanded.contains("take_required_tool_value_from :: < Option < String > >"));
+    assert!(expanded.contains("Default :: default"));
+    assert!(expanded.contains("internal : 3"));
+}
+
+#[test]
 fn derive_tool_input_rejects_optional_non_option_fields_without_defaults() {
     let input: DeriveInput = syn::parse_quote! {
         struct SearchArgs {

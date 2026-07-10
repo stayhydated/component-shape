@@ -383,3 +383,172 @@ impl Default for StderrSnapshot {
         Self::empty()
     }
 }
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::{process::Command, time::Duration};
+
+    use serde_json::json;
+
+    use super::{
+        McpStdioSmokeClient, McpStdioSmokeError, ProcessStatus, StderrSnapshot,
+        tool_call_structured_content,
+    };
+
+    fn spawn_shell(script: &str) -> McpStdioSmokeClient {
+        McpStdioSmokeClient::spawn(Command::new("sh").arg("-c").arg(script))
+            .expect("shell smoke server should spawn")
+    }
+
+    #[test]
+    fn stdio_client_exercises_the_public_protocol_helpers() {
+        let mut client = spawn_shell(
+            r#"
+read initialize
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"ok"}}'
+read initialized
+read tools
+printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"tools":[]}}'
+read resources
+printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{"resources":[]}}'
+read templates
+printf '%s\n' '{"jsonrpc":"2.0","id":4,"result":{"resourceTemplates":[]}}'
+read resource
+printf '%s\n' '{"jsonrpc":"2.0","id":5,"result":{"contents":[]}}'
+read tool
+printf '%s\n' '{"jsonrpc":"2.0","id":6,"result":{"structuredContent":{"ok":true}}}'
+"#,
+        );
+
+        assert_eq!(
+            client.initialize().expect("initialize should succeed"),
+            json!({ "protocolVersion": "ok" })
+        );
+        assert_eq!(
+            client.list_tools().expect("tools/list should succeed"),
+            json!({ "tools": [] })
+        );
+        assert_eq!(
+            client
+                .list_resources()
+                .expect("resources/list should succeed"),
+            json!({ "resources": [] })
+        );
+        assert_eq!(
+            client
+                .list_resource_templates()
+                .expect("resources/templates/list should succeed"),
+            json!({ "resourceTemplates": [] })
+        );
+        assert_eq!(
+            client
+                .read_resource("shape://example")
+                .expect("resources/read should succeed"),
+            json!({ "contents": [] })
+        );
+        let result = client
+            .call_tool("shape_example", json!({ "value": 1 }))
+            .expect("tools/call should succeed");
+        assert_eq!(
+            tool_call_structured_content(&result),
+            Some(&json!({ "ok": true }))
+        );
+        assert!(
+            client
+                .shutdown(Duration::from_secs(1))
+                .expect("server should shut down")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn response_reader_skips_notifications_and_reports_protocol_errors() {
+        let cases = [
+            (
+                "printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"method\":\"notice\"}' '{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":7}'",
+                None,
+            ),
+            (
+                "printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":9,\"result\":7}'",
+                Some("expected id `1`"),
+            ),
+            (
+                "printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-1}}'",
+                Some("JSON-RPC error"),
+            ),
+            (
+                "printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1}'",
+                Some("did not contain `result`"),
+            ),
+            ("printf '%s\\n' 'not-json'", Some("invalid JSON")),
+        ];
+
+        for (script, expected_error) in cases {
+            let mut client = spawn_shell(script);
+            let result = client.request("example", json!({}));
+            match expected_error {
+                Some(expected_error) => assert!(
+                    result
+                        .expect_err("response should fail")
+                        .to_string()
+                        .contains(expected_error),
+                    "expected error containing `{expected_error}`"
+                ),
+                None => assert_eq!(result.expect("response should succeed"), json!(7)),
+            }
+        }
+    }
+
+    #[test]
+    fn client_reports_spawn_eof_and_closed_stdin_failures() {
+        let spawn_error =
+            match McpStdioSmokeClient::spawn(&mut Command::new("/definitely/not/a/program")) {
+                Ok(_) => panic!("invalid executable should fail"),
+                Err(error) => error,
+            };
+        assert!(matches!(spawn_error, McpStdioSmokeError::Spawn { .. }));
+
+        let mut exited = spawn_shell("printf 'server detail\\n' >&2");
+        let eof = exited
+            .request("exited", json!({}))
+            .expect_err("closed stdout should fail");
+        assert!(matches!(eof, McpStdioSmokeError::Eof { .. }));
+        assert!(eof.to_string().contains("closed stdout"));
+
+        let mut closed = spawn_shell("read ignored");
+        closed
+            .shutdown(Duration::from_secs(1))
+            .expect("server should shut down when stdin closes");
+        assert!(matches!(
+            closed.notify_initialized(),
+            Err(McpStdioSmokeError::MissingPipe("stdin"))
+        ));
+    }
+
+    #[test]
+    fn shutdown_kills_a_server_that_does_not_exit_after_stdin_closes() {
+        let mut client = spawn_shell("while :; do :; done");
+        let status = client
+            .shutdown(Duration::ZERO)
+            .expect("timed-out server should be killed")
+            .expect("killed server should return a status");
+
+        assert!(!status.success());
+    }
+
+    #[test]
+    fn diagnostics_format_status_stderr_and_structured_content() {
+        assert_eq!(ProcessStatus::running().to_string(), "");
+        assert_eq!(StderrSnapshot::default().to_string(), "");
+
+        let stderr = StderrSnapshot(" detail \n".to_string());
+        assert_eq!(stderr.as_str(), " detail \n");
+        assert_eq!(stderr.to_string(), "\nstderr:\n detail");
+
+        assert_eq!(
+            tool_call_structured_content(&json!({ "structured_content": 3 })),
+            Some(&json!(3))
+        );
+        assert_eq!(tool_call_structured_content(&json!({})), None);
+    }
+}

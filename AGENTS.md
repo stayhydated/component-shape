@@ -165,11 +165,14 @@ diagnostic text changes:
   crate, macro, fixture, docs, skill, or workspace surface.
 - Use `just check`, `just clippy`, `just test`, or a matching focused `cargo`
   command when the change spans code surfaces.
+- Use `just cov` for local workspace coverage. CI publishes the matching
+  all-features, all-targets Cobertura report to Codecov.
 - Run `just test-publish` before handoff for public crate layout or
   publishability-sensitive Cargo metadata changes.
 - For rustdoc changes, match CI with
   `cargo doc --workspace --all-features --no-deps --locked`.
-- CI runs docs and package dry-run jobs from `.github/workflows/ci.yml`.
+- CI runs docs, package dry-run, and coverage jobs from
+  `.github/workflows/ci.yml`.
 - If validation cannot run, state why and what remains unvalidated.
 - Do not claim a change works unless it was validated or the remaining risk is
   explicitly documented.
