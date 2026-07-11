@@ -30,17 +30,17 @@ derive_more = "2.1"
 gpui = { branch = "linux-headless-renderer", git = "https://github.com/stayhydated/zed", version = "0.2.2" }
 heck = "0.5"
 prettyplease = "0.2"
-proc-macro-crate = "3.2"
+proc-macro-crate = "3.5"
 proc-macro2 = "1.0"
 quote = "1.0"
-rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "1.7.0" }
-rust_decimal = "1.40"
+rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "1.8.0" }
+rust_decimal = "1.42"
 serde = "1.0"
 serde_json = "1.0"
 strum = "0.28"
 syn = { default-features = false, version = "2.0" }
 thiserror = "2.0"
-tokio = "1.49"
+tokio = "1.52"
 trybuild = "1.0"
 
 [profile.dev]
