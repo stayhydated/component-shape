@@ -407,6 +407,90 @@ mod tests {
     }
 
     #[test]
+    fn nested_impl_classification_rejects_non_binding_forms() {
+        let inherent: syn::ItemImpl = syn::parse2(quote! {
+            impl Input { fn new() -> Self { Self } }
+        })
+        .unwrap();
+        let other_trait: syn::ItemImpl = syn::parse2(quote! {
+            impl Default for Input { fn default() -> Self { Self } }
+        })
+        .unwrap();
+        let missing_argument: syn::ItemImpl = syn::parse2(quote! {
+            impl GpuiComponentValueBinding for Input {}
+        })
+        .unwrap();
+        let lifetime_argument: syn::ItemImpl = syn::parse2(quote! {
+            impl<'a> GpuiComponentValueBinding<'a> for Input {}
+        })
+        .unwrap();
+
+        assert_eq!(
+            classify_nested_shape_impl(&inherent),
+            NestedShapeImplKind::Other
+        );
+        assert_eq!(
+            classify_nested_shape_impl(&other_trait),
+            NestedShapeImplKind::Other
+        );
+        assert!(nested_value_binding_value(&other_trait).is_none());
+        assert!(nested_value_binding_value(&missing_argument).is_none());
+        assert!(nested_value_binding_value(&lifetime_argument).is_none());
+    }
+
+    #[test]
+    fn function_macro_reports_structural_input_errors() {
+        let cases = [
+            (
+                quote! {
+                    struct Bad { type Value = String; }
+                },
+                "expected `type State = ...;`",
+            ),
+            (
+                quote! {
+                    struct Bad {
+                        type State = First;
+                        type State = Second;
+                    }
+                },
+                "duplicate `type State = ...;`",
+            ),
+            (
+                quote! {
+                    struct Bad {
+                        type State = First;
+                        state = Second;
+                    }
+                },
+                "duplicate state metadata",
+            ),
+            (
+                quote! {
+                    struct Bad { type State = First }
+                },
+                "expected `;` after component shape option",
+            ),
+            (
+                quote! {
+                    struct Bad { const UNKNOWN: usize = 1; }
+                },
+                "expected `type State = ...;`",
+            ),
+        ];
+
+        for (tokens, expected) in cases {
+            let error = syn::parse2::<ComponentShapeInput>(tokens)
+                .err()
+                .expect("invalid shape input should fail");
+            assert!(
+                error.to_string().contains(expected),
+                "unexpected error: {error}"
+            );
+        }
+    }
+
+    #[test]
     fn function_macro_infers_value_metadata_from_nested_value_binding_impl() {
         let input: ComponentShapeInput = syn::parse2(quote! {
             pub struct LocalInputShape<T> {

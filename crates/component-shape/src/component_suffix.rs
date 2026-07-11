@@ -145,10 +145,9 @@ mod tests {
     #[test]
     fn component_suffix_validation_rejects_invalid_suffixes() {
         for value in ["", "_", "2input", "input-field", "input field", "入力"] {
-            assert!(
-                validate_component_suffix(value).is_err(),
-                "`{value}` should be rejected as a component suffix"
-            );
+            let error = validate_component_suffix(value)
+                .expect_err("invalid component suffix should be rejected");
+            assert_eq!(error.value(), value);
         }
     }
 

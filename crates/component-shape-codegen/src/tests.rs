@@ -392,6 +392,7 @@ fn doc_description_ignores_non_string_and_non_doc_attributes() {
     let input: syn::ItemStruct = syn::parse_quote! {
         #[allow(dead_code)]
         #[doc = 1]
+        #[doc = concat!("generated", " docs")]
         #[doc(hidden)]
         struct Search;
     };
@@ -715,14 +716,44 @@ fn inferred_mcp_input_shape_covers_supported_and_rejected_boundaries() {
             Some(McpInputShape::Object),
         ),
         (
+            parse_quote!(Vec<std::borrow::Cow<'static, str>>),
+            Some(McpInputShape::List(McpPrimitiveKind::String)),
+        ),
+        (
+            parse_quote!(component_shape_mcp::McpRange<chrono::DateTime<Utc>>),
+            Some(McpInputShape::Range(McpRangeBoundKind::DateTime)),
+        ),
+        (
             parse_quote!((Option<f32>, Option<f64>)),
             Some(McpInputShape::Range(McpRangeBoundKind::Number)),
         ),
         (parse_quote!((Option<u64>, Option<f64>)), None),
         (parse_quote!((Option<bool>, Option<bool>)), None),
+        (parse_quote!(([u64; 1], Option<u64>)), None),
+        (parse_quote!((<T as Trait>::Value, Option<u64>)), None),
+        (parse_quote!((u64, Option<u64>)), None),
         (parse_quote!(Vec<Option<String>>), None),
+        (parse_quote!(Vec), None),
+        (parse_quote!(Box<'static>), None),
+        (parse_quote!(Box<String, u8>), None),
+        (parse_quote!(std::borrow::Cow), None),
+        (parse_quote!(std::borrow::Cow<'static>), None),
         (parse_quote!(std::collections::HashMap<u64, String>), None),
+        (
+            parse_quote!(std::collections::HashMap<(String, String), String>),
+            None,
+        ),
+        (parse_quote!(std::collections::HashMap), None),
+        (
+            parse_quote!(std::collections::HashMap<'static, String>),
+            Some(McpInputShape::Object),
+        ),
         (parse_quote!(component_shape_mcp::McpRange<bool>), None),
+        (parse_quote!([[String; 1]; 1]), None),
+        (
+            parse_quote!((String)),
+            Some(McpInputShape::Scalar(McpPrimitiveKind::String)),
+        ),
         (parse_quote!(fn() -> String), None),
     ];
 
@@ -786,6 +817,8 @@ fn mcp_input_shorthand_handles_calls_arguments_and_explicit_expressions() {
     let qualified: Expr = parse_quote!(component_shape::McpInput::string());
     let with_args: Expr = parse_quote!(string("unexpected"));
     let closure_call: Expr = parse_quote!((make_input())());
+    let generic_shorthand: Expr = parse_quote!(string::<u8>);
+    let literal: Expr = parse_quote!(42);
 
     assert_eq!(
         mcp_input_constructor_shorthand(&call)
@@ -794,8 +827,12 @@ fn mcp_input_shorthand_handles_calls_arguments_and_explicit_expressions() {
         "string"
     );
     assert!(mcp_input_constructor_shorthand(&qualified).is_none());
+    assert!(mcp_input_constructor_shorthand(&closure_call).is_none());
+    assert!(mcp_input_constructor_shorthand(&generic_shorthand).is_none());
+    assert!(mcp_input_constructor_shorthand(&literal).is_none());
     assert!(validate_mcp_input_expr(&qualified).is_ok());
     assert!(validate_mcp_input_expr(&closure_call).is_ok());
+    assert!(validate_mcp_input_expr(&literal).is_ok());
     assert!(
         validate_mcp_input_expr(&with_args)
             .expect_err("constructor arguments should fail")
@@ -814,6 +851,23 @@ fn mcp_input_shorthand_handles_calls_arguments_and_explicit_expressions() {
 fn shape_paths_and_resolved_shape_accessors_cover_error_and_metadata_paths() {
     let qualified: syn::TypePath = parse_quote!(<T as Shape>::Output);
     assert!(shape_path_from_type_path(qualified).is_err());
+
+    let plain: syn::TypePath = parse_quote!(crate::Input::<String>);
+    assert_eq!(
+        compact_path(&shape_path_from_type_path(plain).expect("plain type path should resolve")),
+        "crate::Input<String>"
+    );
+
+    let parser = |input: syn::parse::ParseStream<'_>| {
+        parse_single_shape_path(input, "expected exactly one shape path")
+    };
+    assert!(
+        parser
+            .parse2(quote!(<T as Shape>::Output))
+            .expect_err("qualified self type should fail")
+            .to_string()
+            .contains("expected exactly one shape path")
+    );
 
     let options =
         ShapeOptions::from_shape_with_span(parse_quote!(InputShape<_>), Span::call_site());

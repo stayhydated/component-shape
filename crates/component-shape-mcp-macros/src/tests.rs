@@ -82,6 +82,22 @@ fn derive_schema_supports_named_transparent_newtypes() {
 }
 
 #[test]
+fn derive_schema_supports_transparent_tuple_newtypes() {
+    let input: DeriveInput = syn::parse_quote! {
+        #[mcp(transparent)]
+        struct UserId(u64);
+    };
+
+    let expanded = expand_mcp_json_schema(input)
+        .expect("transparent tuple schema derive should expand")
+        .to_token_stream()
+        .to_string();
+
+    assert!(expanded.contains("< u64 as"));
+    assert!(!expanded.contains("object_schema"));
+}
+
+#[test]
 fn derive_schema_rejects_multi_field_transparent_structs() {
     let input: DeriveInput = syn::parse_quote! {
         #[mcp(transparent)]
@@ -94,6 +110,35 @@ fn derive_schema_rejects_multi_field_transparent_structs() {
     let error = expand_mcp_json_schema(input).unwrap_err().to_string();
 
     assert!(error.contains("transparent structs must have exactly one field"));
+}
+
+#[test]
+fn derive_schema_rejects_unions_and_non_newtype_structs() {
+    let union: DeriveInput = syn::parse_quote! {
+        union Value { integer: u64, number: f64 }
+    };
+    assert!(
+        expand_mcp_json_schema(union)
+            .unwrap_err()
+            .to_string()
+            .contains("structs or fieldless enums")
+    );
+
+    for input in [
+        syn::parse_quote!(
+            struct Unit;
+        ),
+        syn::parse_quote!(
+            struct Pair(u64, u64);
+        ),
+    ] {
+        assert!(
+            expand_mcp_json_schema(input)
+                .unwrap_err()
+                .to_string()
+                .contains("named fields or a single-field tuple newtype")
+        );
+    }
 }
 
 #[test]
@@ -192,6 +237,39 @@ fn derive_schema_supports_fieldless_enums() {
     assert!(expanded.contains("resolved"));
     assert!(expanded.contains("x-mcpEnumDecodeAliases"));
     assert!(!expanded.contains("Unknown"));
+}
+
+#[test]
+fn derive_schema_supports_enum_without_decode_aliases() {
+    let input: DeriveInput = syn::parse_quote! {
+        enum State { Open, Closed }
+    };
+
+    let expanded = expand_mcp_json_schema(input)
+        .expect("simple enum schema should expand")
+        .to_token_stream()
+        .to_string();
+
+    assert!(expanded.contains("Open"));
+    assert!(expanded.contains("Closed"));
+    assert!(!expanded.contains("x-mcpEnumDecodeAliases"));
+}
+
+#[test]
+fn derive_schema_rejects_enum_with_no_visible_variants() {
+    let input: DeriveInput = syn::parse_quote! {
+        enum State {
+            #[mcp(skip)]
+            Hidden,
+        }
+    };
+
+    assert!(
+        expand_mcp_json_schema(input)
+            .unwrap_err()
+            .to_string()
+            .contains("at least one visible unit variant")
+    );
 }
 
 #[test]

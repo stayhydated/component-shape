@@ -60,7 +60,7 @@ opt-level = 3
 [workspace.lints.rust]
 future_incompatible = "deny"
 nonstandard_style = "deny"
-unexpected_cfgs = { level = "deny", check-cfg = ["cfg(coverage)"] }
+unexpected_cfgs = { check-cfg = [ "cfg(coverage)" ], level = "deny" }
 unsafe_op_in_unsafe_fn = "deny"
 unused_must_use = "deny"
 

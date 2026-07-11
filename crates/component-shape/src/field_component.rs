@@ -190,8 +190,8 @@ mod tests {
 
     #[test]
     fn component_shape_use_preserves_field_name_and_shape_path() {
-        let shape_use = ComponentShapeUse::new(
-            ComponentFieldName::new("title"),
+        let shape_use = ComponentShapeUse::for_field(
+            std::hint::black_box("title"),
             RustPath::from_macro_tokens_unchecked("crate::fields::TitleInput"),
         );
 

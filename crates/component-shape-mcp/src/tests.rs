@@ -1851,6 +1851,15 @@ fn validation_metadata_accessors_and_issue_builders_are_structured() {
     .with_target(super::McpValidationTarget::Unwrapped);
 
     assert_eq!(PARAMS[1].expr_value(), Some("limits.max"));
+
+    let literal = std::hint::black_box(super::McpValidationParam::literal("min", "3"));
+    assert_eq!(literal.name(), "min");
+    assert_eq!(literal.literal_value(), Some("3"));
+    assert_eq!(literal.expr_value(), None);
+    let expr = std::hint::black_box(super::McpValidationParam::expr("max", "limits.max"));
+    assert_eq!(expr.name(), "max");
+    assert_eq!(expr.literal_value(), None);
+    assert_eq!(expr.expr_value(), Some("limits.max"));
     assert_eq!(
         rule.type_arg_mode(),
         super::McpValidationTypeArgMode::Explicit
@@ -2464,4 +2473,127 @@ fn definition_validation_covers_icons_prompt_arguments_and_resource_specs() {
     super::register_json_resource_specs(&mut server, vec![spec.clone()])
         .expect("resource should register");
     assert!(super::ensure_json_resource_specs_available(&server, &[spec]).is_err());
+
+    super::resource_definition(
+        "shape://resource",
+        "resource",
+        Some("Resource".to_string()),
+        Some("Resource description".to_string()),
+        Some("application/json".to_string()),
+    )
+    .expect("complete resource definition should validate");
+    super::resource_template_definition(
+        "shape://resource/{id}",
+        "resource_template",
+        Some("Resource template".to_string()),
+        Some("Resource template description".to_string()),
+        Some("application/json".to_string()),
+    )
+    .expect("complete resource template should validate");
+
+    assert!(super::tool_definition("missing_type", None, None, schema(json!({})), None,).is_err());
+    assert!(
+        super::tool_definition(
+            "invalid_type_union",
+            None,
+            None,
+            schema(json!({ "type": [1, "null"] })),
+            None,
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn runtime_icon_metadata_and_untyped_validation_rules_are_exercised() {
+    static LEN_PARAMS: &[super::McpValidationParam] =
+        &[super::McpValidationParam::literal("min", "1")];
+    let icon = std::hint::black_box(
+        super::McpToolIcon::new("data:image/svg+xml,x")
+            .with_mime_type("image/svg+xml")
+            .with_sizes(&["48x48", "any"])
+            .with_theme(super::McpIconTheme::Dark),
+    );
+    assert_eq!(icon.src(), "data:image/svg+xml,x");
+    assert_eq!(icon.mime_type(), Some("image/svg+xml"));
+    assert_eq!(icon.sizes(), &["48x48", "any"]);
+    assert_eq!(icon.theme(), Some(super::McpIconTheme::Dark));
+
+    let len = super::McpValidationRule::new(
+        super::McpValidationScope::Field,
+        "LenValidation",
+        "LenValidation",
+        None,
+        super::McpValidationTypeArgMode::None,
+        LEN_PARAMS,
+    );
+    let mut schema = serde_json::Map::new();
+    super::apply_validation_schema_hints(&mut schema, &[len]);
+    assert!(schema.is_empty());
+}
+
+#[test]
+fn direct_server_calls_cover_argument_errors_async_duplicates_and_panics() {
+    let definition = super::tool_definition(
+        "async_failure",
+        None,
+        None,
+        super::McpSchema::object(),
+        None,
+    )
+    .expect("tool definition should build");
+    let mut server = super::McpServer::new("test", "0.0.0");
+    server
+        .add_tool_async(definition.clone(), |_| async {
+            panic!("intentional async handler panic")
+        })
+        .expect("async tool should register");
+    assert!(
+        server
+            .add_tool_async(definition, |_| async {
+                super::tool_structured_result(json!(null))
+            })
+            .is_err()
+    );
+
+    let invalid_arguments = server.call_tool("async_failure", Some(json!(1)));
+    assert_eq!(invalid_arguments.is_error, Some(true));
+    assert_eq!(
+        invalid_arguments.structured_content.expect("structured")["error"]["kind"],
+        "arguments_must_be_object"
+    );
+
+    let panic_result = server.call_tool("async_failure", None);
+    assert_eq!(panic_result.is_error, Some(true));
+    assert!(
+        panic_result.structured_content.expect("structured")["error"]["message"]
+            .as_str()
+            .expect("message should be text")
+            .contains("runtime panicked")
+    );
+}
+
+#[test]
+fn response_serialization_reports_serializer_failures() {
+    struct FailingSerialize;
+
+    impl serde::Serialize for FailingSerialize {
+        fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            Err(serde::ser::Error::custom(
+                "intentional serialization failure",
+            ))
+        }
+    }
+
+    let result = super::serialize_response_value(FailingSerialize);
+    assert_eq!(result.is_error, Some(true));
+    assert!(
+        result.structured_content.expect("structured")["error"]["message"]
+            .as_str()
+            .expect("message should be text")
+            .contains("intentional serialization failure")
+    );
 }

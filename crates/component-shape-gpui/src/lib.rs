@@ -197,7 +197,83 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{DefaultGpuiComponentShapeBuilder, GpuiComponentRender, NoGpuiRenderComponent};
+    use super::{
+        ComponentShapeMetadata, DefaultGpuiComponentShapeBuilder, GpuiComponentRender,
+        GpuiComponentShape, GpuiComponentShapeBuilder, GpuiComponentStateValueBinding,
+        GpuiComponentValueBinding, NoGpuiRenderComponent, ValueChange, build_component_shape,
+        seed_value_binding_state, value_change,
+    };
+
+    #[derive(Debug, Default, Eq, PartialEq)]
+    struct TestState {
+        value: Option<u32>,
+    }
+
+    impl gpui::Render for TestState {
+        fn render(
+            &mut self,
+            _window: &mut gpui::Window,
+            _cx: &mut gpui::Context<'_, Self>,
+        ) -> impl gpui::IntoElement {
+            gpui::div()
+        }
+    }
+
+    struct TestEvent(Option<u32>);
+
+    impl gpui::EventEmitter<TestEvent> for TestState {}
+
+    struct TestShape;
+
+    impl ComponentShapeMetadata for TestShape {}
+
+    impl GpuiComponentShape for TestShape {
+        type State = TestState;
+        type RenderComponent = NoGpuiRenderComponent;
+
+        fn new(
+            _window: &mut gpui::Window,
+            _cx: &mut gpui::Context<'_, Self::State>,
+        ) -> Self::State {
+            TestState { value: Some(1) }
+        }
+    }
+
+    impl GpuiComponentValueBinding<u32> for TestShape {
+        type Event = TestEvent;
+
+        fn value_change(_state: &Self::State, event: &Self::Event) -> ValueChange<u32> {
+            match event.0 {
+                Some(value) => ValueChange::Set(value),
+                None => ValueChange::Clear,
+            }
+        }
+    }
+
+    impl GpuiComponentStateValueBinding<u32> for TestState {
+        type Event = TestEvent;
+
+        fn value_change(_state: &Self, event: &Self::Event) -> ValueChange<u32> {
+            match event.0 {
+                Some(value) => ValueChange::Set(value),
+                None => ValueChange::Clear,
+            }
+        }
+    }
+
+    struct ConfiguredBuilder(u32);
+
+    impl GpuiComponentShapeBuilder<TestShape> for ConfiguredBuilder {
+        fn build(
+            self,
+            _window: &mut gpui::Window,
+            _cx: &mut gpui::Context<'_, TestState>,
+        ) -> TestState {
+            TestState {
+                value: Some(self.0),
+            }
+        }
+    }
 
     #[test]
     fn marker_and_default_builder_metadata_are_stable() {
@@ -208,5 +284,52 @@ mod tests {
         const {
             assert!(!<NoGpuiRenderComponent as GpuiComponentRender<()>>::RENDERS);
         }
+    }
+
+    #[test]
+    fn runtime_helpers_dispatch_through_shape_contracts() {
+        let mut app = gpui::TestApp::new();
+        let mut window = app.open_window(|window, cx| {
+            build_component_shape::<TestShape, _>(
+                DefaultGpuiComponentShapeBuilder::new(),
+                window,
+                cx,
+            )
+        });
+
+        assert_eq!(window.read(|state, _| state.value), Some(1));
+        let root = window.root();
+        let _render = NoGpuiRenderComponent::new(&root);
+
+        window.update(|state, window, cx| {
+            seed_value_binding_state::<TestShape, u32>(state, Some(&7), window, cx);
+            assert_eq!(state.value, Some(1), "the default seed hook is a no-op");
+            assert_eq!(
+                value_change::<TestShape, u32>(state, &TestEvent(Some(9))),
+                ValueChange::Set(9)
+            );
+            assert_eq!(
+                <TestState as GpuiComponentStateValueBinding<u32>>::value_change(
+                    state,
+                    &TestEvent(None),
+                ),
+                ValueChange::Clear
+            );
+            <TestState as GpuiComponentStateValueBinding<u32>>::seed_value_binding_state(
+                state,
+                Some(&11),
+                window,
+                cx,
+            );
+            assert_eq!(
+                state.value,
+                Some(1),
+                "the state default seed hook is a no-op"
+            );
+
+            let configured =
+                build_component_shape::<TestShape, _>(ConfiguredBuilder(42), window, cx);
+            assert_eq!(configured.value, Some(42));
+        });
     }
 }

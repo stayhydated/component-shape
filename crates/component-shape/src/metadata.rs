@@ -157,5 +157,6 @@ mod tests {
             prototyping.field_suffix.map(crate::ComponentSuffix::as_str),
             Some("input")
         );
+        assert_eq!(ComponentPrototyping::default(), ComponentPrototyping::new());
     }
 }

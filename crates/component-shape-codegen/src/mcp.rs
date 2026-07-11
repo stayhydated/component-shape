@@ -88,27 +88,29 @@ pub fn mcp_input_shape_tokens(
             quote! { #component_shape_crate::McpInput::unsupported() }
         },
         component_shape::McpInputShape::Scalar(kind) => {
-            if let Some(constructor) = scalar_mcp_input_constructor(kind) {
-                quote! { #component_shape_crate::McpInput::#constructor() }
-            } else {
-                let kind = primitive_kind_tokens(component_shape_crate, kind);
-                quote! { #component_shape_crate::McpInput::scalar(#kind) }
-            }
+            let constructor = scalar_mcp_input_constructor(kind);
+            quote! { #component_shape_crate::McpInput::#constructor() }
         },
         component_shape::McpInputShape::List(kind) => {
             if let Some(constructor) = list_mcp_input_constructor(kind) {
                 quote! { #component_shape_crate::McpInput::#constructor() }
             } else {
-                let kind = primitive_kind_tokens(component_shape_crate, kind);
-                quote! { #component_shape_crate::McpInput::list(#kind) }
+                quote! {
+                    #component_shape_crate::McpInput::list(
+                        #component_shape_crate::McpPrimitiveKind::Any
+                    )
+                }
             }
         },
         component_shape::McpInputShape::Set(kind) => {
             if let Some(constructor) = set_mcp_input_constructor(kind) {
                 quote! { #component_shape_crate::McpInput::#constructor() }
             } else {
-                let kind = primitive_kind_tokens(component_shape_crate, kind);
-                quote! { #component_shape_crate::McpInput::set(#kind) }
+                quote! {
+                    #component_shape_crate::McpInput::set(
+                        #component_shape_crate::McpPrimitiveKind::Any
+                    )
+                }
             }
         },
         component_shape::McpInputShape::Range(kind) => {
@@ -121,24 +123,7 @@ pub fn mcp_input_shape_tokens(
     }
 }
 
-fn primitive_kind_tokens(
-    component_shape_crate: &Path,
-    kind: component_shape::McpPrimitiveKind,
-) -> TokenStream {
-    let variant = match kind {
-        component_shape::McpPrimitiveKind::Any => quote! { Any },
-        component_shape::McpPrimitiveKind::Boolean => quote! { Boolean },
-        component_shape::McpPrimitiveKind::Integer => quote! { Integer },
-        component_shape::McpPrimitiveKind::Number => quote! { Number },
-        component_shape::McpPrimitiveKind::Decimal => quote! { Decimal },
-        component_shape::McpPrimitiveKind::String => quote! { String },
-        component_shape::McpPrimitiveKind::Date => quote! { Date },
-        component_shape::McpPrimitiveKind::DateTime => quote! { DateTime },
-    };
-    quote! { #component_shape_crate::McpPrimitiveKind::#variant }
-}
-
-fn scalar_mcp_input_constructor(kind: component_shape::McpPrimitiveKind) -> Option<Ident> {
+fn scalar_mcp_input_constructor(kind: component_shape::McpPrimitiveKind) -> Ident {
     let constructor = match kind {
         component_shape::McpPrimitiveKind::Any => "any",
         component_shape::McpPrimitiveKind::Boolean => "boolean",
@@ -149,7 +134,7 @@ fn scalar_mcp_input_constructor(kind: component_shape::McpPrimitiveKind) -> Opti
         component_shape::McpPrimitiveKind::Date => "date",
         component_shape::McpPrimitiveKind::DateTime => "date_time",
     };
-    Some(format_ident!("{constructor}"))
+    format_ident!("{constructor}")
 }
 
 fn list_mcp_input_constructor(kind: component_shape::McpPrimitiveKind) -> Option<Ident> {

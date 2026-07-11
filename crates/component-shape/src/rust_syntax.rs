@@ -256,5 +256,20 @@ mod tests {
             RustType::from_macro_tokens_opt_unchecked(Some("Vec<")).map(RustType::as_str),
             Some("Vec<")
         );
+        assert_eq!(
+            RustType::from_macro_tokens_opt_unchecked(std::hint::black_box(None)),
+            None
+        );
+        assert_eq!(
+            RustExpr::from_macro_tokens_unchecked(std::hint::black_box("make_value()")).as_str(),
+            "make_value()"
+        );
+    }
+
+    #[test]
+    fn rust_syntax_kind_labels_are_stable() {
+        assert_eq!(RustSyntaxKind::Type.label(), "type");
+        assert_eq!(RustSyntaxKind::Path.label(), "path");
+        assert_eq!(RustSyntaxKind::Expr.label(), "expression");
     }
 }
