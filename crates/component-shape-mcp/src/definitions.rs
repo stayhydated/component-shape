@@ -167,11 +167,10 @@ pub fn resource_definition(
     description: Option<String>,
     mime_type: Option<String>,
 ) -> Result<ResourceDefinition, McpToolError> {
-    let mut resource = RawResource::new(uri, name);
+    let mut resource = Resource::new(uri, name);
     resource.title = title;
     resource.description = description;
     resource.mime_type = mime_type;
-    let resource = resource.no_annotation();
     validate_resource_definition(&resource)?;
     Ok(resource)
 }
@@ -189,11 +188,10 @@ pub fn resource_template_definition(
     description: Option<String>,
     mime_type: Option<String>,
 ) -> Result<ResourceTemplateDefinition, McpToolError> {
-    let mut template = RawResourceTemplate::new(uri_template, name);
+    let mut template = ResourceTemplate::new(uri_template, name);
     template.title = title;
     template.description = description;
     template.mime_type = mime_type;
-    let template = template.no_annotation();
     validate_resource_template(&template)?;
     Ok(template)
 }
@@ -391,8 +389,7 @@ pub fn prompt_definition(
 
 /// Build a prompt result containing one user text message.
 pub fn text_prompt_result(description: Option<String>, text: impl Into<String>) -> GetPromptResult {
-    let mut result =
-        GetPromptResult::new(vec![PromptMessage::new_text(PromptMessageRole::User, text)]);
+    let mut result = GetPromptResult::new(vec![PromptMessage::new_text(Role::User, text)]);
     result.description = description;
     result
 }

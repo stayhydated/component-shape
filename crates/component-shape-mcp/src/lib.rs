@@ -50,25 +50,22 @@ pub use names::*;
 pub use results::*;
 pub use rmcp;
 pub use rmcp::model::{
-    CallToolResult as ToolCallResult, Content as ContentBlock, GetPromptResult as McpPromptResult,
+    CallToolResult as ToolCallResult, ContentBlock, GetPromptResult as McpPromptResult,
     Icon as McpIcon, IconTheme as McpIconTheme, Prompt as PromptDefinition,
     PromptArgument as McpPromptArgument, PromptMessage as McpPromptMessage,
-    PromptMessageContent as McpPromptMessageContent, PromptMessageRole as McpPromptMessageRole,
-    RawResource as RawResourceDefinition, RawResourceTemplate as RawResourceTemplateDefinition,
     ReadResourceResult as McpResourceResult, Resource as ResourceDefinition,
     ResourceContents as McpResourceContents, ResourceTemplate as ResourceTemplateDefinition,
-    TaskSupport as McpToolTaskSupport, Tool as ToolDefinition,
+    Role as McpRole, TaskSupport as McpToolTaskSupport, Tool as ToolDefinition,
     ToolAnnotations as McpToolAnnotations, ToolExecution as McpToolExecution,
 };
 use rmcp::{
     ErrorData, RoleServer, ServerHandler, ServiceExt as _,
     model::{
-        AnnotateAble as _, CallToolRequestParams, GetPromptRequestParams, GetPromptResult,
-        Implementation, JsonObject, ListPromptsResult, ListResourceTemplatesResult,
-        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt, PromptMessage,
-        PromptMessageRole, ProtocolVersion, RawResource, RawResourceTemplate,
-        ReadResourceRequestParams, ReadResourceResult, ResourceContents, ResourceTemplate,
-        ServerCapabilities, ServerInfo, Tool,
+        CallToolRequestParams, GetPromptRequestParams, GetPromptResult, Implementation, JsonObject,
+        ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
+        PaginatedRequestParams, Prompt, PromptMessage, ProtocolVersion, ReadResourceRequestParams,
+        ReadResourceResult, Resource, ResourceContents, ResourceTemplate, Role, ServerCapabilities,
+        ServerInfo, Tool,
     },
     service::{MaybeSendFuture, RequestContext},
     transport::stdio,

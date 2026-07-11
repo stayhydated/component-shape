@@ -1587,10 +1587,10 @@ fn server_exposes_resources_and_prompts_through_rmcp_protocol() {
             Some("Draft values for the contact form.")
         );
         assert_eq!(prompt.messages.len(), 1);
-        assert_eq!(prompt.messages[0].role, super::McpPromptMessageRole::User);
+        assert_eq!(prompt.messages[0].role, super::McpRole::User);
         match &prompt.messages[0].content {
-            super::McpPromptMessageContent::Text { text } => {
-                assert!(text.contains("Use the contact descriptor resource"))
+            super::ContentBlock::Text(content) => {
+                assert!(content.text.contains("Use the contact descriptor resource"))
             },
             other => panic!("expected text prompt message, got {other:?}"),
         }

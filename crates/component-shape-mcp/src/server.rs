@@ -202,7 +202,7 @@ impl McpServer {
         Read: Fn() -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<ReadResourceResult, ErrorData>> + Send + 'static,
     {
-        let uri = definition.raw.uri.clone();
+        let uri = definition.uri.clone();
         validate_resource_definition(&definition)?;
         if self.resources.contains_key(&uri) {
             return Err(McpToolError::duplicate_resource(uri));
