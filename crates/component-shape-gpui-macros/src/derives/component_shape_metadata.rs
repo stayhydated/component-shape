@@ -1,3 +1,7 @@
+use component_shape_codegen::{
+    common_inferred_mcp_input_shape_for_types, inferred_mcp_input_shape_for_type,
+    mcp_input_expr_tokens, mcp_input_shape_tokens, validate_mcp_input_expr,
+};
 use proc_macro2::TokenStream;
 use quote::{ToTokens as _, quote};
 use syn::{
@@ -9,14 +13,15 @@ use super::component_shape_constructor::constructor_body_tokens;
 use super::crate_paths::CratePaths;
 
 pub(super) const SHAPE_METADATA_OPTIONS: &str = "`new = ...`, `state = ...`, `component = ...`, `value = ...`, `values(...)`, \
-     `value_binding`, or `field_suffix = ...`";
+     `value_binding`, `field_suffix = ...`, or `mcp_input = ...`";
 
 pub(super) const FUNCTION_SHAPE_OPTIONS: &str = "`state = ...`, `new = ...`, `component = ...`, `value = ...`, `values(...)`, \
-     `value_binding`, or `field_suffix = ...`";
+     `value_binding`, `field_suffix = ...`, or `mcp_input = ...`";
 
 pub(super) mod kw {
     syn::custom_keyword!(component);
     syn::custom_keyword!(field_suffix);
+    syn::custom_keyword!(mcp_input);
     syn::custom_keyword!(new);
     syn::custom_keyword!(state);
     syn::custom_keyword!(value);
@@ -40,6 +45,7 @@ pub(super) struct ComponentShapeMetadata {
     values: Vec<Type>,
     value_binding: bool,
     field_suffix: Option<LitStr>,
+    mcp_input: Option<Expr>,
 }
 
 pub(super) enum ShapeOption {
@@ -68,6 +74,10 @@ pub(super) enum ShapeOption {
     },
     FieldSuffix {
         suffix: LitStr,
+        span: proc_macro2::Span,
+    },
+    McpInput {
+        expr: Expr,
         span: proc_macro2::Span,
     },
 }
@@ -127,6 +137,14 @@ impl ShapeOption {
                 span: key.span,
             });
         }
+        if input.peek(kw::mcp_input) {
+            let key = input.parse::<kw::mcp_input>()?;
+            input.parse::<Token![=]>()?;
+            return Ok(Self::McpInput {
+                expr: input.parse()?,
+                span: key.span,
+            });
+        }
 
         Err(input.error(format!("expected {FUNCTION_SHAPE_OPTIONS}")))
     }
@@ -165,6 +183,11 @@ impl ShapeOption {
                 suffix: meta.value()?.parse()?,
                 span,
             })
+        } else if meta.path.is_ident("mcp_input") {
+            Ok(Self::McpInput {
+                expr: meta.value()?.parse()?,
+                span,
+            })
         } else if meta.path.is_ident("value_binding") {
             Ok(Self::ValueBinding { span })
         } else {
@@ -186,6 +209,9 @@ impl ShapeOption {
             },
             Self::FieldSuffix { suffix, span } => {
                 shape.set_field_suffix(suffix, span_token("field_suffix", span))
+            },
+            Self::McpInput { expr, span } => {
+                shape.set_mcp_input(expr, span_token("mcp_input", span))
             },
         }
     }
@@ -306,11 +332,23 @@ impl ComponentShapeMetadata {
     ) -> TokenStream {
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
         let value_impls = self.values.iter().map(|value| {
+            let mcp_input_const = self
+                .explicit_mcp_input_tokens(component_shape_crate)
+                .or_else(|| {
+                    inferred_mcp_input_shape_for_type(value)
+                        .map(|input| mcp_input_shape_tokens(component_shape_crate, input))
+                })
+                .map(|input| {
+                    quote! {
+                        const MCP_INPUT: #component_shape_crate::McpInput = #input;
+                    }
+                });
             quote! {
                 impl #impl_generics #component_shape_crate::ComponentShapeFor<#value>
                     for #ident #ty_generics
                     #where_clause
                 {
+                    #mcp_input_const
                 }
 
                 impl #impl_generics #gpui_crate::GpuiComponentShapeFor<#value>
@@ -353,6 +391,13 @@ impl ComponentShapeMetadata {
 
         let (impl_generics, _, where_clause) = binding_generics.split_for_impl();
         let (_, ty_generics, _) = generics.split_for_impl();
+        let mcp_input_const =
+            self.explicit_mcp_input_tokens(component_shape_crate)
+                .map(|mcp_input| {
+                    quote! {
+                        const MCP_INPUT: #component_shape_crate::McpInput = #mcp_input;
+                    }
+                });
 
         Some(quote! {
             impl #impl_generics #component_shape_crate::ComponentShapeFor<
@@ -360,6 +405,7 @@ impl ComponentShapeMetadata {
             > for #ident #ty_generics
                 #where_clause
             {
+                #mcp_input_const
             }
 
             impl #impl_generics #component_shape_gpui_crate::GpuiComponentShapeFor<
@@ -406,6 +452,15 @@ impl ComponentShapeMetadata {
             ));
         }
         set_once(&mut self.field_suffix, field_suffix, span, "field_suffix")
+    }
+
+    pub(super) fn set_mcp_input<T: quote::ToTokens>(
+        &mut self,
+        mcp_input: Expr,
+        span: T,
+    ) -> Result<()> {
+        validate_mcp_input_expr(&mcp_input)?;
+        set_once(&mut self.mcp_input, mcp_input, span, "mcp_input")
     }
 
     pub(super) fn constructor_body_or(&self, default_body: TokenStream) -> TokenStream {
@@ -475,15 +530,35 @@ impl ComponentShapeMetadata {
         } else {
             quote! { #component_shape_crate::ValueBindingCapability::None }
         };
+        let mcp_input_const = self
+            .explicit_mcp_input_tokens(component_shape_crate)
+            .or_else(|| self.inferred_mcp_input_tokens(component_shape_crate))
+            .map(|mcp_input| {
+                quote! {
+                    const MCP_INPUT: #component_shape_crate::McpInput = #mcp_input;
+                }
+            });
 
         quote! {
             #prototyping_const
+            #mcp_input_const
 
             const CAPABILITIES: #component_shape_crate::ComponentCapabilities =
                 #component_shape_crate::ComponentCapabilities::new()
                     .with_render(#render_capability)
                     .with_value_binding(#value_binding_capability);
         }
+    }
+
+    fn inferred_mcp_input_tokens(&self, component_shape_crate: &Path) -> Option<TokenStream> {
+        common_inferred_mcp_input_shape_for_types(&self.values)
+            .map(|input| mcp_input_shape_tokens(component_shape_crate, input))
+    }
+
+    fn explicit_mcp_input_tokens(&self, component_shape_crate: &Path) -> Option<TokenStream> {
+        self.mcp_input
+            .as_ref()
+            .map(|input| mcp_input_expr_tokens(component_shape_crate, input))
     }
 }
 
@@ -529,4 +604,146 @@ fn set_once<T, S: quote::ToTokens>(
 
 pub(super) fn crate_paths() -> CratePaths {
     CratePaths::resolve()
+}
+
+#[cfg(test)]
+mod tests {
+    use quote::quote;
+    use syn::{parse::Parser as _, parse_quote};
+
+    use super::*;
+
+    fn parse_function(tokens: TokenStream) -> syn::Result<ShapeOption> {
+        (|input: ParseStream<'_>| ShapeOption::parse_function(input)).parse2(tokens)
+    }
+
+    fn compact(tokens: impl quote::ToTokens) -> String {
+        tokens
+            .to_token_stream()
+            .to_string()
+            .chars()
+            .filter(|ch| !ch.is_whitespace())
+            .collect()
+    }
+
+    #[test]
+    fn function_options_parse_and_apply_every_metadata_variant() {
+        let mut metadata = ComponentShapeMetadata::default();
+        for tokens in [
+            quote!(new = State::new),
+            quote!(state = State<String>),
+            quote!(component = Input<String>),
+            quote!(value = String),
+            quote!(values(u64, bool)),
+            quote!(value_binding),
+            quote!(field_suffix = "input"),
+            quote!(mcp_input = string),
+        ] {
+            parse_function(tokens)
+                .expect("option should parse")
+                .apply(&mut metadata)
+                .expect("option should apply");
+        }
+
+        assert_eq!(compact(metadata.state().expect("state")), "State<String>");
+        assert_eq!(
+            compact(metadata.component().expect("component")),
+            "Input<String>"
+        );
+        assert!(metadata.has_value_metadata());
+        assert!(metadata.has_value_binding());
+        assert_eq!(
+            compact(metadata.constructor_body_or(quote!(fallback))),
+            "(State::new)(window,cx)"
+        );
+        assert!(parse_function(quote!(unknown = true)).is_err());
+    }
+
+    #[test]
+    fn derive_attribute_options_parse_and_reject_unknown_metadata() {
+        let attr: syn::Attribute = parse_quote! {
+            #[gpui_component_shape(
+                new = State::new,
+                state = State,
+                component = Input,
+                value = String,
+                values(u64, bool),
+                value_binding,
+                field_suffix = "input",
+                mcp_input = string
+            )]
+        };
+        let mut metadata = ComponentShapeMetadata::default();
+        attr.parse_nested_meta(|meta| ShapeOption::from_nested_meta(&meta)?.apply(&mut metadata))
+            .expect("attribute should parse");
+        assert!(metadata.has_value_binding());
+
+        let unknown: syn::Attribute = parse_quote!(#[gpui_component_shape(unknown = true)]);
+        assert!(
+            unknown
+                .parse_nested_meta(|meta| ShapeOption::from_nested_meta(&meta).map(|_| ()))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn metadata_rejects_duplicates_empty_values_and_invalid_components() {
+        let mut metadata = ComponentShapeMetadata::default();
+        metadata
+            .set_new(parse_quote!(State::new), quote!(new))
+            .expect("first new should apply");
+        assert!(
+            metadata
+                .set_new(parse_quote!(State::default), quote!(new))
+                .is_err()
+        );
+
+        assert!(
+            metadata
+                .set_component(parse_quote!(_), quote!(component))
+                .is_err()
+        );
+        assert!(
+            metadata
+                .set_component(parse_quote!((Input, Output)), quote!(component))
+                .is_err()
+        );
+        metadata
+            .add_value(parse_quote!(String), quote!(value))
+            .expect("first value should apply");
+        assert!(
+            metadata
+                .add_value(parse_quote!(String), quote!(value))
+                .is_err()
+        );
+        assert!(
+            metadata
+                .add_values(Vec::<Type>::new(), quote!(values))
+                .is_err()
+        );
+
+        metadata
+            .enable_value_binding(quote!(value_binding))
+            .expect("first binding should apply");
+        assert!(
+            metadata
+                .enable_value_binding(quote!(value_binding))
+                .is_err()
+        );
+        assert!(
+            metadata
+                .set_field_suffix(parse_quote!("bad-suffix"), quote!(field_suffix))
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn phantom_type_tokens_include_types_and_lifetimes_but_not_consts() {
+        let generics: syn::Generics = parse_quote!(<'a, T, const N: usize>);
+        assert_eq!(compact(phantom_type_tokens(&generics)), "(&'a(),T)");
+        assert_eq!(
+            compact(phantom_type_tokens(&syn::Generics::default())),
+            "()"
+        );
+    }
 }

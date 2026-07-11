@@ -199,4 +199,19 @@ mod tests {
             "unexpected error: {error}"
         );
     }
+
+    #[test]
+    fn extends_imports_from_slices_and_iterators() {
+        let mut imports = ImportSet::default();
+        imports.extend_items(&[
+            ImportItem::path("gpui::App"),
+            ImportItem::path("gpui::Window"),
+        ]);
+        imports.extend([ImportItem::path("gpui::Context")]);
+
+        assert_eq!(
+            compact(imports.to_token_stream()),
+            "usegpui::{App,Context,Window};"
+        );
+    }
 }

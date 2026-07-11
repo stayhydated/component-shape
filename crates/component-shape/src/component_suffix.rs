@@ -36,20 +36,30 @@ pub struct ComponentSuffix(&'static str);
 
 #[derive(Clone, Debug, Eq, thiserror::Error, PartialEq)]
 #[error("`field_suffix` must be a non-empty ASCII identifier suffix, got `{value}`")]
+/// Error returned when component suffix validation rejects a value.
 pub struct ComponentSuffixError {
     value: String,
 }
 
 impl ComponentSuffixError {
+    /// Returns the invalid suffix value.
     pub fn value(&self) -> &str {
         &self.value
     }
 }
 
+/// Returns whether a component/prototyping suffix is valid.
 pub const fn is_valid_component_suffix(value: &str) -> bool {
     is_valid_ascii_identifier_suffix(value)
 }
 
+/// Validate a component/prototyping suffix.
+///
+/// # Errors
+///
+/// Returns [`ComponentSuffixError`] when `value` is empty, is `_`, starts with a
+/// non-identifier ASCII character, contains non-identifier ASCII characters, or
+/// contains non-ASCII characters.
 pub fn validate_component_suffix(value: &str) -> Result<(), ComponentSuffixError> {
     if is_valid_component_suffix(value) {
         Ok(())
@@ -83,6 +93,13 @@ pub fn component_suffix_from_suffix(field_name: &str, suffix: &str) -> Option<St
 }
 
 impl ComponentSuffix {
+    /// Creates a component suffix from static metadata.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `value` is not a valid component suffix. Use
+    /// [`validate_component_suffix`] when the value comes from a recoverable
+    /// runtime input boundary.
     pub const fn new(value: &'static str) -> Self {
         assert!(
             is_valid_component_suffix(value),
@@ -91,6 +108,12 @@ impl ComponentSuffix {
         Self(value)
     }
 
+    /// Creates an optional component suffix from optional static metadata.
+    ///
+    /// # Panics
+    ///
+    /// Panics when `value` is `Some` and the contained string is not a valid
+    /// component suffix.
     pub const fn new_opt(value: Option<&'static str>) -> Option<Self> {
         match value {
             Some(value) => Some(Self::new(value)),
@@ -98,6 +121,7 @@ impl ComponentSuffix {
         }
     }
 
+    /// Returns the suffix text.
     pub const fn as_str(self) -> &'static str {
         self.0
     }
@@ -121,10 +145,9 @@ mod tests {
     #[test]
     fn component_suffix_validation_rejects_invalid_suffixes() {
         for value in ["", "_", "2input", "input-field", "input field", "入力"] {
-            assert!(
-                validate_component_suffix(value).is_err(),
-                "`{value}` should be rejected as a component suffix"
-            );
+            let error = validate_component_suffix(value)
+                .expect_err("invalid component suffix should be rejected");
+            assert_eq!(error.value(), value);
         }
     }
 

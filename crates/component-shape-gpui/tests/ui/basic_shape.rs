@@ -1,8 +1,7 @@
-use component_shape::{
-    ComponentShapeFor, ComponentShapeMetadata as _, DeclaredComponentShape,
-};
 use component_shape_gpui::{
-    DeclaredGpuiComponentShape, GpuiComponentShape, GpuiComponentShapeFor, component_shape,
+    ComponentShapeFor, ComponentShapeMetadata as _, ComponentSuffix, DeclaredComponentShape,
+    DeclaredGpuiComponentShape, GpuiComponentShape, GpuiComponentShapeFor, McpInputShape,
+    McpPrimitiveKind, component_shape,
 };
 
 pub struct InputState;
@@ -36,7 +35,11 @@ fn main() {
     assert_eq!(
         InputShape::PROTOTYPING
             .field_suffix
-            .map(component_shape::ComponentSuffix::as_str),
+            .map(ComponentSuffix::as_str),
         Some("input")
+    );
+    assert_eq!(
+        <InputShape as component_shape_gpui::ComponentShapeMetadata>::MCP_INPUT.input_shape(),
+        McpInputShape::Scalar(McpPrimitiveKind::String)
     );
 }

@@ -224,15 +224,31 @@ mod tests {
         let expanded = expand(input).unwrap();
         let compact = compact_tokens(&expanded.to_string());
 
-        assert!(compact.contains("impl::component_shape::ComponentShapeMetadataforTagsInput"));
-        assert!(compact.contains("impl::component_shape::DeclaredComponentShapeforTagsInput"));
+        assert!(compact.contains("impl::component_shape_gpui::ComponentShapeMetadataforTagsInput"));
+        assert!(compact.contains("impl::component_shape_gpui::DeclaredComponentShapeforTagsInput"));
         assert!(compact.contains("impl::component_shape_gpui::GpuiComponentShapeforTagsInput"));
         assert!(
-            compact.contains("impl::component_shape::ComponentShapeFor<Vec<String>>forTagsInput")
+            compact
+                .contains("impl::component_shape_gpui::ComponentShapeFor<Vec<String>>forTagsInput")
         );
         assert!(compact.contains(
             "impl::component_shape_gpui::GpuiComponentShapeFor<Vec<String>>forTagsInput"
         ));
+    }
+
+    #[test]
+    fn derive_infers_mcp_input_from_value_metadata() {
+        let input: DeriveInput = syn::parse2(quote! {
+            #[derive(GpuiComponentShape)]
+            #[gpui_component_shape(state = crate::state::TagsState, value = Vec<String>)]
+            struct TagsInput;
+        })
+        .unwrap();
+
+        let expanded = expand(input).unwrap();
+        let compact = compact_tokens(&expanded.to_string());
+
+        assert!(compact.contains("McpInput::string_list"));
     }
 
     #[test]
@@ -288,5 +304,103 @@ mod tests {
         assert!(
             compact.contains("GpuiComponentStateValueBinding<__GpuiComponentValueBindingValue>")
         );
+    }
+
+    #[test]
+    fn derive_applies_explicit_mcp_input_to_state_value_binding_markers() {
+        let input: DeriveInput = syn::parse2(quote! {
+            #[derive(GpuiComponentShape)]
+            #[gpui_component_shape(
+                state = crate::state::TagsState,
+                value_binding,
+                mcp_input = string
+            )]
+            struct TagsInput;
+        })
+        .unwrap();
+
+        let expanded = expand(input).unwrap();
+        let compact = compact_tokens(&expanded.to_string());
+
+        assert!(
+            compact.contains("ComponentShapeFor<__GpuiComponentValueBindingValue>forTagsInput")
+        );
+        assert!(compact.contains("McpInput::string"));
+    }
+
+    #[test]
+    fn derive_accepts_explicit_mcp_input_for_generic_values() {
+        let input: DeriveInput = syn::parse2(quote! {
+            #[derive(GpuiComponentShape)]
+            #[gpui_component_shape(value = T, mcp_input = object)]
+            struct JsonEditor<T>
+            where
+                T: 'static,
+            {
+                value: T,
+            }
+        })
+        .unwrap();
+
+        let expanded = expand(input).unwrap();
+        let compact = compact_tokens(&expanded.to_string());
+
+        assert!(compact.contains("ComponentShapeMetadataforJsonEditor<T>"));
+        assert!(compact.contains("constMCP_INPUT"));
+        assert!(compact.contains("ComponentShapeFor<T>forJsonEditor<T>"));
+        assert!(compact.contains("McpInput::object"));
+    }
+
+    #[test]
+    fn derive_infers_any_mcp_input_from_explicit_any_metadata() {
+        let input: DeriveInput = syn::parse2(quote! {
+            #[derive(GpuiComponentShape)]
+            #[gpui_component_shape(state = crate::state::JsonState, value = gpui_form::mcp::McpAny)]
+            struct JsonEditor;
+        })
+        .unwrap();
+
+        let expanded = expand(input).unwrap();
+        let compact = compact_tokens(&expanded.to_string());
+
+        assert!(compact.contains("ComponentShapeMetadataforJsonEditor"));
+        assert!(compact.contains("McpInput::any"));
+        assert!(compact.contains("ComponentShapeFor<gpui_form::mcp::McpAny>forJsonEditor"));
+    }
+
+    #[test]
+    fn derive_accepts_mcp_input_constructor_call_shorthand() {
+        let input: DeriveInput = syn::parse2(quote! {
+            #[derive(GpuiComponentShape)]
+            #[gpui_component_shape(value = T, mcp_input = object())]
+            struct JsonEditor<T>
+            where
+                T: 'static,
+            {
+                value: T,
+            }
+        })
+        .unwrap();
+
+        let expanded = expand(input).unwrap();
+        let compact = compact_tokens(&expanded.to_string());
+
+        assert!(compact.contains("McpInput::object"));
+    }
+
+    #[test]
+    fn derive_rejects_unknown_mcp_input_shorthand() {
+        let input: DeriveInput = syn::parse2(quote! {
+            #[derive(GpuiComponentShape)]
+            #[gpui_component_shape(value = String, mcp_input = strings)]
+            struct TextInput {
+                value: String,
+            }
+        })
+        .unwrap();
+
+        let error = expand(input).unwrap_err().to_string();
+
+        assert!(error.contains("unknown `mcp_input` shorthand `strings`"));
     }
 }

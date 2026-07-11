@@ -10,13 +10,19 @@ fmt:
     rumdl fmt .
 
 clippy:
-    cargo clippy --workspace --all-features
+    cargo clippy --workspace --all-features --all-targets --locked -- -D warnings
 
 check:
-    cargo check --workspace --all-features
+    cargo check --workspace --all-features --all-targets --locked
 
 test:
-    cargo test --workspace --all-features
+    cargo test --workspace --all-features --locked
+
+cov:
+    cargo llvm-cov --workspace --all-features --all-targets
 
 test-publish:
-    cargo publish --workspace --dry-run --allow-dirty
+    cargo xtask release plan
+
+test-docs:
+    cargo doc --workspace --all-features --no-deps --locked --open

@@ -9,8 +9,8 @@ description: "Use when Codex needs to work with framework-neutral component-shap
 
 Use this skill for framework-neutral `component-shape` concepts and contracts.
 It covers shape metadata, naming, suffix validation, component capabilities,
-Rust syntax wrappers, normalized value-change metadata, and generator-facing
-shape contracts.
+Rust syntax wrappers, normalized value-change metadata, MCP input
+metadata, and generator-facing shape contracts.
 
 Do not use this skill for GPUI-specific component contracts or macros. Use
 `use-component-shape-gpui` for `component_shape_gpui::GpuiComponentShape`,
@@ -31,6 +31,7 @@ Keep shared behavior in `component-shape` when it does not require a framework:
 - Component suffix validation and derived suffix behavior.
 - Syntax wrappers used by macro and generator crates.
 - Normalized value-change concepts.
+- MCP input metadata that describes structured model-controlled input.
 - Metadata consumed by downstream generators.
 
 Do not add GPUI dependencies, GPUI types, or GPUI-specific assumptions to the
@@ -49,10 +50,47 @@ framework-specific branching when the behavior can be described generically.
 Use `ComponentPrototyping` for generator-facing naming details such as stable
 field suffixes. Suffixes should be valid non-empty ASCII identifier suffixes so
 generated identifiers are deterministic and portable.
+Use `ComponentShapeUse::with_shape_metadata::<Shape>()` and
+`with_value_mcp_input::<Shape, Value>()` when generated or registry metadata
+needs to copy type-owned shape metadata into an erased field/component record.
 
 Use `ValueChange` metadata for normalized value-change behavior. Keep this
 separate from any framework-specific event type; downstream integrations can
 map generic value-change metadata onto their own event systems.
+
+Use `McpInput` for declarative structured input metadata such as text values,
+primitive lists, primitive sets, decimal ranges, date ranges, and date-time
+ranges.
+Use `McpInput::any()` for coarse unconstrained JSON metadata and
+`component_shape_mcp::McpAny` for typed tool fields that intentionally accept
+any JSON. Leave the default
+`McpInput::unsupported()` for shapes that should not advertise structured MCP
+input. Keep protocol execution, JSON decoding, authorization, and handler
+policy in downstream MCP integration crates or `component-shape-mcp`.
+GPUI shape declarations infer common MCP metadata from unambiguous declared
+value types. The generated `ComponentShapeFor<Value>` impl carries the
+value-specific metadata; custom or ambiguous wire schemas should be handled by
+the downstream MCP integration's typed schema or a manual decode/schema impl.
+Manual `ComponentShapeFor<Value>` impls inherit the shape-level
+`ComponentShapeMetadata::MCP_INPUT` by default; override the value-specific
+`MCP_INPUT` only when that value should publish a different coarse MCP shape.
+Use `component_shape_mcp::McpToolValue` when an integration needs one value to
+provide both JSON Schema and strict MCP decoding. The blanket implementation
+covers `Deserialize` types that implement `McpJsonSchema`; arbitrary JSON input
+should use `McpAny` explicitly.
+Use `component_shape_mcp::McpJsonSchema` when an integration has a concrete
+Rust argument type and needs richer JSON Schema than `McpInput::object()`.
+Aliases inherit the underlying type schema, and app-owned named structs,
+single-field transparent newtypes, or fieldless enums can derive it. Facade
+re-exports such as `gpui_form::mcp` and `gpui_table::mcp` are inferred when
+unambiguous; use `#[mcp(crate = facade::mcp)]` only for renamed crates or
+ambiguous facade paths. The derive follows serde deserialize names, includes
+enum deserialize aliases, skips deserialization-skipped fields, rejects
+flattened fields, and treats serde-defaulted fields as not required.
+Use `component_shape_mcp::McpToolInput` for top-level object-shaped tool
+argument structs that should derive schema and strict decoding together.
+Use `component_shape_mcp::McpRange<T>` for typed object-shaped range arguments
+with nullable `min` and `max` fields.
 
 ## Generator and Macro Coordination
 
@@ -79,5 +117,6 @@ contracts aligned:
 - `component-shape-codegen` docs when generator-facing behavior changes,
 - downstream framework guidance only when their public workflow changes.
 
-Keep implementation details, parser internals, and design rationale in
-`docs/` or crate-local architecture notes instead of user-facing READMEs.
+Keep implementation details, parser internals, and design rationale in focused
+rustdoc, tests, fixtures, or topic-specific crate-local docs instead of
+user-facing READMEs.

@@ -4,6 +4,8 @@ members = [
   "crates/component-shape-codegen",
   "crates/component-shape-gpui",
   "crates/component-shape-gpui-macros",
+  "crates/component-shape-mcp",
+  "crates/component-shape-mcp-macros",
 ]
 resolver = "3"
 
@@ -16,23 +18,30 @@ rust-version = "1.96"
 version = "0.1.0"
 
 [workspace.dependencies]
+attribute-dsl = "0.1"
+chrono = "0.4"
 component-shape = { path = "crates/component-shape", version = "0.1.0" }
 component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.1.0" }
 component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.1.0" }
 component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", version = "0.1.0" }
-gpui = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
+component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.1.0" }
+component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.1.0" }
+derive_more = "2.1"
+gpui = { branch = "linux-headless-renderer", git = "https://github.com/stayhydated/zed", version = "0.2.2" }
 heck = "0.5"
 prettyplease = "0.2"
-proc-macro-crate = "3.2"
-proc-macro-error2 = "2.0"
+proc-macro-crate = "3.5"
 proc-macro2 = "1.0"
 quote = "1.0"
+rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "1.8.0" }
+rust_decimal = "1.42"
+serde = "1.0"
+serde_json = "1.0"
+strum = "0.28"
 syn = { default-features = false, version = "2.0" }
 thiserror = "2.0"
+tokio = "1.52"
 trybuild = "1.0"
-
-[replace]
-"https://github.com/zed-industries/zed#gpui@0.2.2" = { git = "https://github.com/zed-industries/zed", rev = "b077f41a9f26ae5ed7fadfea55a501d34afb25de" }
 
 [profile.dev]
 codegen-units = 16
@@ -45,13 +54,22 @@ opt-level = 3
 
 [profile.release]
 codegen-units = 1
-lto = true
+lto = "thin"
 opt-level = 3
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "deny" }
+future_incompatible = "deny"
+nonstandard_style = "deny"
+unexpected_cfgs = { check-cfg = [ "cfg(coverage)" ], level = "deny" }
+unsafe_op_in_unsafe_fn = "deny"
+unused_must_use = "deny"
+
+[workspace.lints.rustdoc]
+bare_urls = "deny"
+broken_intra_doc_links = "deny"
 
 [workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
 dbg_macro = "deny"
 derive_partial_eq_without_eq = "warn"
 err_expect = "warn"

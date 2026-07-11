@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
 use std::str::FromStr;
 
-use component_shape::ComponentShapeMetadata as _;
-use component_shape::{RenderCapability, ValueBindingCapability};
-use component_shape_gpui::{GpuiComponentRender, GpuiComponentShape, component_shape};
+use component_shape_gpui::{
+    ComponentShapeMetadata as _, GpuiComponentRender, GpuiComponentShape, RenderCapability,
+    ValueBindingCapability, component_shape,
+};
 
 pub struct InputState<T>(PhantomData<T>);
 

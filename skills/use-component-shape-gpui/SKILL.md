@@ -10,8 +10,8 @@ description: "Use when Codex needs to add, review, or refactor GPUI component sh
 Use this skill for GPUI-specific component shape declarations and runtime
 contracts in the `component-shape-gpui` surface. It covers the
 `GpuiComponentShape` derive, the function-like `component_shape!` macro, render
-component metadata, constructor metadata, value compatibility, and value-binding
-declarations.
+component metadata, constructor metadata, value compatibility, value-binding
+declarations, and MCP input metadata.
 
 Use `use-component-shape` for framework-neutral metadata such as
 `ComponentShapeMetadata`, capabilities, suffix validation, syntax wrappers, and
@@ -22,7 +22,7 @@ when the task is about a form framework consuming the shape rather than
 declaring the shape itself.
 
 This reusable skill does not cover proc-macro implementation internals,
-trybuild fixture maintenance, or contributor-only architecture work. Use the
+trybuild fixture maintenance, or contributor-only implementation docs. Use the
 workspace `AGENTS.md` and crate docs for those tasks.
 
 ## Decision Rule
@@ -92,6 +92,17 @@ Metadata rules:
   through the backing state's value-binding implementation.
 - Add `field_suffix = "..."` when downstream prototyping or generators need a
   stable suffix for generated identifiers.
+- Common MCP input metadata is inferred from unambiguous declared values such
+  as `String`, booleans, numbers, dates, `Vec<T>`, set-like primitive
+  collections, fixed arrays, `component_shape_mcp::McpRange<T>`, or
+  `(Option<T>, Option<T>)` ranges. `Vec<T>` and fixed arrays publish list
+  metadata; set-like collections publish set metadata. Each generated
+  `ComponentShapeFor<Value>` impl carries the value-specific MCP metadata, and
+  shape-level MCP metadata is emitted only when all declared values agree.
+  Manual `ComponentShapeFor<Value>` impls inherit shape-level MCP metadata
+  unless they override the value-specific `MCP_INPUT`.
+  For custom or ambiguous wire schemas, use the downstream MCP integration's
+  typed schema derive or a manual decode/schema implementation.
 
 ## External State Pattern
 
@@ -129,7 +140,7 @@ component_shape_gpui::component_shape! {
             T: std::str::FromStr + ToString + 'static,
         {
             type Event = gpui_component::input::InputEvent;
-            /* seed_value_binding_state and form_value_change */
+            /* seed_value_binding_state and value_change */
         }
     }
 }
@@ -148,6 +159,10 @@ A shape can advertise support for form-side values through:
 - explicit `values(...)` metadata,
 - generated compatibility from `value_binding`,
 - manual `GpuiComponentShapeFor<Value>` implementations.
+
+`GpuiComponentShapeFor<Value>` includes the framework-neutral
+`ComponentShapeFor<Value>` contract, so manual GPUI compatibility impls must
+also publish value-specific shape metadata.
 
 Keep value compatibility separate from downstream storage policy. This crate
 should declare which values a component can represent; downstream consumers

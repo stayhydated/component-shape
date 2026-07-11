@@ -11,7 +11,9 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+derive_more = { features = [ "as_ref", "display", "from", "into" ], workspace = true }
 heck.workspace = true
+strum = { features = [ "derive" ], workspace = true }
 syn = { default-features = false, features = [
   "clone-impls",
   "full",

@@ -1,7 +1,6 @@
-use component_shape::{ComponentShapeMetadata as _, ValueChange};
-use component_shape::{RenderCapability, ValueBindingCapability};
 use component_shape_gpui::{
-    GpuiComponentShapeFor, GpuiComponentValueBinding, component_shape,
+    ComponentShapeMetadata as _, GpuiComponentShapeFor, GpuiComponentValueBinding,
+    RenderCapability, ValueBindingCapability, ValueChange, component_shape,
 };
 
 pub struct InputState;

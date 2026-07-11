@@ -99,6 +99,7 @@ fn is_shape_option_start(input: ParseStream<'_>) -> bool {
         || input.peek(kw::values)
         || input.peek(kw::value_binding)
         || input.peek(kw::field_suffix)
+        || input.peek(kw::mcp_input)
 }
 
 fn parse_option_separator(input: ParseStream<'_>) -> Result<()> {
@@ -320,10 +321,12 @@ mod tests {
         let compact = compact_tokens(&expanded.to_string());
 
         assert!(
-            compact.contains("impl::component_shape::ComponentShapeMetadataforLocalInputShape")
+            compact
+                .contains("impl::component_shape_gpui::ComponentShapeMetadataforLocalInputShape")
         );
         assert!(
-            compact.contains("impl::component_shape::DeclaredComponentShapeforLocalInputShape")
+            compact
+                .contains("impl::component_shape_gpui::DeclaredComponentShapeforLocalInputShape")
         );
         assert!(
             compact.contains("impl::component_shape_gpui::GpuiComponentShapeforLocalInputShape")
@@ -334,7 +337,9 @@ mod tests {
             )
         );
         assert!(
-            compact.contains("impl::component_shape::ComponentShapeFor<String>forLocalInputShape")
+            compact.contains(
+                "impl::component_shape_gpui::ComponentShapeFor<String>forLocalInputShape"
+            )
         );
         assert!(compact.contains(
             "impl::component_shape_gpui::GpuiComponentShapeFor<String>forLocalInputShape"
@@ -367,8 +372,8 @@ mod tests {
                 fn value_change(
                     _state: &Self::State,
                     _event: &Self::Event,
-                ) -> component_shape::ValueChange<String> {
-                    component_shape::ValueChange::Unchanged
+                ) -> component_shape_gpui::ValueChange<String> {
+                    component_shape_gpui::ValueChange::Unchanged
                 }
             }
         })
@@ -389,8 +394,8 @@ mod tests {
                 fn value_change(
                     _state: &Self::State,
                     _event: &Self::Event,
-                ) -> component_shape::ValueChange<Vec<T>> {
-                    component_shape::ValueChange::Unchanged
+                ) -> component_shape_gpui::ValueChange<Vec<T>> {
+                    component_shape_gpui::ValueChange::Unchanged
                 }
             }
         })
@@ -399,6 +404,90 @@ mod tests {
         let value = nested_value_binding_value(&impl_item).expect("value type should be inferred");
 
         assert_eq!(compact_tokens(&quote! { #value }.to_string()), "Vec<T>");
+    }
+
+    #[test]
+    fn nested_impl_classification_rejects_non_binding_forms() {
+        let inherent: syn::ItemImpl = syn::parse2(quote! {
+            impl Input { fn new() -> Self { Self } }
+        })
+        .unwrap();
+        let other_trait: syn::ItemImpl = syn::parse2(quote! {
+            impl Default for Input { fn default() -> Self { Self } }
+        })
+        .unwrap();
+        let missing_argument: syn::ItemImpl = syn::parse2(quote! {
+            impl GpuiComponentValueBinding for Input {}
+        })
+        .unwrap();
+        let lifetime_argument: syn::ItemImpl = syn::parse2(quote! {
+            impl<'a> GpuiComponentValueBinding<'a> for Input {}
+        })
+        .unwrap();
+
+        assert_eq!(
+            classify_nested_shape_impl(&inherent),
+            NestedShapeImplKind::Other
+        );
+        assert_eq!(
+            classify_nested_shape_impl(&other_trait),
+            NestedShapeImplKind::Other
+        );
+        assert!(nested_value_binding_value(&other_trait).is_none());
+        assert!(nested_value_binding_value(&missing_argument).is_none());
+        assert!(nested_value_binding_value(&lifetime_argument).is_none());
+    }
+
+    #[test]
+    fn function_macro_reports_structural_input_errors() {
+        let cases = [
+            (
+                quote! {
+                    struct Bad { type Value = String; }
+                },
+                "expected `type State = ...;`",
+            ),
+            (
+                quote! {
+                    struct Bad {
+                        type State = First;
+                        type State = Second;
+                    }
+                },
+                "duplicate `type State = ...;`",
+            ),
+            (
+                quote! {
+                    struct Bad {
+                        type State = First;
+                        state = Second;
+                    }
+                },
+                "duplicate state metadata",
+            ),
+            (
+                quote! {
+                    struct Bad { type State = First }
+                },
+                "expected `;` after component shape option",
+            ),
+            (
+                quote! {
+                    struct Bad { const UNKNOWN: usize = 1; }
+                },
+                "expected `type State = ...;`",
+            ),
+        ];
+
+        for (tokens, expected) in cases {
+            let error = syn::parse2::<ComponentShapeInput>(tokens)
+                .err()
+                .expect("invalid shape input should fail");
+            assert!(
+                error.to_string().contains(expected),
+                "unexpected error: {error}"
+            );
+        }
     }
 
     #[test]
@@ -415,8 +504,8 @@ mod tests {
                     fn value_change(
                         _state: &Self::State,
                         _event: &Self::Event,
-                    ) -> component_shape::ValueChange<T> {
-                        component_shape::ValueChange::Unchanged
+                    ) -> component_shape_gpui::ValueChange<T> {
+                        component_shape_gpui::ValueChange::Unchanged
                     }
                 }
             }
@@ -428,11 +517,9 @@ mod tests {
 
         assert!(compact.contains("ComponentShapeFor<T>forLocalInputShape<T>"));
         assert!(compact.contains("GpuiComponentShapeFor<T>forLocalInputShape<T>"));
-        assert!(
-            compact.contains(
-                ".with_value_binding(::component_shape::ValueBindingCapability::Inherited)"
-            )
-        );
+        assert!(compact.contains(
+            ".with_value_binding(::component_shape_gpui::ValueBindingCapability::Inherited)"
+        ));
     }
 
     #[test]
@@ -447,5 +534,185 @@ mod tests {
         let expanded = expand(input).to_string();
 
         assert!(expanded.contains("requires value metadata"));
+    }
+
+    #[test]
+    fn function_macro_infers_string_mcp_input_from_value_metadata() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct LocalInputShape {
+                state = crate::InputState;
+                value = String;
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("McpInput::string"));
+    }
+
+    #[test]
+    fn function_macro_infers_list_mcp_input_from_vec_value_metadata() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct TagsInputShape {
+                state = crate::TagsInputState;
+                value = Vec<String>;
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("McpInput::string_list"));
+    }
+
+    #[test]
+    fn function_macro_infers_set_mcp_input_from_set_value_metadata() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct TagsInputShape {
+                state = crate::TagsInputState;
+                value = std::collections::BTreeSet<String>;
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("McpInput::string_set"));
+    }
+
+    #[test]
+    fn function_macro_infers_list_mcp_input_from_fixed_array_value_metadata() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct TagsInputShape {
+                state = crate::TagsInputState;
+                value = [String; 3];
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("McpInput::string_list"));
+    }
+
+    #[test]
+    fn function_macro_infers_range_mcp_input_from_tuple_value_metadata() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct DateRangeShape {
+                state = crate::DateRangeState;
+                value = (Option<chrono::NaiveDate>, Option<chrono::NaiveDate>);
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("McpInput::date_range"));
+    }
+
+    #[test]
+    fn function_macro_infers_range_mcp_input_from_mcp_range_value_metadata() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct DateRangeShape {
+                state = crate::DateRangeState;
+                value = component_shape_mcp::McpRange<chrono::NaiveDate>;
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("McpInput::date_range"));
+    }
+
+    #[test]
+    fn function_macro_infers_object_mcp_input_from_string_keyed_map_metadata() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct PreferencesShape {
+                state = crate::PreferencesState;
+                value = std::collections::HashMap<String, gpui_form::mcp::McpAny>;
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("ComponentShapeMetadataforPreferencesShape"));
+        assert!(expanded.contains("McpInput::object"));
+        assert!(
+            expanded.contains(
+                "ComponentShapeFor<std::collections::HashMap<String,gpui_form::mcp::McpAny>>forPreferencesShape"
+            )
+        );
+    }
+
+    #[test]
+    fn function_macro_infers_value_specific_mcp_input_for_ambiguous_values() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct MultiValueShape {
+                state = crate::InputState;
+                values(String, u32);
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("ComponentShapeFor<String>forMultiValueShape"));
+        assert!(expanded.contains("McpInput::string"));
+        assert!(expanded.contains("ComponentShapeFor<u32>forMultiValueShape"));
+        assert!(expanded.contains("McpInput::integer"));
+        assert!(!expanded.contains("ComponentShapeMetadataforMultiValueShape{constMCP_INPUT"));
+    }
+
+    #[test]
+    fn function_macro_accepts_explicit_mcp_input_for_generic_values() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct JsonEditorShape<T> {
+                state = crate::EditorState;
+                value = T;
+                mcp_input = object;
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("ComponentShapeMetadataforJsonEditorShape<T>{constMCP_INPUT"));
+        assert!(expanded.contains("ComponentShapeFor<T>forJsonEditorShape<T>"));
+        assert!(expanded.contains("McpInput::object"));
+    }
+
+    #[test]
+    fn function_macro_accepts_mcp_input_constructor_call_shorthand() {
+        let input: ComponentShapeInput = syn::parse2(quote! {
+            pub struct JsonEditorShape<T> {
+                state = crate::EditorState;
+                value = T;
+                mcp_input = object();
+            }
+        })
+        .unwrap();
+
+        let expanded = compact_tokens(&expand(input).to_string());
+
+        assert!(expanded.contains("McpInput::object"));
+    }
+
+    #[test]
+    fn function_macro_rejects_unknown_mcp_input_shorthand() {
+        let error = match syn::parse2::<ComponentShapeInput>(quote! {
+            pub struct JsonEditorShape {
+                state = crate::EditorState;
+                value = String;
+                mcp_input = strings;
+            }
+        }) {
+            Ok(_) => panic!("unknown MCP input shorthand should be rejected"),
+            Err(error) => error.to_string(),
+        };
+
+        assert!(error.contains("unknown `mcp_input` shorthand `strings`"));
     }
 }

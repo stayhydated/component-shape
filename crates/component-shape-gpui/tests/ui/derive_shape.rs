@@ -1,7 +1,7 @@
-use component_shape::{ComponentShapeFor, ComponentShapeMetadata as _, ValueChange};
 use component_shape_gpui::{
-    GpuiComponentShape, GpuiComponentShapeFor, GpuiComponentStateValueBinding,
-    GpuiComponentValueBinding,
+    ComponentShapeFor, ComponentShapeMetadata as _, ComponentSuffix, GpuiComponentShape,
+    GpuiComponentShapeFor, GpuiComponentStateValueBinding, GpuiComponentValueBinding,
+    McpInputShape, McpPrimitiveKind, ValueChange,
 };
 
 pub struct InferredInputState;
@@ -30,7 +30,11 @@ impl GpuiComponentStateValueBinding<String> for InferredInputState {
 }
 
 #[derive(GpuiComponentShape)]
-#[gpui_component_shape(field_suffix = "input", value_binding)]
+#[gpui_component_shape(
+    value = String,
+    field_suffix = "input",
+    value_binding
+)]
 pub struct InferredInput;
 
 impl InferredInput {
@@ -59,7 +63,11 @@ fn main() {
     assert_eq!(
         InferredInput::PROTOTYPING
             .field_suffix
-            .map(component_shape::ComponentSuffix::as_str),
+            .map(ComponentSuffix::as_str),
         Some("input")
+    );
+    assert_eq!(
+        <InferredInput as component_shape_gpui::ComponentShapeMetadata>::MCP_INPUT.input_shape(),
+        McpInputShape::Scalar(McpPrimitiveKind::String)
     );
 }

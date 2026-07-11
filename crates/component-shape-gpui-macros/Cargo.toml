@@ -15,8 +15,8 @@ proc-macro = true
 
 [dependencies]
 component-shape = { workspace = true }
+component-shape-codegen = { workspace = true }
 proc-macro-crate = { workspace = true }
-proc-macro-error2 = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { features = [

@@ -16,6 +16,7 @@ component-shape-gpui-macros = { workspace = true }
 gpui = { workspace = true }
 
 [dev-dependencies]
+gpui = { features = [ "test-support" ], workspace = true }
 trybuild = { workspace = true }
 
 [lints]
