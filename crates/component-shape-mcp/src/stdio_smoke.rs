@@ -465,22 +465,25 @@ printf '%s\n' '{"jsonrpc":"2.0","id":6,"result":{"structuredContent":{"ok":true}
     fn response_reader_skips_notifications_and_reports_protocol_errors() {
         let cases = [
             (
-                "printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"method\":\"notice\"}' '{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":7}'",
+                "read request; printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"method\":\"notice\"}' '{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":7}'",
                 None,
             ),
             (
-                "printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":9,\"result\":7}'",
+                "read request; printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":9,\"result\":7}'",
                 Some("expected id `1`"),
             ),
             (
-                "printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-1}}'",
+                "read request; printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-1}}'",
                 Some("JSON-RPC error"),
             ),
             (
-                "printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1}'",
+                "read request; printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1}'",
                 Some("did not contain `result`"),
             ),
-            ("printf '%s\\n' 'not-json'", Some("invalid JSON")),
+            (
+                "read request; printf '%s\\n' 'not-json'",
+                Some("invalid JSON"),
+            ),
         ];
 
         for (script, expected_error) in cases {
