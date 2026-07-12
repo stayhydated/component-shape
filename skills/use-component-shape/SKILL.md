@@ -1,6 +1,6 @@
 ---
 name: use-component-shape
-description: "Use when Codex needs to work with framework-neutral component-shape metadata, including ComponentShapeMetadata, ComponentCapabilities, ComponentPrototyping, ComponentSuffix, Rust syntax wrappers, value-change metadata, or generator-facing shape contracts."
+description: "Use when Codex needs to add, review, or refactor framework-neutral component-shape metadata, including ComponentShapeMetadata, ComponentShapeFor, DeclaredComponentShape, ComponentShapeUse, capabilities, prototyping suffixes, Rust syntax wrappers, MCP input metadata, value changes, or generator-facing contracts."
 ---
 
 # Use Component Shape
@@ -9,8 +9,8 @@ description: "Use when Codex needs to work with framework-neutral component-shap
 
 Use this skill for framework-neutral `component-shape` concepts and contracts.
 It covers shape metadata, naming, suffix validation, component capabilities,
-Rust syntax wrappers, normalized value-change metadata, MCP input
-metadata, and generator-facing shape contracts.
+field/component use records, Rust syntax wrappers, normalized value changes,
+MCP input metadata, and generator-facing shape contracts.
 
 Do not use this skill for GPUI-specific component contracts or macros. Use
 `use-component-shape-gpui` for `component_shape_gpui::GpuiComponentShape`,
@@ -26,13 +26,12 @@ prototyping output in `gpui-form`.
 
 Keep shared behavior in `component-shape` when it does not require a framework:
 
-- Shape identity and display metadata.
-- Capability flags that describe what a component can do.
+- Shape-owned capability and prototyping metadata.
 - Component suffix validation and derived suffix behavior.
+- Field/component use records for downstream generators.
 - Syntax wrappers used by macro and generator crates.
 - Normalized value-change concepts.
 - MCP input metadata that describes structured model-controlled input.
-- Metadata consumed by downstream generators.
 
 Do not add GPUI dependencies, GPUI types, or GPUI-specific assumptions to the
 framework-neutral crate. GPUI-specific crates may depend on `component-shape`;
@@ -40,9 +39,18 @@ framework-neutral crate. GPUI-specific crates may depend on `component-shape`;
 
 ## Metadata Guidance
 
-Use `ComponentShapeMetadata` as the normalized description of a component shape.
-Keep it stable enough for macro output, documentation, and downstream
-generators to agree on the same shape identity and behavior.
+Use `ComponentShapeMetadata` to publish type-owned `PROTOTYPING`,
+`CAPABILITIES`, and coarse `MCP_INPUT` constants. Keep those constants aligned
+with macro output and downstream generators.
+
+Use `DeclaredComponentShape` only as the trusted-declaration marker emitted by
+backend declaration macros or other backend-approved declaration APIs. Do not
+make every hand-written `ComponentShapeMetadata` implementation declared by
+default.
+
+Use `ComponentShapeFor<Value>` to advertise value-specific compatibility and
+MCP input metadata. Its `MCP_INPUT` inherits the shape-level value unless the
+shape/value pair needs a more precise override.
 
 Use `ComponentCapabilities` for behavior flags. Prefer capability metadata over
 framework-specific branching when the behavior can be described generically.
@@ -50,13 +58,16 @@ framework-specific branching when the behavior can be described generically.
 Use `ComponentPrototyping` for generator-facing naming details such as stable
 field suffixes. Suffixes should be valid non-empty ASCII identifier suffixes so
 generated identifiers are deterministic and portable.
-Use `ComponentShapeUse::with_shape_metadata::<Shape>()` and
-`with_value_mcp_input::<Shape, Value>()` when generated or registry metadata
-needs to copy type-owned shape metadata into an erased field/component record.
 
-Use `ValueChange` metadata for normalized value-change behavior. Keep this
-separate from any framework-specific event type; downstream integrations can
-map generic value-change metadata onto their own event systems.
+Use `ComponentFieldName` and `ComponentShapeUse` for an erased source-field to
+shape-path record. Add the field type when known, call
+`with_shape_metadata::<Shape>()` to copy type-owned metadata, and call
+`with_value_mcp_input::<Shape, Value>()` when the selected value type needs its
+value-specific MCP input.
+
+Use `ValueChange` for normalized `Unchanged`, `Set`, and `Clear` outcomes. Keep
+it separate from any framework-specific event type; downstream integrations
+can map their events onto these generic outcomes.
 
 Use `McpInput` for declarative structured input metadata such as text values,
 primitive lists, primitive sets, decimal ranges, date ranges, and date-time

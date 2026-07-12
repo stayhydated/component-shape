@@ -1,6 +1,6 @@
 ---
 name: use-component-shape-gpui
-description: "Use when Codex needs to add, review, or refactor GPUI component shape declarations with component_shape_gpui::GpuiComponentShape, component_shape_gpui::component_shape!, GPUI render contracts, value-binding metadata, or component-shape-gpui macro syntax."
+description: "Use when Codex needs to add, review, or refactor GPUI component shape declarations with component_shape_gpui::GpuiComponentShape, component_shape_gpui::component_shape!, declared-shape markers, render and value-binding contracts, configured shape builders, MCP input metadata, or GPUI macro syntax."
 ---
 
 # Use Component Shape GPUI
@@ -11,7 +11,8 @@ Use this skill for GPUI-specific component shape declarations and runtime
 contracts in the `component-shape-gpui` surface. It covers the
 `GpuiComponentShape` derive, the function-like `component_shape!` macro, render
 component metadata, constructor metadata, value compatibility, value-binding
-declarations, and MCP input metadata.
+declarations, declared-shape markers, configured builders, and MCP input
+metadata.
 
 Use `use-component-shape` for framework-neutral metadata such as
 `ComponentShapeMetadata`, capabilities, suffix validation, syntax wrappers, and
@@ -74,9 +75,10 @@ impl TagsInput {
 
 Metadata rules:
 
-- `state = ...` is optional when the backing state is a same-module type named
-  after the component, such as `TagsInputState`; add it for different names or
-  paths.
+- Always add `#[gpui_component_shape(...)]` with the derive. Within that
+  attribute, `state = ...` is optional when the backing state is a same-module
+  type named after the component, such as `TagsInputState`; add it for
+  different names or paths.
 - Omit `new` when the state has `State::new(window, cx)`.
 - Use `new = some_function` or `new = |window, cx| ...` when the macro should
   pass `(window, cx)` for you.
@@ -93,16 +95,22 @@ Metadata rules:
 - Add `field_suffix = "..."` when downstream prototyping or generators need a
   stable suffix for generated identifiers.
 - Common MCP input metadata is inferred from unambiguous declared values such
-  as `String`, booleans, numbers, dates, `Vec<T>`, set-like primitive
-  collections, fixed arrays, `component_shape_mcp::McpRange<T>`, or
-  `(Option<T>, Option<T>)` ranges. `Vec<T>` and fixed arrays publish list
-  metadata; set-like collections publish set metadata. Each generated
-  `ComponentShapeFor<Value>` impl carries the value-specific MCP metadata, and
-  shape-level MCP metadata is emitted only when all declared values agree.
+  as strings, booleans, numbers, dates, primitive lists or sets, fixed arrays,
+  string-keyed maps, `component_shape_mcp::McpAny`,
+  `component_shape_mcp::McpRange<T>`, or `(Option<T>, Option<T>)` ranges.
+  Transparent `Option`, `Box`, `Rc`, `Arc`, and `Cow` wrappers preserve an
+  inferable inner shape. Each generated `ComponentShapeFor<Value>` impl carries
+  the value-specific MCP metadata, and shape-level MCP metadata is emitted only
+  when all declared values agree.
   Manual `ComponentShapeFor<Value>` impls inherit shape-level MCP metadata
   unless they override the value-specific `MCP_INPUT`.
-  For custom or ambiguous wire schemas, use the downstream MCP integration's
-  typed schema derive or a manual decode/schema implementation.
+- Use `mcp_input = string`, `mcp_input = object`, another supported constructor
+  shorthand, or an explicit `McpInput` expression when a generic or custom
+  value has known coarse metadata that type inference cannot determine. The
+  explicit value applies to shape-level metadata and every generated
+  `ComponentShapeFor<Value>` implementation.
+- For richer custom wire schemas, use the downstream MCP integration's typed
+  schema derive or a manual decode/schema implementation.
 
 ## External State Pattern
 
@@ -148,8 +156,13 @@ component_shape_gpui::component_shape! {
 
 When no explicit value metadata is present, a nested
 `GpuiComponentValueBinding<T>` impl can publish both `T` compatibility and
-value-binding metadata. Do not duplicate `value = T;` and `value_binding;`
-entries unless the crate's current macro contract requires explicit metadata.
+value-binding metadata without separate `value = T;` or `value_binding;`
+entries. When the block already declares explicit value metadata, add
+`value_binding;` beside the nested impl to publish the capability.
+
+Omit `component = ...` when the wrapper publishes state and value metadata but
+no render component. The generated shape then uses `NoGpuiRenderComponent` and
+publishes `RenderCapability::None`.
 
 ## Value Compatibility
 
@@ -161,12 +174,35 @@ A shape can advertise support for form-side values through:
 - manual `GpuiComponentShapeFor<Value>` implementations.
 
 `GpuiComponentShapeFor<Value>` includes the framework-neutral
-`ComponentShapeFor<Value>` contract, so manual GPUI compatibility impls must
-also publish value-specific shape metadata.
+`ComponentShapeFor<Value>` contract. For a hand-written compatibility pair,
+implement both traits; the macro emits both implementations for declared
+values.
 
 Keep value compatibility separate from downstream storage policy. This crate
 should declare which values a component can represent; downstream consumers
 decide how required, optional, or missing values are stored.
+
+## Configured Builders
+
+Use `GpuiComponentShapeBuilder<Shape>` when a consumer-side component
+expression configures how the same shape state is initialized, such as
+`Select::<_>.searchable(true)`. Implement `build(self, window, cx)` on the
+configured value and return `Shape::State`.
+
+Use `DefaultGpuiComponentShapeBuilder<Shape>` for the plain
+`GpuiComponentShape::new` path. Dispatch either form through
+`build_component_shape::<Shape, _>(builder, window, cx)` so generated code has
+one construction path. Keep declaration-time `new = ...` metadata for the
+shape's default constructor; use a builder for configuration selected at the
+field use site.
+
+## Declared Shapes
+
+Require `DeclaredGpuiComponentShape` when a consumer accepts only shapes
+produced by the derive or `component_shape!`. Those macros emit both
+`DeclaredGpuiComponentShape` and the framework-neutral
+`DeclaredComponentShape`; do not treat arbitrary hand-written
+`GpuiComponentShape` implementations as declared shapes.
 
 ## Suffix and Prototyping Metadata
 

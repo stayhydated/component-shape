@@ -2,6 +2,12 @@
 //!
 //! This crate is also the GPUI facade for shared component-shape metadata such
 //! as `ComponentShapeMetadata`, `ValueChange`, and `McpInput`.
+//!
+//! Declare owned components with the [`GpuiComponentShape`] derive and external
+//! component/state pairs with [`component_shape!`]. Consumer-side configured
+//! values implement [`GpuiComponentShapeBuilder`] and share the
+//! [`build_component_shape`] construction path with
+//! [`DefaultGpuiComponentShapeBuilder`].
 
 pub use component_shape::{
     ComponentCapabilities, ComponentPrototyping, ComponentShapeFor, ComponentShapeMetadata,
@@ -64,6 +70,7 @@ pub trait GpuiComponentShapeBuilder<Shape: GpuiComponentShape> {
 pub struct DefaultGpuiComponentShapeBuilder<Shape>(core::marker::PhantomData<fn() -> Shape>);
 
 impl<Shape> DefaultGpuiComponentShapeBuilder<Shape> {
+    /// Creates a builder that delegates to [`GpuiComponentShape::new`].
     pub const fn new() -> Self {
         Self(core::marker::PhantomData)
     }

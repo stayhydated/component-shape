@@ -27,8 +27,11 @@ pub use value_change::ValueChange;
 
 /// Framework-neutral metadata published by a component shape.
 pub trait ComponentShapeMetadata {
+    /// Generator-facing prototyping metadata owned by the shape.
     const PROTOTYPING: ComponentPrototyping = ComponentPrototyping::new();
+    /// Framework-neutral runtime capabilities published by the shape.
     const CAPABILITIES: ComponentCapabilities = ComponentCapabilities::new();
+    /// Coarse model-controlled input metadata published by the shape.
     const MCP_INPUT: McpInput = McpInput::unsupported();
 }
 
@@ -48,6 +51,10 @@ pub trait DeclaredComponentShape: ComponentShapeMetadata {}
 /// and declaration macros may emit a more precise value-specific override for
 /// simple JSON-compatible value shapes.
 pub trait ComponentShapeFor<Value>: ComponentShapeMetadata {
+    /// Coarse model-controlled input metadata for this shape/value pair.
+    ///
+    /// This inherits [`ComponentShapeMetadata::MCP_INPUT`] unless the pair
+    /// publishes a more precise value-specific shape.
     const MCP_INPUT: McpInput = <Self as ComponentShapeMetadata>::MCP_INPUT;
 }
 
