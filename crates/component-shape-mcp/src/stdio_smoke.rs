@@ -511,7 +511,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":6,"result":{"structuredContent":{"ok":true}
             };
         assert!(matches!(spawn_error, McpStdioSmokeError::Spawn { .. }));
 
-        let mut exited = spawn_shell("printf 'server detail\\n' >&2");
+        let mut exited = spawn_shell("read request; printf 'server detail\\n' >&2");
         let eof = exited
             .request("exited", json!({}))
             .expect_err("closed stdout should fail");
