@@ -438,8 +438,7 @@ where
 /// marker. Type aliases inherit the implementation of their target type, and
 /// app-owned newtypes or structs can derive this trait with
 /// `#[derive(component_shape_mcp::McpJsonSchema)]`. `serde_json::Value`
-/// publishes an unconstrained schema for dynamic argument fields; tool output
-/// schemas must still declare an object root.
+/// publishes an unconstrained schema for dynamic argument fields.
 pub trait McpJsonSchema {
     /// Returns the JSON Schema for this type.
     fn json_schema() -> McpSchema;

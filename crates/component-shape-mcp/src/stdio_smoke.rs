@@ -175,29 +175,9 @@ impl McpStdioSmokeClient {
         })
     }
 
-    /// Perform the MCP initialize request and initialized notification.
-    pub fn initialize(&mut self) -> Result<Value, McpStdioSmokeError> {
-        let result = self.request(
-            "initialize",
-            json!({
-                "protocolVersion": MCP_PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": {
-                    "name": "component-shape-mcp-stdio-smoke",
-                    "version": env!("CARGO_PKG_VERSION"),
-                },
-            }),
-        )?;
-        self.notify_initialized()?;
-        Ok(result)
-    }
-
-    /// Send the MCP initialized notification.
-    pub fn notify_initialized(&mut self) -> Result<(), McpStdioSmokeError> {
-        self.write_message(json!({
-            "jsonrpc": "2.0",
-            "method": "notifications/initialized",
-        }))
+    /// Discover the server's MCP 2026-07-28 capabilities and identity.
+    pub fn discover(&mut self) -> Result<Value, McpStdioSmokeError> {
+        self.request("server/discover", json!({}))
     }
 
     /// Call `tools/list`.
@@ -232,9 +212,26 @@ impl McpStdioSmokeClient {
     }
 
     /// Send a raw JSON-RPC request and return the response `result`.
-    pub fn request(&mut self, method: &str, params: Value) -> Result<Value, McpStdioSmokeError> {
+    pub fn request(
+        &mut self,
+        method: &str,
+        mut params: Value,
+    ) -> Result<Value, McpStdioSmokeError> {
         let id = self.next_request_id;
         self.next_request_id = self.next_request_id.saturating_add(1);
+        if let Some(params) = params.as_object_mut() {
+            params.insert(
+                "_meta".to_string(),
+                json!({
+                    "io.modelcontextprotocol/protocolVersion": MCP_PROTOCOL_VERSION,
+                    "io.modelcontextprotocol/clientCapabilities": {},
+                    "io.modelcontextprotocol/clientInfo": {
+                        "name": "component-shape-mcp-stdio-smoke",
+                        "version": env!("CARGO_PKG_VERSION"),
+                    },
+                }),
+            );
+        }
         self.write_message(json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -404,47 +401,78 @@ mod tests {
     fn stdio_client_exercises_the_public_protocol_helpers() {
         let mut client = spawn_shell(
             r#"
-read initialize
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"ok"}}'
-read initialized
+read discover
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","supportedVersions":["2026-07-28"],"capabilities":{},"ttlMs":0,"cacheScope":"private","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"example","version":"0.0.0"}}}}'
 read tools
-printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"tools":[]}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":2,"result":{"resultType":"complete","tools":[],"ttlMs":0,"cacheScope":"private"}}'
 read resources
-printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{"resources":[]}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":3,"result":{"resultType":"complete","resources":[],"ttlMs":0,"cacheScope":"private"}}'
 read templates
-printf '%s\n' '{"jsonrpc":"2.0","id":4,"result":{"resourceTemplates":[]}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":4,"result":{"resultType":"complete","resourceTemplates":[],"ttlMs":0,"cacheScope":"private"}}'
 read resource
-printf '%s\n' '{"jsonrpc":"2.0","id":5,"result":{"contents":[]}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":5,"result":{"resultType":"complete","contents":[],"ttlMs":0,"cacheScope":"private"}}'
 read tool
-printf '%s\n' '{"jsonrpc":"2.0","id":6,"result":{"structuredContent":{"ok":true}}}'
+printf '%s\n' '{"jsonrpc":"2.0","id":6,"result":{"resultType":"complete","structuredContent":{"ok":true}}}'
 "#,
         );
 
         assert_eq!(
-            client.initialize().expect("initialize should succeed"),
-            json!({ "protocolVersion": "ok" })
+            client.discover().expect("discovery should succeed"),
+            json!({
+                "resultType": "complete",
+                "supportedVersions": ["2026-07-28"],
+                "capabilities": {},
+                "ttlMs": 0,
+                "cacheScope": "private",
+                "_meta": {
+                    "io.modelcontextprotocol/serverInfo": {
+                        "name": "example",
+                        "version": "0.0.0"
+                    }
+                }
+            })
         );
         assert_eq!(
             client.list_tools().expect("tools/list should succeed"),
-            json!({ "tools": [] })
+            json!({
+                "resultType": "complete",
+                "tools": [],
+                "ttlMs": 0,
+                "cacheScope": "private"
+            })
         );
         assert_eq!(
             client
                 .list_resources()
                 .expect("resources/list should succeed"),
-            json!({ "resources": [] })
+            json!({
+                "resultType": "complete",
+                "resources": [],
+                "ttlMs": 0,
+                "cacheScope": "private"
+            })
         );
         assert_eq!(
             client
                 .list_resource_templates()
                 .expect("resources/templates/list should succeed"),
-            json!({ "resourceTemplates": [] })
+            json!({
+                "resultType": "complete",
+                "resourceTemplates": [],
+                "ttlMs": 0,
+                "cacheScope": "private"
+            })
         );
         assert_eq!(
             client
                 .read_resource("shape://example")
                 .expect("resources/read should succeed"),
-            json!({ "contents": [] })
+            json!({
+                "resultType": "complete",
+                "contents": [],
+                "ttlMs": 0,
+                "cacheScope": "private"
+            })
         );
         let result = client
             .call_tool("shape_example", json!({ "value": 1 }))
@@ -523,7 +551,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":6,"result":{"structuredContent":{"ok":true}
             .shutdown(Duration::from_secs(1))
             .expect("server should shut down when stdin closes");
         assert!(matches!(
-            closed.notify_initialized(),
+            closed.request("example", json!({})),
             Err(McpStdioSmokeError::MissingPipe("stdin"))
         ));
     }

@@ -369,6 +369,32 @@ impl McpServer {
             .build()?;
         runtime.block_on(self.serve_stdio())
     }
+
+    fn result_meta(&self) -> MetaObject {
+        let mut meta = MetaObject::default();
+        meta.0.insert(
+            "io.modelcontextprotocol/serverInfo".to_string(),
+            json!({
+                "name": self.server_name,
+                "version": self.server_version,
+            }),
+        );
+        meta
+    }
+
+    fn prepare_cacheable_result(
+        &self,
+        protocol_version: Option<&ProtocolVersion>,
+        ttl_ms: &mut Option<u64>,
+        cache_scope: &mut Option<CacheScope>,
+        meta: &mut Option<MetaObject>,
+    ) {
+        if protocol_version.is_some_and(|version| version >= &ProtocolVersion::V_2026_07_28) {
+            *ttl_ms = Some(0);
+            *cache_scope = Some(CacheScope::Private);
+        }
+        *meta = Some(self.result_meta());
+    }
 }
 
 /// Builder for composing generated MCP server registrars.
@@ -518,7 +544,7 @@ impl ServerHandler for McpServer {
         .then(Default::default);
         capabilities.prompts = (!self.prompts.is_empty()).then(Default::default);
         ServerInfo::new(capabilities)
-            .with_protocol_version(ProtocolVersion::V_2025_11_25)
+            .with_protocol_version(ProtocolVersion::V_2026_07_28)
             .with_server_info(Implementation::new(
                 self.server_name.clone(),
                 self.server_version.clone(),
@@ -528,13 +554,16 @@ impl ServerHandler for McpServer {
     fn list_tools(
         &self,
         _request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ListToolsResult, ErrorData>> + MaybeSendFuture + '_ {
-        std::future::ready(Ok(ListToolsResult {
-            tools: self.list_tools(),
-            next_cursor: None,
-            meta: None,
-        }))
+        let mut result = ListToolsResult::with_all_items(self.list_tools());
+        self.prepare_cacheable_result(
+            context.protocol_version().as_ref(),
+            &mut result.ttl_ms,
+            &mut result.cache_scope,
+            &mut result.meta,
+        );
+        std::future::ready(Ok(result))
     }
 
     fn get_tool(&self, name: &str) -> Option<Tool> {
@@ -545,7 +574,7 @@ impl ServerHandler for McpServer {
         &self,
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<ToolCallResult, ErrorData>> + MaybeSendFuture + '_ {
+    ) -> impl Future<Output = Result<CallToolResponse, ErrorData>> + MaybeSendFuture + '_ {
         let name = request.name.to_string();
         let call = McpToolCall::new(request.arguments.unwrap_or_default());
         let call = match self.tools.get(&name) {
@@ -564,44 +593,69 @@ impl ServerHandler for McpServer {
                 Box::pin(std::future::ready(result))
             },
         };
-        async move { Ok(call.await) }
+        let result_meta = self.result_meta();
+        async move {
+            let mut result = call.await;
+            result.meta = Some(result_meta);
+            Ok(result.into())
+        }
     }
 
     fn list_resources(
         &self,
         _request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ListResourcesResult, ErrorData>> + MaybeSendFuture + '_ {
-        std::future::ready(Ok(ListResourcesResult {
-            resources: self.list_resources(),
-            next_cursor: None,
-            meta: None,
-        }))
+        let mut result = ListResourcesResult::with_all_items(self.list_resources());
+        self.prepare_cacheable_result(
+            context.protocol_version().as_ref(),
+            &mut result.ttl_ms,
+            &mut result.cache_scope,
+            &mut result.meta,
+        );
+        std::future::ready(Ok(result))
     }
 
     fn list_resource_templates(
         &self,
         _request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ListResourceTemplatesResult, ErrorData>> + MaybeSendFuture + '_
     {
-        std::future::ready(Ok(ListResourceTemplatesResult {
-            resource_templates: self.list_resource_templates(),
-            next_cursor: None,
-            meta: None,
-        }))
+        let mut result =
+            ListResourceTemplatesResult::with_all_items(self.list_resource_templates());
+        self.prepare_cacheable_result(
+            context.protocol_version().as_ref(),
+            &mut result.ttl_ms,
+            &mut result.cache_scope,
+            &mut result.meta,
+        );
+        std::future::ready(Ok(result))
     }
 
     fn read_resource(
         &self,
         request: ReadResourceRequestParams,
-        _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<ReadResourceResult, ErrorData>> + MaybeSendFuture + '_ {
+        context: RequestContext<RoleServer>,
+    ) -> impl Future<Output = Result<ReadResourceResponse, ErrorData>> + MaybeSendFuture + '_ {
         let uri = request.uri;
         let read = self.resources.get(&uri).map(|resource| resource.read());
+        let protocol_version = context.protocol_version();
+        let result_meta = self.result_meta();
         async move {
             match read {
-                Some(read) => read.await,
+                Some(read) => {
+                    let mut result = read.await?;
+                    if protocol_version
+                        .as_ref()
+                        .is_some_and(|version| version >= &ProtocolVersion::V_2026_07_28)
+                    {
+                        result.ttl_ms = Some(0);
+                        result.cache_scope = Some(CacheScope::Private);
+                    }
+                    result.meta = Some(result_meta);
+                    Ok(result.into())
+                },
                 None => Err(ErrorData::resource_not_found(
                     format!("resource `{uri}` not found"),
                     Some(McpToolError::unknown_resource(uri).to_structured_value()),
@@ -613,28 +667,36 @@ impl ServerHandler for McpServer {
     fn list_prompts(
         &self,
         _request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> impl Future<Output = Result<ListPromptsResult, ErrorData>> + MaybeSendFuture + '_ {
-        std::future::ready(Ok(ListPromptsResult {
-            prompts: self.list_prompts(),
-            next_cursor: None,
-            meta: None,
-        }))
+        let mut result = ListPromptsResult::with_all_items(self.list_prompts());
+        self.prepare_cacheable_result(
+            context.protocol_version().as_ref(),
+            &mut result.ttl_ms,
+            &mut result.cache_scope,
+            &mut result.meta,
+        );
+        std::future::ready(Ok(result))
     }
 
     fn get_prompt(
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<GetPromptResult, ErrorData>> + MaybeSendFuture + '_ {
+    ) -> impl Future<Output = Result<GetPromptResponse, ErrorData>> + MaybeSendFuture + '_ {
         let name = request.name;
         let get = self
             .prompts
             .get(&name)
             .map(|prompt| prompt.get(request.arguments));
+        let result_meta = self.result_meta();
         async move {
             match get {
-                Some(get) => get.await,
+                Some(get) => {
+                    let mut result = get.await?;
+                    result.meta = Some(result_meta);
+                    Ok(result.into())
+                },
                 None => Err(ErrorData::invalid_params(
                     format!("prompt `{name}` not found"),
                     Some(McpToolError::unknown_prompt(name).to_structured_value()),
@@ -722,13 +784,6 @@ fn validate_tool_call_result(
             "tool declares output_schema but returned no structured_content",
         ));
     };
-
-    if !structured_content.is_object() {
-        return tool_error_result_for(McpToolError::invalid_tool_output(
-            tool_name,
-            "tool declares output_schema with object root but returned non-object structured_content",
-        ));
-    }
 
     let output_schema = Value::Object(output_schema.clone());
     if let Err(error) = validate_value_against_closed_schema(

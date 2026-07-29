@@ -95,7 +95,6 @@ pub struct McpToolMetadata {
     idempotent_hint: Option<bool>,
     open_world_hint: Option<bool>,
     icons: &'static [McpToolIcon],
-    task_support: Option<McpToolTaskSupport>,
 }
 
 impl McpToolMetadata {
@@ -110,7 +109,6 @@ impl McpToolMetadata {
             idempotent_hint: None,
             open_world_hint: None,
             icons: &[],
-            task_support: None,
         }
     }
 
@@ -162,12 +160,6 @@ impl McpToolMetadata {
         self
     }
 
-    /// Set task support advertised by the MCP tool definition.
-    pub const fn with_task_support(mut self, task_support: McpToolTaskSupport) -> Self {
-        self.task_support = Some(task_support);
-        self
-    }
-
     /// Returns the explicit tool name override.
     pub const fn name(self) -> Option<&'static str> {
         self.name
@@ -208,11 +200,6 @@ impl McpToolMetadata {
         self.icons
     }
 
-    /// Returns task support advertised by the MCP tool definition.
-    pub const fn task_support(self) -> Option<McpToolTaskSupport> {
-        self.task_support
-    }
-
     /// Converts metadata hints into MCP tool annotations.
     pub fn tool_annotations(self) -> Option<McpToolAnnotations> {
         if self.read_only_hint.is_none()
@@ -240,12 +227,6 @@ impl McpToolMetadata {
                 .map(|icon| icon.into_definition_icon())
                 .collect()
         })
-    }
-
-    /// Converts task support metadata into MCP tool execution metadata.
-    pub fn tool_execution(self) -> Option<McpToolExecution> {
-        self.task_support
-            .map(|task_support| McpToolExecution::from_raw(Some(task_support)))
     }
 
     /// Validate generated tool metadata.

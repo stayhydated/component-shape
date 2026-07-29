@@ -5,7 +5,8 @@ use super::*;
 /// # Errors
 ///
 /// Returns [`McpToolError`] when the tool metadata is invalid or when the input
-/// or output schema is not an object-shaped MCP tool schema.
+/// schema is not an object-shaped MCP tool schema, or the output schema is not
+/// a JSON object.
 pub fn tool_definition(
     name: impl Into<String>,
     title: Option<String>,
@@ -28,7 +29,7 @@ pub fn tool_definition(
     tool.description = description.map(Cow::Owned);
     tool.input_schema = Arc::new(input_schema_object("input_schema", input_schema)?);
     tool.output_schema = output_schema
-        .map(|schema| output_schema_object("output_schema", schema))
+        .map(|schema| schema_object("output_schema", schema))
         .transpose()?
         .map(Arc::new);
     Ok(tool)
@@ -132,7 +133,6 @@ pub fn tool_definition_with_metadata(
     )?;
     tool.annotations = metadata.tool_annotations();
     tool.icons = metadata.tool_icons();
-    tool.execution = metadata.tool_execution();
     Ok(tool)
 }
 
@@ -438,9 +438,6 @@ pub fn validate_tool_annotations(annotations: &McpToolAnnotations) -> Result<(),
 pub fn validate_tool_definition(definition: &ToolDefinition) -> Result<(), McpToolError> {
     validate_tool_name(definition.name.as_ref())?;
     validate_tool_input_schema("input_schema", definition.input_schema.as_ref())?;
-    if let Some(output_schema) = definition.output_schema.as_ref() {
-        validate_tool_output_schema("output_schema", output_schema.as_ref())?;
-    }
     if let Some(title) = definition.title.as_deref() {
         validate_tool_metadata_text("title", title)?;
     }
@@ -593,16 +590,6 @@ fn input_schema_object(
     Ok(object)
 }
 
-fn output_schema_object(
-    label: impl Into<String>,
-    schema: McpSchema,
-) -> Result<JsonObject, McpToolError> {
-    let label = label.into();
-    let object = schema_object(label.clone(), schema)?;
-    validate_tool_output_schema(&label, &object)?;
-    Ok(object)
-}
-
 fn validate_tool_input_schema(
     label: impl Into<String>,
     schema: &JsonObject,
@@ -629,20 +616,6 @@ fn validate_tool_input_schema(
         Err(McpToolError::invalid_schema(
             label,
             "MCP tool input schemas must declare `type: \"object\"`",
-        ))
-    }
-}
-
-fn validate_tool_output_schema(
-    label: impl Into<String>,
-    schema: &JsonObject,
-) -> Result<(), McpToolError> {
-    if type_includes(schema, "object") {
-        Ok(())
-    } else {
-        Err(McpToolError::invalid_schema(
-            label,
-            "MCP tool output schemas must declare `type: \"object\"`",
         ))
     }
 }

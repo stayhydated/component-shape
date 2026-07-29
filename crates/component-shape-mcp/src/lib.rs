@@ -40,8 +40,7 @@ pub use definitions::*;
 pub(crate) use definitions::{validate_required_metadata_text, validate_tool_annotation_hints};
 pub use error::*;
 pub(crate) use error::{
-    normalize_value_against_schema, reject_unknown_arguments, type_includes,
-    validate_value_against_closed_schema,
+    normalize_value_against_schema, reject_unknown_arguments, validate_value_against_closed_schema,
 };
 pub(crate) use input_schema::value_schema_allows_null;
 pub use input_schema::*;
@@ -55,17 +54,17 @@ pub use rmcp::model::{
     PromptArgument as McpPromptArgument, PromptMessage as McpPromptMessage,
     ReadResourceResult as McpResourceResult, Resource as ResourceDefinition,
     ResourceContents as McpResourceContents, ResourceTemplate as ResourceTemplateDefinition,
-    Role as McpRole, TaskSupport as McpToolTaskSupport, Tool as ToolDefinition,
-    ToolAnnotations as McpToolAnnotations, ToolExecution as McpToolExecution,
+    Role as McpRole, Tool as ToolDefinition, ToolAnnotations as McpToolAnnotations,
 };
 use rmcp::{
     ErrorData, RoleServer, ServerHandler, ServiceExt as _,
     model::{
-        CallToolRequestParams, GetPromptRequestParams, GetPromptResult, Implementation, JsonObject,
-        ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
+        CacheScope, CallToolRequestParams, CallToolResponse, GetPromptRequestParams,
+        GetPromptResponse, GetPromptResult, Implementation, JsonObject, ListPromptsResult,
+        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, MetaObject,
         PaginatedRequestParams, Prompt, PromptMessage, ProtocolVersion, ReadResourceRequestParams,
-        ReadResourceResult, Resource, ResourceContents, ResourceTemplate, Role, ServerCapabilities,
-        ServerInfo, Tool,
+        ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ResourceTemplate,
+        Role, ServerCapabilities, ServerInfo, Tool,
     },
     service::{MaybeSendFuture, RequestContext},
     transport::stdio,
@@ -80,7 +79,7 @@ pub use stdio_smoke::*;
 use strum::IntoStaticStr;
 pub use validation::*;
 
-pub const MCP_PROTOCOL_VERSION: &str = "2025-11-25";
+pub const MCP_PROTOCOL_VERSION: &str = "2026-07-28";
 
 pub type ServeStdioResult = Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
 pub type McpToolArguments = Map<String, Value>;

@@ -712,8 +712,7 @@ fn tool_metadata_records_optional_overrides() {
         .with_destructive_hint(false)
         .with_idempotent_hint(true)
         .with_open_world_hint(false)
-        .with_icons(ICONS)
-        .with_task_support(super::McpToolTaskSupport::Optional);
+        .with_icons(ICONS);
 
     assert_eq!(metadata.name(), Some("custom_tool"));
     assert_eq!(metadata.title(), Some("Custom tool"));
@@ -728,10 +727,6 @@ fn tool_metadata_records_optional_overrides() {
     assert_eq!(
         metadata.icons()[0].theme(),
         Some(super::McpIconTheme::Light)
-    );
-    assert_eq!(
-        metadata.task_support(),
-        Some(super::McpToolTaskSupport::Optional)
     );
     let annotations = metadata
         .tool_annotations()
@@ -826,7 +821,7 @@ fn tool_definition_validates_name_and_metadata() {
             schema(json!({ "type": "object" })),
             Some(schema(json!({}))),
         )
-        .is_err()
+        .is_ok()
     );
     assert!(
         super::tool_definition(
@@ -836,7 +831,7 @@ fn tool_definition_validates_name_and_metadata() {
             schema(json!({ "type": "object" })),
             Some(schema(json!({ "type": "string" }))),
         )
-        .is_err()
+        .is_ok()
     );
     assert!(
         super::tool_definition(
@@ -927,8 +922,7 @@ fn tool_definition_for_input_accepts_typed_metadata() {
         .with_read_only_hint(true)
         .with_destructive_hint(false)
         .with_open_world_hint(false)
-        .with_icons(ICONS)
-        .with_task_support(super::McpToolTaskSupport::Required);
+        .with_icons(ICONS);
     let tool = super::tool_definition_for_input_with_metadata::<EchoInput>("echo", metadata, None)
         .expect("tool definition should build");
 
@@ -954,12 +948,6 @@ fn tool_definition_for_input_accepts_typed_metadata() {
         "any"
     );
     assert_eq!(icons[0].theme, Some(super::McpIconTheme::Dark));
-    assert_eq!(
-        tool.execution
-            .as_ref()
-            .and_then(|execution| execution.task_support),
-        Some(super::McpToolTaskSupport::Required)
-    );
     assert_eq!(tool.input_schema["properties"]["value"]["type"], "string");
 }
 
@@ -1188,14 +1176,14 @@ fn server_validates_success_output_against_declared_schema() {
     server
         .add_tool(
             super::tool_definition(
-                "non_object_structured_content",
+                "scalar_structured_content",
                 None,
                 None,
                 schema(json!({ "type": "object" })),
-                Some(echo_output_schema()),
+                Some(schema(json!({ "type": "string" }))),
             )
             .expect("tool definition should build"),
-            |_| super::tool_structured_result(json!("not an object")),
+            |_| super::tool_structured_result(json!("scalar output")),
         )
         .expect("tool should register");
     server
@@ -1237,16 +1225,11 @@ fn server_validates_success_output_against_declared_schema() {
         })
     );
 
-    let result = server.call_tool("non_object_structured_content", Some(json!({})));
-    assert_eq!(result.is_error, Some(true));
+    let result = server.call_tool("scalar_structured_content", Some(json!({})));
+    assert_eq!(result.is_error, Some(false));
     assert_eq!(
-        result.structured_content.expect("structured error")["error"],
-        json!({
-            "kind": "invalid_tool_output",
-            "message": "tool `non_object_structured_content` returned invalid structured content: tool declares output_schema with object root but returned non-object structured_content",
-            "name": "non_object_structured_content",
-            "detail": "tool declares output_schema with object root but returned non-object structured_content"
-        })
+        result.structured_content.expect("structured"),
+        json!("scalar output")
     );
 
     let result = server.call_tool("schema_mismatch", Some(json!({})));
@@ -1319,7 +1302,10 @@ fn server_exposes_tools_through_rmcp_protocol() {
         .expect("runtime should start");
 
     runtime.block_on(async {
-        use rmcp::{ServiceExt as _, model::CallToolRequestParams};
+        use rmcp::{
+            ClientLifecycleMode, ClientServiceExt as _, ServiceExt as _,
+            model::{CacheScope, CallToolRequestParams, ProtocolVersion, ResultType},
+        };
 
         let mut server = McpServer::new("test-server", "0.0.0");
         server
@@ -1354,7 +1340,23 @@ fn server_exposes_tools_through_rmcp_protocol() {
             service.waiting().await.expect("server task should join");
         });
 
-        let client = ().serve(client_transport).await.expect("client should start");
+        let client = ()
+            .serve_with_lifecycle(
+                client_transport,
+                ClientLifecycleMode::Discover {
+                    preferred_versions: vec![ProtocolVersion::V_2026_07_28],
+                },
+            )
+            .await
+            .expect("client should start");
+        assert_eq!(
+            client
+                .peer()
+                .peer_info()
+                .expect("server discovery info")
+                .protocol_version,
+            ProtocolVersion::V_2026_07_28
+        );
 
         let tools = client
             .peer()
@@ -1364,6 +1366,17 @@ fn server_exposes_tools_through_rmcp_protocol() {
         assert_eq!(tools.tools.len(), 1);
         assert_eq!(tools.tools[0].name, "echo");
         assert_eq!(tools.tools[0].title.as_deref(), Some("Echo"));
+        assert_eq!(tools.result_type, Some(ResultType::COMPLETE));
+        assert_eq!(tools.ttl_ms, Some(0));
+        assert_eq!(tools.cache_scope, Some(CacheScope::Private));
+        assert_eq!(
+            tools
+                .meta
+                .as_ref()
+                .expect("tools/list result metadata")
+                .0["io.modelcontextprotocol/serverInfo"]["name"],
+            "test-server"
+        );
 
         let result = client
             .peer()
@@ -1379,6 +1392,15 @@ fn server_exposes_tools_through_rmcp_protocol() {
             .expect("tools/call should succeed");
 
         assert_eq!(result.is_error, Some(false));
+        assert_eq!(result.result_type, Some(ResultType::COMPLETE));
+        assert_eq!(
+            result
+                .meta
+                .as_ref()
+                .expect("tools/call result metadata")
+                .0["io.modelcontextprotocol/serverInfo"]["name"],
+            "test-server"
+        );
         assert_eq!(result.structured_content.expect("structured")["value"], 42);
 
         client.cancel().await.expect("client should close");
@@ -1451,8 +1473,11 @@ fn server_exposes_resources_and_prompts_through_rmcp_protocol() {
 
     runtime.block_on(async {
         use rmcp::{
-            ServerHandler as _, ServiceExt as _,
-            model::{GetPromptRequestParams, ReadResourceRequestParams},
+            ClientLifecycleMode, ClientServiceExt as _, ServerHandler as _, ServiceExt as _,
+            model::{
+                CacheScope, GetPromptRequestParams, ProtocolVersion, ReadResourceRequestParams,
+                ResultType,
+            },
         };
 
         let descriptor_uri = "gpui-form://forms/contact/descriptor";
@@ -1521,7 +1546,15 @@ fn server_exposes_resources_and_prompts_through_rmcp_protocol() {
             service.waiting().await.expect("server task should join");
         });
 
-        let client = ().serve(client_transport).await.expect("client should start");
+        let client = ()
+            .serve_with_lifecycle(
+                client_transport,
+                ClientLifecycleMode::Discover {
+                    preferred_versions: vec![ProtocolVersion::V_2026_07_28],
+                },
+            )
+            .await
+            .expect("client should start");
 
         let resources = client
             .peer()
@@ -1529,6 +1562,9 @@ fn server_exposes_resources_and_prompts_through_rmcp_protocol() {
             .await
             .expect("resources/list should succeed");
         assert_eq!(resources.resources.len(), 1);
+        assert_eq!(resources.result_type, Some(ResultType::COMPLETE));
+        assert_eq!(resources.ttl_ms, Some(0));
+        assert_eq!(resources.cache_scope, Some(CacheScope::Private));
         assert_eq!(resources.resources[0].uri, descriptor_uri);
         assert_eq!(
             resources.resources[0].title.as_deref(),
@@ -1541,6 +1577,9 @@ fn server_exposes_resources_and_prompts_through_rmcp_protocol() {
             .await
             .expect("resources/templates/list should succeed");
         assert_eq!(templates.resource_templates.len(), 1);
+        assert_eq!(templates.result_type, Some(ResultType::COMPLETE));
+        assert_eq!(templates.ttl_ms, Some(0));
+        assert_eq!(templates.cache_scope, Some(CacheScope::Private));
         assert_eq!(
             templates.resource_templates[0].uri_template,
             "gpui-form://forms/{form}/descriptor"
@@ -1552,6 +1591,9 @@ fn server_exposes_resources_and_prompts_through_rmcp_protocol() {
             .await
             .expect("resources/read should succeed");
         assert_eq!(resource.contents.len(), 1);
+        assert_eq!(resource.result_type, Some(ResultType::COMPLETE));
+        assert_eq!(resource.ttl_ms, Some(0));
+        assert_eq!(resource.cache_scope, Some(CacheScope::Private));
         match &resource.contents[0] {
             super::McpResourceContents::TextResourceContents {
                 uri,
@@ -1574,6 +1616,9 @@ fn server_exposes_resources_and_prompts_through_rmcp_protocol() {
             .await
             .expect("prompts/list should succeed");
         assert_eq!(prompts.prompts.len(), 1);
+        assert_eq!(prompts.result_type, Some(ResultType::COMPLETE));
+        assert_eq!(prompts.ttl_ms, Some(0));
+        assert_eq!(prompts.cache_scope, Some(CacheScope::Private));
         assert_eq!(prompts.prompts[0].name, "draft_contact");
         assert_eq!(prompts.prompts[0].title.as_deref(), Some("Draft contact"));
 
@@ -1586,6 +1631,7 @@ fn server_exposes_resources_and_prompts_through_rmcp_protocol() {
             prompt.description.as_deref(),
             Some("Draft values for the contact form.")
         );
+        assert_eq!(prompt.result_type, Some(ResultType::COMPLETE));
         assert_eq!(prompt.messages.len(), 1);
         assert_eq!(prompt.messages[0].role, super::McpRole::User);
         match &prompt.messages[0].content {
@@ -1699,27 +1745,22 @@ fn server_validates_raw_tool_definitions() {
     assert_eq!(error.kind(), "invalid_schema");
     assert_eq!(server.tool_count(), 0);
 
-    let mut invalid_output_schema = super::tool_definition(
-        "valid",
+    let scalar_output = super::tool_definition(
+        "scalar_output",
         None,
         None,
         schema(json!({ "type": "object" })),
-        Some(schema(json!({ "type": "object" }))),
+        Some(schema(json!({ "type": "string" }))),
     )
     .expect("tool definition should build");
-    invalid_output_schema.output_schema = Some(std::sync::Arc::new(
-        super::schema_object("output_schema", schema(json!({ "type": "string" })))
-            .expect("raw output schema object should build"),
-    ));
 
-    let error = server
-        .add_tool(invalid_output_schema, |_| {
-            super::tool_structured_result(json!({}))
+    server
+        .add_tool(scalar_output, |_| {
+            super::tool_structured_result(json!("scalar output"))
         })
-        .expect_err("raw tool output schema should describe object content");
+        .expect("scalar output schema should register");
 
-    assert_eq!(error.kind(), "invalid_schema");
-    assert_eq!(server.tool_count(), 0);
+    assert_eq!(server.tool_count(), 1);
 
     let mut conflicting_annotations = super::tool_definition(
         "valid",
@@ -1742,7 +1783,7 @@ fn server_validates_raw_tool_definitions() {
         .expect_err("conflicting raw annotations should fail");
 
     assert_eq!(error.kind(), "validation");
-    assert_eq!(server.tool_count(), 0);
+    assert_eq!(server.tool_count(), 1);
 }
 
 #[test]

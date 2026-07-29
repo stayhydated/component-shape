@@ -10,7 +10,7 @@ needs MCP tool definitions, a dynamic `rmcp` tool server, structured tool
 results, sync or async tool executors, a blocking stdio server entry point, or
 JSON Schema from `McpInput` metadata. Generated integration crates can use
 `McpToolMetadata` to carry optional application-owned tool names, titles,
-descriptions, icons, task-support execution metadata, and MCP
+descriptions, icons, and MCP
 `ToolAnnotations` hints such as read-only, destructive, idempotent, and
 open-world behavior beside their domain descriptors, and can call
 `validate_tool_name`, `validate_tool_metadata_text`, or
@@ -35,7 +35,7 @@ type aliases inherit the underlying schema. `McpRange<T>` covers typed
 `{ "min": ..., "max": ... }` range arguments. `McpAny` is the explicit typed
 wrapper for fields that intentionally accept unconstrained JSON;
 `serde_json::Value` also publishes the same unconstrained schema for dynamic
-argument fields. Tool output schemas must declare an object root. App-owned
+argument fields. Tool output schemas may describe any JSON value. App-owned
 named structs, tuple or named transparent newtypes, and fieldless enums can
 derive it. The derive
 follows serde deserialize names, records field aliases in `x-mcpAliases`,
@@ -107,7 +107,7 @@ server.add_typed_tool::<SearchArgs, _>(tool, |args| {
 ```
 
 Generated integrations that already have `McpToolMetadata` can keep name,
-title, description, icons, task-support execution metadata, and
+title, description, icons, and
 `ToolAnnotations` hints together with
 `tool_definition_for_input_with_metadata::<SearchArgs>(...)`. Use
 `tool_definition_with_annotations` or
@@ -137,18 +137,18 @@ struct AxisName(String);
 `McpInput::unsupported()` maps to an impossible schema. Use
 `McpInput::any()` for coarse metadata and `McpAny` for typed tool fields when a
 tool should accept unconstrained JSON. Tool definitions reject input schemas
-that do not declare object arguments with `type: "object"`, and reject output
-schemas that do not declare an object root with `type: "object"`. Build custom
-schemas with typed builders such as
+that do not declare object arguments with `type: "object"`. Output schemas may
+describe objects, arrays, scalars, or null. Build custom schemas with typed
+builders such as
 `McpSchema::string()`, `McpSchema::integer().with_minimum(0_u64)`, and
 `McpSchema::object().with_properties(...)`; `McpSchema::new(...)` remains the
 escape hatch for unusual JSON Schema keywords. Raw tool definitions registered
 with `McpServer::add_tool` and `add_tool_async` are checked against the same
 schema rules.
-Successful calls for tools that publish `output_schema` must return object
-`structured_content` that matches the declared schema. Handler error results
-are passed through as errors and can still include their own structured
-`error` object.
+Successful calls for tools that publish `output_schema` must return
+`structured_content` that matches the declared schema. Handler error results are
+passed through as errors and can still include their own structured `error`
+object.
 `McpInput::*_list()` maps to an ordered JSON array; `McpInput::*_set()` maps
 to an array with `uniqueItems: true`.
 
@@ -178,8 +178,8 @@ composed server construction can fail explicitly.
 
 Use `McpStdioSmokeClient` for application-level smoke tests that need to drive
 a real newline-delimited JSON-RPC stdio server process. It spawns a command with
-piped stdin/stdout/stderr, sends `initialize` and
-`notifications/initialized`, exposes raw `tools/list`, `resources/list`,
+piped stdin/stdout/stderr, sends `server/discover`, adds the required
+MCP 2026-07-28 metadata to every request, exposes raw `tools/list`, `resources/list`,
 `resources/read`, and `tools/call` protocol results, captures child stderr for
 failures, and shuts down the process on drop. `tool_call_structured_content`
 returns either protocol spelling of structured tool output, so smoke tests can

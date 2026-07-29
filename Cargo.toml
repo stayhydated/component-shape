@@ -33,14 +33,14 @@ prettyplease = "0.2"
 proc-macro-crate = "3.5"
 proc-macro2 = "1.0"
 quote = "1.0"
-rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "2.2.0" }
+rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "3.0" }
 rust_decimal = "1.42"
 serde = "1.0"
 serde_json = "1.0"
 strum = "0.28"
 syn = { default-features = false, version = "2.0" }
 thiserror = "2.0"
-tokio = "1.52"
+tokio = "1.53"
 trybuild = "1.0"
 
 [profile.dev]
