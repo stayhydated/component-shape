@@ -123,7 +123,7 @@ testing the lowest-level helper.
 When changing user-visible framework-neutral behavior, keep public docs and
 contracts aligned:
 
-- crate README or rustdoc for public concepts,
+- `component-shape` public rustdoc for public concepts,
 - `AGENTS.md` workspace guidance if ownership boundaries change,
 - `component-shape-codegen` docs when generator-facing behavior changes,
 - downstream framework guidance only when their public workflow changes.

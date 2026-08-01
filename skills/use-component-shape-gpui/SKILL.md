@@ -53,22 +53,32 @@ use component_shape_gpui::GpuiComponentShape;
 
 #[derive(GpuiComponentShape)]
 #[gpui_component_shape(value = Vec<String>, field_suffix = "input")]
-pub struct TagsInput {
-    state: gpui::Entity<TagsInputState>,
-}
+pub struct TagsInput;
 
 pub struct TagsInputState;
 ```
 
-The rendered component type must provide a constructor compatible with the
-generated render contract, commonly:
+The backing state must provide the default constructor used by the generated
+shape contract when `new = ...` is omitted:
+
+```rust
+impl TagsInputState {
+    pub fn new(
+        _window: &mut gpui::Window,
+        _cx: &mut gpui::Context<'_, Self>,
+    ) -> Self {
+        Self
+    }
+}
+```
+
+The rendered component type must also provide a constructor compatible with
+the generated render contract, commonly:
 
 ```rust
 impl TagsInput {
-    pub fn new(state: &gpui::Entity<TagsInputState>) -> impl gpui::IntoElement {
-        Self {
-            state: state.clone(),
-        }
+    pub fn new(_state: &gpui::Entity<TagsInputState>) -> impl gpui::IntoElement {
+        gpui::div()
     }
 }
 ```
@@ -83,8 +93,8 @@ Metadata rules:
 - Use `new = some_function` or `new = |window, cx| ...` when the macro should
   pass `(window, cx)` for you.
 - Use a full constructor expression such as
-  `new = Self::with_mode(window, cx, Mode::Compact)` when the expression should
-  be emitted as written.
+  `new = TagsInputState::with_mode(window, cx, Mode::Compact)` when the
+  expression should be emitted as written.
 - Add `component = ...` only when generated metadata should use a path-like
   render component type different from the derived type.
 - Add `value = ...` or `values(...)` once for each supported value type unless
@@ -218,7 +228,7 @@ checked output surface.
 
 When changing public GPUI shape behavior, keep these surfaces aligned:
 
-- `component-shape-gpui` README or rustdoc for user-facing macro syntax,
+- `component-shape-gpui` public rustdoc for user-facing macro syntax,
 - `component-shape-gpui` trybuild pass/fail tests when macro behavior changes,
 - stderr fixtures only when diagnostic output intentionally changes,
 - framework-neutral docs when shared metadata behavior changes,
