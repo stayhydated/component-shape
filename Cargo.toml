@@ -38,7 +38,7 @@ prettyplease = "0.2"
 proc-macro-crate = "3.5"
 proc-macro2 = "1.0"
 quote = "1.0"
-rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "3.0" }
+rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "3.1" }
 rust_decimal = "1.42"
 serde = "1.0"
 serde_json = "1.0"
