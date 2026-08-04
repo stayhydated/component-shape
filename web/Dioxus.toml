@@ -1,0 +1,21 @@
+[application]
+asset_dir = "public"
+name = "component-shape"
+out_dir = "dist"
+
+[web.app]
+base_path = "component-shape"
+title = "component-shape | Home"
+
+[web.watcher]
+index_on_404 = true
+reload_html = true
+watch_path = [ "src", "public" ]
+
+[web.resource]
+script = [  ]
+style = [  ]
+
+[web.resource.dev]
+script = [  ]
+style = [  ]

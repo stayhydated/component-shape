@@ -18,6 +18,9 @@ Start here:
 - GPUI component contracts and public macros: `crates/component-shape-gpui`.
 - MCP schema, typed tool input, server, resource, prompt, and stdio helpers:
   `crates/component-shape-mcp`.
+- User documentation sources and generated Pages application: `book/` and
+  `web/`.
+- Book, llms.txt, Pages build, preview, and release commands: `xtask/`.
 - Repository command index: `justfile`; run `just --list` to inspect recipes.
 
 ## Project Summary
@@ -66,9 +69,11 @@ Before editing, classify the change:
 
 Treat these surfaces as user-facing when they name public behavior:
 
+- `book/src/`,
 - `crates/component-shape-mcp/README.md`,
 - rustdoc on public traits, types, functions, and macros,
 - checked-in reusable skills under `skills/`,
+- the project identity and destinations under `web/src/site/`,
 - public examples or integration snippets inside tests.
 
 Keep implementation details close to the code, tests, fixtures, or rustdoc that
@@ -159,6 +164,29 @@ diagnostic text changes:
   `GpuiComponentShape`, `component_shape!`, render contracts, value binding,
   and GPUI macro syntax.
 
+- `skills/use-component-shape-mcp`
+  Audience: **Reusable guidance**
+  Role: typed MCP schema, decoding, tool/server composition, validation,
+  resource, prompt, and stdio smoke-test guidance.
+
+### Documentation And Site
+
+- `book`
+  Audience: **User-facing**
+  Role: mdBook sources for framework-neutral, GPUI, and MCP workflows. Keep
+  examples aligned with public rustdoc, compile fixtures, and the MCP README.
+
+- `web`
+  Audience: **User-facing**
+  Role: demo-less single-page Dioxus portal for GitHub Pages. Project identity,
+  canonical destinations, route manifest, optional project stylesheet, and the
+  absence of a Demos destination are consumer-owned contracts.
+
+- `xtask`
+  Audience: **Public integration**
+  Role: repository commands that invoke shared book, llms.txt, Pages, static
+  preview, and release helpers. Generated outputs belong to these commands.
+
 ## Validation And Editing Rules
 
 - Run the narrowest command that proves the edited behavior for the affected
@@ -171,6 +199,11 @@ diagnostic text changes:
   publishability-sensitive Cargo metadata changes.
 - For rustdoc changes, match CI with
   `cargo doc --workspace --all-features --no-deps --locked`.
+- For book and llms.txt changes, run `cargo xtask build book` and
+  `cargo xtask build llms-txt`.
+- For portal changes, run the focused `web` library test, `just web-build`, and
+  the stayhydated Pages consumer audit against `web/dist`.
+- Validate each checked-in skill with the skill-creator `quick_validate.py`.
 - CI runs docs, package dry-run, and coverage jobs from
   `.github/workflows/ci.yml`.
 - If validation cannot run, state why and what remains unvalidated.
