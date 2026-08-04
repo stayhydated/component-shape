@@ -6,6 +6,8 @@ members = [
   "crates/component-shape-gpui-macros",
   "crates/component-shape-mcp",
   "crates/component-shape-mcp-macros",
+  "web",
+  "xtask",
 ]
 resolver = "3"
 
@@ -18,8 +20,10 @@ rust-version = "1.96"
 version = "0.1.0"
 
 [workspace.dependencies]
+anyhow = "1.0"
 attribute-dsl = "0.1"
 chrono = "0.4"
+clap = "4.6"
 component-shape = { path = "crates/component-shape", version = "0.1.0" }
 component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.1.0" }
 component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.1.0" }
@@ -27,6 +31,7 @@ component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", ver
 component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.1.0" }
 component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.1.0" }
 derive_more = "2.1"
+dioxus = { default-features = false, version = "0.7" }
 gpui = { branch = "linux-headless-renderer", git = "https://github.com/stayhydated/zed", version = "0.2.2" }
 heck = "0.5"
 prettyplease = "0.2"
@@ -37,11 +42,15 @@ rmcp = { default-features = false, features = [ "server", "transport-io" ], vers
 rust_decimal = "1.42"
 serde = "1.0"
 serde_json = "1.0"
+stayhydated-dioxus = { path = "../shared/crates/stayhydated-dioxus" }
+stayhydated-site = { path = "../shared/crates/stayhydated-site" }
+stayhydated-xtask = { path = "../shared/crates/stayhydated-xtask" }
 strum = "0.28"
 syn = { default-features = false, version = "2.0" }
 thiserror = "2.0"
 tokio = "1.53"
 trybuild = "1.0"
+web = { path = "web" }
 
 [profile.dev]
 codegen-units = 16

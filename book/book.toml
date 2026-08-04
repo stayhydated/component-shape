@@ -1,0 +1,9 @@
+[book]
+authors = [ "stayhydated" ]
+language = "en"
+src = "src"
+title = "component-shape"
+
+[output.html]
+git-repository-url = "https://github.com/stayhydated/component-shape"
+site-url = "/component-shape/book/"

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Component Shape MCP"
+  short_description: "Build typed MCP integrations for component shapes"
+  default_prompt: "Use $use-component-shape-mcp to implement or review typed MCP schemas, decoding, tools, servers, resources, prompts, validation metadata, or stdio smoke tests."

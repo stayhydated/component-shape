@@ -1,0 +1,25 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    uses: stayhydated/shared/.github/workflows/deploy-pages.yml@master
+    with:
+      build-command: |
+        cargo xtask build book
+        cargo xtask build llms-txt
+        cargo xtask build web
+      artifact-path: web/dist

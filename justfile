@@ -19,10 +19,24 @@ test:
     cargo test --workspace --all-features --locked
 
 cov:
-    cargo llvm-cov --workspace --all-features --all-targets
+    cargo llvm-cov --workspace --exclude xtask --exclude web --all-features --all-targets
 
 test-publish:
     cargo xtask release plan
 
 test-docs:
     cargo doc --workspace --all-features --no-deps --locked --open
+
+book:
+    mdbook serve book
+
+web-build:
+    cargo xtask build book
+    cargo xtask build llms-txt
+    cargo xtask build web
+
+web: web-build
+    dx serve --package web
+
+web-preview: web-build
+    cargo xtask preview web

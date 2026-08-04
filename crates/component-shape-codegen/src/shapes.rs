@@ -14,7 +14,7 @@ pub enum ComponentShapeConstructor {
     Default,
     /// Construct the shape with a user-supplied expression, such as
     /// `Select::<_>.searchable(true)`.
-    Expr(Expr),
+    Expr(Box<Expr>),
 }
 
 impl ComponentShapeConstructor {
@@ -28,7 +28,7 @@ impl ComponentShapeConstructor {
     fn resolved(&self, field_type: &Type) -> Self {
         match self {
             Self::Default => Self::Default,
-            Self::Expr(expr) => Self::Expr(substitute_infer_in_expr(expr, field_type)),
+            Self::Expr(expr) => Self::Expr(Box::new(substitute_infer_in_expr(expr, field_type))),
         }
     }
 }
@@ -64,7 +64,7 @@ impl ShapeOptions {
     ) -> syn::Result<Self> {
         let parts = component_shape_expression_parts(&expr, expected)?;
         let constructor = if parts.configured {
-            ComponentShapeConstructor::Expr(parts.constructor.unwrap_or(expr))
+            ComponentShapeConstructor::Expr(Box::new(parts.constructor.unwrap_or(expr)))
         } else {
             ComponentShapeConstructor::Default
         };

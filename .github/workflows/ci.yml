@@ -138,7 +138,7 @@ jobs:
         shell: bash
         run: |
           cargo llvm-cov clean --workspace
-          cargo llvm-cov --workspace --all-features --cobertura --output-path=target/cobertura.xml --exclude gpui-storybook-example-story --exclude gpui-storybook-example-component
+          cargo llvm-cov --workspace --all-features --cobertura --output-path=target/cobertura.xml --exclude xtask --exclude web --exclude gpui-storybook-example-story --exclude gpui-storybook-example-component
 
       - name: Codecov publish
         uses: codecov/codecov-action@v7

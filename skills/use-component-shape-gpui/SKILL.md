@@ -1,131 +1,49 @@
 ---
 name: use-component-shape-gpui
-description: "Use when Codex needs to add, review, or refactor GPUI component shape declarations with component_shape_gpui::GpuiComponentShape, component_shape_gpui::component_shape!, declared-shape markers, render and value-binding contracts, configured shape builders, MCP input metadata, or GPUI macro syntax."
+description: "Add, review, refactor, or document GPUI component shape declarations and runtime contracts. Use for component_shape_gpui::GpuiComponentShape, component_shape_gpui::component_shape!, declared-shape markers, render contracts, configured builders, value compatibility, value binding, inferred or explicit McpInput metadata, and GPUI macro syntax."
 ---
 
-# Use Component Shape GPUI
+# Use component shape GPUI
 
-## Scope Boundary
+## Route the task
 
-Use this skill for GPUI-specific component shape declarations and runtime
-contracts in the `component-shape-gpui` surface. It covers the
-`GpuiComponentShape` derive, the function-like `component_shape!` macro, render
-component metadata, constructor metadata, value compatibility, value-binding
-declarations, declared-shape markers, configured builders, and MCP input
-metadata.
+Use this skill for the `component-shape-gpui` public surface. Use
+`use-component-shape` for framework-neutral metadata and
+`use-component-shape-mcp` for typed schemas, decoding, tools, servers, and
+stdio. Use a downstream integration skill when a form or table framework is
+consuming an existing shape.
 
-Use `use-component-shape` for framework-neutral metadata such as
-`ComponentShapeMetadata`, capabilities, suffix validation, syntax wrappers, and
-generic value-change concepts.
+Inside this repository, read `AGENTS.md` first. Keep public runtime contracts
+in `crates/component-shape-gpui`, macro implementation in
+`crates/component-shape-gpui-macros`, compile contracts in
+`crates/component-shape-gpui/tests/ui`, and user guidance in
+`book/src/gpui-shapes.md`.
 
-Use downstream integration guidance, such as `use-gpui-form-component-shapes`,
-when the task is about a form framework consuming the shape rather than
-declaring the shape itself.
+## Choose a declaration form
 
-This reusable skill does not cover proc-macro implementation internals,
-trybuild fixture maintenance, or contributor-only implementation docs. Use the
-workspace `AGENTS.md` and crate docs for those tasks.
+- Derive `GpuiComponentShape` when the crate owns the rendered component and
+  backing state.
+- Use `component_shape!` when wrapping state or components owned by another
+  crate.
+- Reuse an existing shape instead of declaring another wrapper when its public
+  contracts already fit.
 
-## Decision Rule
-
-First classify component ownership:
-
-- Owned rendered component: when the crate owns the rendered component and
-  backing state, derive `component_shape_gpui::GpuiComponentShape` on the
-  rendered component with `state = ...` when needed.
-- External component/state pair: when the state type or rendered component
-  lives in another crate, declare a local wrapper shape with
-  `component_shape_gpui::component_shape!`. This avoids orphan-rule problems and
-  gives the local crate a type that owns the shape implementations.
-- Existing shape: when a suitable reusable shape already exists, use it
-  directly instead of wrapping it again.
-
-If a prompt says "functional macro" or "functional! macro", interpret that as
-the function-like `component_shape_gpui::component_shape!` proc macro unless
-the codebase has a different local macro with that exact name.
-
-## Owned Component Pattern
-
-Use `#[derive(GpuiComponentShape)]` when the rendered component type is local:
+For an owned component:
 
 ```rust
-use component_shape_gpui::GpuiComponentShape;
+#[derive(component_shape_gpui::GpuiComponentShape)]
+#[gpui_component_shape(value = String, field_suffix = "input")]
+pub struct TextInput;
 
-#[derive(GpuiComponentShape)]
-#[gpui_component_shape(value = Vec<String>, field_suffix = "input")]
-pub struct TagsInput;
-
-pub struct TagsInputState;
+pub struct TextInputState;
 ```
 
-The backing state must provide the default constructor used by the generated
-shape contract when `new = ...` is omitted:
+The derive infers `TextInputState`. Set `state = path::State` for another
+name, and set `new = ...` when construction should not call
+`State::new(window, cx)`. The rendered component must provide the constructor
+selected by the render contract.
 
-```rust
-impl TagsInputState {
-    pub fn new(
-        _window: &mut gpui::Window,
-        _cx: &mut gpui::Context<'_, Self>,
-    ) -> Self {
-        Self
-    }
-}
-```
-
-The rendered component type must also provide a constructor compatible with
-the generated render contract, commonly:
-
-```rust
-impl TagsInput {
-    pub fn new(_state: &gpui::Entity<TagsInputState>) -> impl gpui::IntoElement {
-        gpui::div()
-    }
-}
-```
-
-Metadata rules:
-
-- Always add `#[gpui_component_shape(...)]` with the derive. Within that
-  attribute, `state = ...` is optional when the backing state is a same-module
-  type named after the component, such as `TagsInputState`; add it for
-  different names or paths.
-- Omit `new` when the state has `State::new(window, cx)`.
-- Use `new = some_function` or `new = |window, cx| ...` when the macro should
-  pass `(window, cx)` for you.
-- Use a full constructor expression such as
-  `new = TagsInputState::with_mode(window, cx, Mode::Compact)` when the
-  expression should be emitted as written.
-- Add `component = ...` only when generated metadata should use a path-like
-  render component type different from the derived type.
-- Add `value = ...` or `values(...)` once for each supported value type unless
-  value compatibility should be inferred from value-binding declarations or
-  implemented manually.
-- Add `value_binding` when the derived shape should delegate value binding
-  through the backing state's value-binding implementation.
-- Add `field_suffix = "..."` when downstream prototyping or generators need a
-  stable suffix for generated identifiers.
-- Common MCP input metadata is inferred from unambiguous declared values such
-  as strings, booleans, numbers, dates, primitive lists or sets, fixed arrays,
-  string-keyed maps, `component_shape_mcp::McpAny`,
-  `component_shape_mcp::McpRange<T>`, or `(Option<T>, Option<T>)` ranges.
-  Transparent `Option`, `Box`, `Rc`, `Arc`, and `Cow` wrappers preserve an
-  inferable inner shape. Each generated `ComponentShapeFor<Value>` impl carries
-  the value-specific MCP metadata, and shape-level MCP metadata is emitted only
-  when all declared values agree.
-  Manual `ComponentShapeFor<Value>` impls inherit shape-level MCP metadata
-  unless they override the value-specific `MCP_INPUT`.
-- Use `mcp_input = string`, `mcp_input = object`, another supported constructor
-  shorthand, or an explicit `McpInput` expression when a generic or custom
-  value has known coarse metadata that type inference cannot determine. The
-  explicit value applies to shape-level metadata and every generated
-  `ComponentShapeFor<Value>` implementation.
-- For richer custom wire schemas, use the downstream MCP integration's typed
-  schema derive or a manual decode/schema implementation.
-
-## External State Pattern
-
-Use `component_shape_gpui::component_shape!` when wrapping state or rendered
-components from another crate:
+For external types:
 
 ```rust
 component_shape_gpui::component_shape! {
@@ -138,101 +56,40 @@ component_shape_gpui::component_shape! {
 }
 ```
 
-For generic external wrappers, put the generic parameters and bounds on the
-local shape:
+Omit `component = ...` for metadata-only shapes.
 
-```rust
-component_shape_gpui::component_shape! {
-    pub struct Input<T = String>
-    where
-        T: std::str::FromStr + ToString + 'static,
-    {
-        state = gpui_component::input::InputState;
-        new = |window, cx| gpui_component::input::InputState::new(window, cx)
-            .validate(|value, _| value.parse::<T>().is_ok());
-        component = gpui_component::input::Input;
-        field_suffix = "input";
+## Publish value behavior
 
-        impl<T> component_shape_gpui::GpuiComponentValueBinding<T> for Input<T>
-        where
-            T: std::str::FromStr + ToString + 'static,
-        {
-            type Event = gpui_component::input::InputEvent;
-            /* seed_value_binding_state and value_change */
-        }
-    }
-}
-```
+- Add `value = T` or `values(...)` for explicit compatibility.
+- Add `value_binding` to delegate through
+  `GpuiComponentStateValueBinding<T>`.
+- Put `GpuiComponentValueBinding<T>` inside `component_shape!` when the
+  wrapper owns binding behavior.
+- Implement both `ComponentShapeFor<T>` and `GpuiComponentShapeFor<T>` for a
+  hand-written compatibility pair.
+- Keep storage policy in the consuming framework.
 
-When no explicit value metadata is present, a nested
-`GpuiComponentValueBinding<T>` impl can publish both `T` compatibility and
-value-binding metadata without separate `value = T;` or `value_binding;`
-entries. When the block already declares explicit value metadata, add
-`value_binding;` beside the nested impl to publish the capability.
+The macros emit `DeclaredGpuiComponentShape` and `DeclaredComponentShape`.
+Require those markers only when a consumer intentionally accepts macro-declared
+shapes.
 
-Omit `component = ...` when the wrapper publishes state and value metadata but
-no render component. The generated shape then uses `NoGpuiRenderComponent` and
-publishes `RenderCapability::None`.
+## Handle construction and metadata
 
-## Value Compatibility
+Use `GpuiComponentShapeBuilder<Shape>` for field-site configuration and
+`DefaultGpuiComponentShapeBuilder<Shape>` for the normal constructor. Dispatch
+both through `build_component_shape`.
 
-A shape can advertise support for form-side values through:
+Use `field_suffix = "..."` for stable generated identifiers. Prefer semantic
+ASCII suffixes such as `"input"`, `"select"`, or `"picker"`.
 
-- explicit `value = ...` metadata,
-- explicit `values(...)` metadata,
-- generated compatibility from `value_binding`,
-- manual `GpuiComponentShapeFor<Value>` implementations.
+Let common Rust values infer coarse `McpInput` metadata. Set
+`mcp_input = ...` for a known custom coarse form. Use typed MCP contracts for
+richer wire schemas.
 
-`GpuiComponentShapeFor<Value>` includes the framework-neutral
-`ComponentShapeFor<Value>` contract. For a hand-written compatibility pair,
-implement both traits; the macro emits both implementations for declared
-values.
+## Coordinate changes
 
-Keep value compatibility separate from downstream storage policy. This crate
-should declare which values a component can represent; downstream consumers
-decide how required, optional, or missing values are stored.
-
-## Configured Builders
-
-Use `GpuiComponentShapeBuilder<Shape>` when a consumer-side component
-expression configures how the same shape state is initialized, such as
-`Select::<_>.searchable(true)`. Implement `build(self, window, cx)` on the
-configured value and return `Shape::State`.
-
-Use `DefaultGpuiComponentShapeBuilder<Shape>` for the plain
-`GpuiComponentShape::new` path. Dispatch either form through
-`build_component_shape::<Shape, _>(builder, window, cx)` so generated code has
-one construction path. Keep declaration-time `new = ...` metadata for the
-shape's default constructor; use a builder for configuration selected at the
-field use site.
-
-## Declared Shapes
-
-Require `DeclaredGpuiComponentShape` when a consumer accepts only shapes
-produced by the derive or `component_shape!`. Those macros emit both
-`DeclaredGpuiComponentShape` and the framework-neutral
-`DeclaredComponentShape`; do not treat arbitrary hand-written
-`GpuiComponentShape` implementations as declared shapes.
-
-## Suffix and Prototyping Metadata
-
-Use `field_suffix = "..."` when generator output needs stable names for DOM
-IDs, event handlers, helper methods, or field-local component roles. The suffix
-should be a non-empty ASCII identifier suffix.
-
-Prefer stable semantic suffixes such as `"input"`, `"select"`, or `"picker"`
-over type-name-derived strings when generated names are part of a public or
-checked output surface.
-
-## Documentation Sync
-
-When changing public GPUI shape behavior, keep these surfaces aligned:
-
-- `component-shape-gpui` public rustdoc for user-facing macro syntax,
-- `component-shape-gpui` trybuild pass/fail tests when macro behavior changes,
-- stderr fixtures only when diagnostic output intentionally changes,
-- framework-neutral docs when shared metadata behavior changes,
-- downstream integration skills only when their public workflow changes.
-
-Do not duplicate downstream form-framework rules here; keep this skill focused
-on declaring GPUI component shapes.
+Update public rustdoc and focused trybuild fixtures when macro syntax,
+generated implementations, trait requirements, or diagnostics change. Update
+`.stderr` fixtures only for intentional diagnostics. Keep the GPUI book
+chapter and this skill aligned with public behavior; do not duplicate downstream
+form or table rules here.
