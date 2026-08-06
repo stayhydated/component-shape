@@ -13,7 +13,7 @@ inputs through MCP.
 
 ```toml
 [dependencies]
-component-shape-mcp = "0.1"
+component-shape-mcp = "0.2"
 ```
 
 The default features include the `McpJsonSchema` and `McpToolInput` derives.

@@ -7,7 +7,7 @@ All three crates use edition 2024.
 
 ```toml
 [dependencies]
-component-shape = "0.1"
+component-shape = "0.2"
 ```
 
 Implement `ComponentShapeMetadata` on a shape type. Add
@@ -18,7 +18,7 @@ Implement `ComponentShapeMetadata` on a shape type. Add
 
 ```toml
 [dependencies]
-component-shape-gpui = "0.1"
+component-shape-gpui = "0.2"
 ```
 
 The GPUI crate re-exports the shared framework-neutral traits. Align the
@@ -30,7 +30,7 @@ wrapper around external types. Continue with [GPUI shapes](gpui-shapes.md).
 
 ```toml
 [dependencies]
-component-shape-mcp = "0.1"
+component-shape-mcp = "0.2"
 ```
 
 The default features export the `McpJsonSchema` and `McpToolInput` derives.

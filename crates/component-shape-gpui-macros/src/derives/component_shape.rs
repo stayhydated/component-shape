@@ -142,7 +142,7 @@ enum NestedShapeImplKind {
 }
 
 fn classify_nested_shape_impl(impl_item: &ItemImpl) -> NestedShapeImplKind {
-    let Some((_, path, _)) = impl_item.trait_.as_ref() else {
+    let Some((path, _)) = impl_item.trait_.as_ref() else {
         return NestedShapeImplKind::Other;
     };
     let Some(last) = path.segments.last() else {
@@ -157,7 +157,7 @@ fn classify_nested_shape_impl(impl_item: &ItemImpl) -> NestedShapeImplKind {
 }
 
 fn nested_value_binding_value(impl_item: &ItemImpl) -> Option<Type> {
-    let (_, path, _) = impl_item.trait_.as_ref()?;
+    let (path, _) = impl_item.trait_.as_ref()?;
     let last = path.segments.last()?;
     if last.ident != "GpuiComponentValueBinding" {
         return None;

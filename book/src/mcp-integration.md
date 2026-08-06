@@ -8,7 +8,7 @@ Add the dependency:
 
 ```toml
 [dependencies]
-component-shape-mcp = "0.1"
+component-shape-mcp = "0.2"
 ```
 
 The default features include the schema and tool-input derives.

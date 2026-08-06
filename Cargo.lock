@@ -67,9 +67,9 @@ dependencies = [
 
 [[package]]
 name = "android_system_properties"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "819e7219dbd41043ac279b19830f2efc897156490d7fd6ea916720117ee66311"
+checksum = "ae221649c9976a6f6c56ae1facf410f3ddb33cc661c4b7b61020a912d4237fbc"
 dependencies = [
  "libc",
 ]
@@ -279,13 +279,12 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "attribute-dsl"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16ca31bcd43c2f2dd67f22380297f8ee30a1c5e3fc544bb87a6f69d3bfd3e6fa"
+version = "0.2.0"
+source = "git+https://github.com/stayhydated/attribute-dsl?rev=bb69a6ee0a6772895d180113515fbb6cb46acc9d#bb69a6ee0a6772895d180113515fbb6cb46acc9d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -423,7 +422,7 @@ dependencies = [
  "clang-sys",
  "itertools 0.13.0",
  "log",
- "prettyplease",
+ "prettyplease 0.2.37",
  "proc-macro2",
  "quote",
  "regex",
@@ -543,7 +542,7 @@ checksum = "6dee98b0db6a962de883bf5d20362dee4d7ca0d12fe39a7c6c73c844e1cd7c1f"
 dependencies = [
  "darling 0.23.0",
  "ident_case",
- "prettyplease",
+ "prettyplease 0.2.37",
  "proc-macro2",
  "quote",
  "rustversion",
@@ -849,9 +848,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.6.5"
+version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "301b56658598e48f3648647ac6fc887be7e7108eddfa4e9b63fcf3ec58c0cadf"
+checksum = "473c7e07f409a8d772161724aa8db6a765a2532a70f9667eeb7b49d3d02fbdca"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -859,9 +858,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.6.5"
+version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94a65403d1a1bd28f7dc68eb8506e8874808ee5eecb59298de588e2e1407a078"
+checksum = "7b48fea5a88e9ae728a2dcbedbfc0e730f7d60da42e1cb049a83c9fb8b789889"
 dependencies = [
  "anstream",
  "anstyle",
@@ -992,29 +991,29 @@ dependencies = [
 
 [[package]]
 name = "component-shape"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "derive_more",
  "heck 0.5.0",
  "strum 0.28.0",
- "syn 2.0.119",
+ "syn 3.0.3",
  "thiserror 2.0.19",
 ]
 
 [[package]]
 name = "component-shape-codegen"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "attribute-dsl",
  "component-shape",
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
 name = "component-shape-gpui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "component-shape",
  "component-shape-gpui-macros",
@@ -1024,20 +1023,20 @@ dependencies = [
 
 [[package]]
 name = "component-shape-gpui-macros"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "component-shape",
  "component-shape-codegen",
- "prettyplease",
+ "prettyplease 0.3.0",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
 name = "component-shape-mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "component-shape",
@@ -1053,12 +1052,12 @@ dependencies = [
 
 [[package]]
 name = "component-shape-mcp-macros"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -4856,6 +4855,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "prettyplease"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bfe0f4c752e450fc2faf62654f1c134747922825d5b04ca717b8874f41a40c0"
+dependencies = [
+ "proc-macro2",
+ "syn 3.0.3",
+]
+
+[[package]]
 name = "proc-macro-crate"
 version = "3.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5554,11 +5563,10 @@ dependencies = [
 
 [[package]]
 name = "rmcp"
-version = "3.1.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad26b216c966e987e80e86daf784a455c039c43d98575ceed57b8faa259e5695"
+checksum = "094c075f6698deef5a657cf4df6b684dff65157d255978b92b552ec22503f17a"
 dependencies = [
- "async-trait",
  "chrono",
  "futures",
  "pastey 0.2.3",
@@ -6202,7 +6210,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "stayhydated-dioxus"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=3e63926d573ca52c14ad922a7711fc98865bab36#3e63926d573ca52c14ad922a7711fc98865bab36"
+source = "git+https://github.com/stayhydated/shared?rev=2b62be85c86ddfe616fc2081c1aeaa5c00decca6#2b62be85c86ddfe616fc2081c1aeaa5c00decca6"
 dependencies = [
  "bon",
  "dioxus",
@@ -6216,7 +6224,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-dioxus-core"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=3e63926d573ca52c14ad922a7711fc98865bab36#3e63926d573ca52c14ad922a7711fc98865bab36"
+source = "git+https://github.com/stayhydated/shared?rev=2b62be85c86ddfe616fc2081c1aeaa5c00decca6#2b62be85c86ddfe616fc2081c1aeaa5c00decca6"
 dependencies = [
  "bytemuck",
  "derive_more",
@@ -6233,7 +6241,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-site"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=3e63926d573ca52c14ad922a7711fc98865bab36#3e63926d573ca52c14ad922a7711fc98865bab36"
+source = "git+https://github.com/stayhydated/shared?rev=2b62be85c86ddfe616fc2081c1aeaa5c00decca6#2b62be85c86ddfe616fc2081c1aeaa5c00decca6"
 dependencies = [
  "derive_more",
  "dioxus",
@@ -6242,7 +6250,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-xtask"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=3e63926d573ca52c14ad922a7711fc98865bab36#3e63926d573ca52c14ad922a7711fc98865bab36"
+source = "git+https://github.com/stayhydated/shared?rev=2b62be85c86ddfe616fc2081c1aeaa5c00decca6#2b62be85c86ddfe616fc2081c1aeaa5c00decca6"
 dependencies = [
  "anyhow",
  "bon",
@@ -7496,7 +7504,7 @@ dependencies = [
 
 [[package]]
 name = "web"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dioxus",
  "stayhydated-dioxus",
@@ -8178,7 +8186,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -8279,18 +8287,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.55"
+version = "0.8.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5a105cd7b140f6eeec8acff2ea38135d3cab283ada58540f629fe51e46696eb"
+checksum = "556764e583adb45a9f8d413c2a147fa7e8d821e48e12b14fd560b607998b75eb"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.55"
+version = "0.8.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fe976fb70c78cd64cccfe3a6fc142244e8a77b70959b30faf9d0ac37ee228eb"
+checksum = "f2ab42fc20575779bd240faa45f94a74256f755c0fa9e89f0ede20d91d0cdfc1"
 dependencies = [
  "proc-macro2",
  "quote",
