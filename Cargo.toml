@@ -21,7 +21,7 @@ version = "0.2.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
-attribute-dsl = { git = "https://github.com/stayhydated/attribute-dsl", rev = "bb69a6ee0a6772895d180113515fbb6cb46acc9d", version = "0.2.0" }
+attribute-dsl = { git = "https://github.com/stayhydated/attribute-dsl", rev = "8b04f86977802d5e8039ca0d14c81e8440771f08", version = "0.2.0" }
 chrono = "0.4"
 clap = "4.6"
 component-shape = { path = "crates/component-shape", version = "0.2.0" }
