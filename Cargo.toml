@@ -21,7 +21,7 @@ version = "0.2.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
-attribute-dsl = { git = "https://github.com/stayhydated/attribute-dsl", rev = "c2592b94ee76c070c6733c2fc33c15572f333742", version = "0.2.0" }
+attribute-dsl = { git = "https://github.com/stayhydated/attribute-dsl", rev = "503bebaa926e750005e80b03ee4a801052b79d47", version = "0.2.0" }
 chrono = "0.4"
 clap = "4.6"
 component-shape = { path = "crates/component-shape", version = "0.2.0" }
@@ -42,9 +42,9 @@ rmcp = { default-features = false, features = [ "server", "transport-io" ], vers
 rust_decimal = "1.42"
 serde = "1.0"
 serde_json = "1.0"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "74aec628e81fc4cc04b2f34ef22c63ba95847334" }
-stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "74aec628e81fc4cc04b2f34ef22c63ba95847334" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "74aec628e81fc4cc04b2f34ef22c63ba95847334" }
+stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "809946144fe13b04a57ba17677c4c699143f4786" }
+stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "809946144fe13b04a57ba17677c4c699143f4786" }
+stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "809946144fe13b04a57ba17677c4c699143f4786" }
 strum = "0.28"
 syn = { default-features = false, version = "3.0" }
 thiserror = "2.0"
