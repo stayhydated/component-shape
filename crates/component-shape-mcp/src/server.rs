@@ -1,38 +1,19 @@
 use super::*;
 
-/// In-process MCP server that owns registered tools, resources, and prompts.
-#[derive(Clone)]
-pub struct McpServer {
-    pub(crate) server_name: Cow<'static, str>,
-    pub(crate) server_version: Cow<'static, str>,
+/// A clonable collection of MCP tool definitions and in-process handlers.
+///
+/// Resources, prompts, server identity, and transport lifecycle remain owned
+/// by [`McpServer`].
+#[derive(Clone, Default)]
+pub struct McpToolRegistry {
     tools: BTreeMap<String, Arc<dyn ToolExecutor>>,
-    resources: BTreeMap<String, Arc<dyn ResourceReader>>,
-    resource_templates: Vec<ResourceTemplate>,
-    prompts: BTreeMap<String, Arc<dyn PromptExecutor>>,
 }
 
-impl McpServer {
-    /// Create a dynamic MCP tool server with the advertised metadata.
-    pub fn new(
-        server_name: impl Into<Cow<'static, str>>,
-        server_version: impl Into<Cow<'static, str>>,
-    ) -> Self {
-        Self {
-            server_name: server_name.into(),
-            server_version: server_version.into(),
-            tools: BTreeMap::new(),
-            resources: BTreeMap::new(),
-            resource_templates: Vec::new(),
-            prompts: BTreeMap::new(),
-        }
-    }
-
-    /// Start building a dynamic MCP tool server with generated registrars.
-    pub fn builder(
-        server_name: impl Into<Cow<'static, str>>,
-        server_version: impl Into<Cow<'static, str>>,
-    ) -> McpServerBuilder {
-        McpServerBuilder::new(server_name, server_version)
+impl McpToolRegistry {
+    /// Create an empty tool registry.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Register a synchronous MCP tool handler.
@@ -150,6 +131,7 @@ impl McpServer {
     }
 
     /// Return registered MCP tool definitions.
+    #[must_use]
     pub fn list_tools(&self) -> Vec<ToolDefinition> {
         self.tools
             .values()
@@ -158,13 +140,221 @@ impl McpServer {
     }
 
     /// Whether a tool name is already registered.
+    #[must_use]
     pub fn contains_tool(&self, name: &str) -> bool {
         self.tools.contains_key(name)
     }
 
     /// Number of registered tools.
+    #[must_use]
     pub fn tool_count(&self) -> usize {
         self.tools.len()
+    }
+
+    /// Calls a registered tool and converts validation or handler failures into
+    /// a protocol-level tool result.
+    #[must_use]
+    pub fn call_tool(&self, name: &str, arguments: Option<Value>) -> ToolCallResult {
+        let call = match McpToolCall::from_value(arguments) {
+            Ok(call) => call,
+            Err(error) => return tool_error_result_for(error),
+        };
+        let (definition, call) = match self.resolve_tool(name, call) {
+            Ok(resolved) => resolved,
+            Err(error) => return tool_error_result_for(error),
+        };
+        validate_tool_call_result(
+            name,
+            definition.output_schema.as_deref(),
+            block_on_tool_future(call),
+        )
+    }
+
+    /// Asynchronously calls a registered tool and converts validation or
+    /// handler failures into a protocol-level tool result.
+    pub async fn call_tool_async(&self, name: &str, arguments: Option<Value>) -> ToolCallResult {
+        let call = match McpToolCall::from_value(arguments) {
+            Ok(call) => call,
+            Err(error) => return tool_error_result_for(error),
+        };
+        let (definition, call) = match self.resolve_tool(name, call) {
+            Ok(resolved) => resolved,
+            Err(error) => return tool_error_result_for(error),
+        };
+        validate_tool_call_result(name, definition.output_schema.as_deref(), call.await)
+    }
+
+    fn definition(&self, name: &str) -> Option<ToolDefinition> {
+        self.tools.get(name).map(|executor| executor.definition())
+    }
+
+    fn resolve_tool(
+        &self,
+        name: &str,
+        call: McpToolCall,
+    ) -> Result<(ToolDefinition, ToolFuture), McpToolError> {
+        match self.tools.get(name) {
+            Some(executor) => Ok((executor.definition(), executor.call(call))),
+            None => Err(McpToolError::UnknownTool {
+                name: name.to_string(),
+            }),
+        }
+    }
+}
+
+/// In-process MCP server that owns registered tools, resources, and prompts.
+#[derive(Clone)]
+pub struct McpServer {
+    pub(crate) server_name: Cow<'static, str>,
+    pub(crate) server_version: Cow<'static, str>,
+    tools: McpToolRegistry,
+    resources: BTreeMap<String, Arc<dyn ResourceReader>>,
+    resource_templates: Vec<ResourceTemplate>,
+    prompts: BTreeMap<String, Arc<dyn PromptExecutor>>,
+}
+
+impl McpServer {
+    /// Create a dynamic MCP tool server with the advertised metadata.
+    pub fn new(
+        server_name: impl Into<Cow<'static, str>>,
+        server_version: impl Into<Cow<'static, str>>,
+    ) -> Self {
+        Self {
+            server_name: server_name.into(),
+            server_version: server_version.into(),
+            tools: McpToolRegistry::new(),
+            resources: BTreeMap::new(),
+            resource_templates: Vec::new(),
+            prompts: BTreeMap::new(),
+        }
+    }
+
+    /// Start building a dynamic MCP tool server with generated registrars.
+    pub fn builder(
+        server_name: impl Into<Cow<'static, str>>,
+        server_version: impl Into<Cow<'static, str>>,
+    ) -> McpServerBuilder {
+        McpServerBuilder::new(server_name, server_version)
+    }
+
+    /// Create a dynamic MCP server from an existing tool registry.
+    #[must_use]
+    pub fn from_tool_registry(
+        server_name: impl Into<Cow<'static, str>>,
+        server_version: impl Into<Cow<'static, str>>,
+        tools: McpToolRegistry,
+    ) -> Self {
+        Self {
+            tools,
+            ..Self::new(server_name, server_version)
+        }
+    }
+
+    /// Borrow the shared tool registry.
+    #[must_use]
+    pub fn tool_registry(&self) -> &McpToolRegistry {
+        &self.tools
+    }
+
+    /// Mutably borrow the shared tool registry.
+    pub fn tool_registry_mut(&mut self) -> &mut McpToolRegistry {
+        &mut self.tools
+    }
+
+    /// Consume the server and return its tool registry.
+    #[must_use]
+    pub fn into_tool_registry(self) -> McpToolRegistry {
+        self.tools
+    }
+
+    /// Register a synchronous MCP tool handler.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a tool with the
+    /// same name is already registered.
+    pub fn add_tool<Call>(
+        &mut self,
+        definition: ToolDefinition,
+        call: Call,
+    ) -> Result<(), McpToolError>
+    where
+        Call: Fn(McpToolCall) -> ToolCallResult + Send + Sync + 'static,
+    {
+        self.tools.add_tool(definition, call)
+    }
+
+    /// Register a synchronous typed MCP tool handler.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a tool with the
+    /// same name is already registered.
+    pub fn add_typed_tool<Input, Call>(
+        &mut self,
+        definition: McpTypedTool<Input>,
+        call: Call,
+    ) -> Result<(), McpToolError>
+    where
+        Input: McpToolInput,
+        Call: Fn(Input) -> ToolCallResult + Send + Sync + 'static,
+    {
+        self.tools.add_typed_tool(definition, call)
+    }
+
+    /// Register an async MCP tool handler.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a tool with the
+    /// same name is already registered.
+    pub fn add_tool_async<Call, Fut>(
+        &mut self,
+        definition: ToolDefinition,
+        call: Call,
+    ) -> Result<(), McpToolError>
+    where
+        Call: Fn(McpToolCall) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ToolCallResult> + Send + 'static,
+    {
+        self.tools.add_tool_async(definition, call)
+    }
+
+    /// Register an async typed MCP tool handler.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] when `definition` is invalid or a tool with the
+    /// same name is already registered.
+    pub fn add_typed_tool_async<Input, Call, Fut>(
+        &mut self,
+        definition: McpTypedTool<Input>,
+        call: Call,
+    ) -> Result<(), McpToolError>
+    where
+        Input: McpToolInput,
+        Call: Fn(Input) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ToolCallResult> + Send + 'static,
+    {
+        self.tools.add_typed_tool_async(definition, call)
+    }
+
+    /// Return registered MCP tool definitions.
+    #[must_use]
+    pub fn list_tools(&self) -> Vec<ToolDefinition> {
+        self.tools.list_tools()
+    }
+
+    /// Whether a tool name is already registered.
+    #[must_use]
+    pub fn contains_tool(&self, name: &str) -> bool {
+        self.tools.contains_tool(name)
+    }
+
+    /// Number of registered tools.
+    #[must_use]
+    pub fn tool_count(&self) -> usize {
+        self.tools.tool_count()
     }
 
     /// Register a static MCP resource reader.
@@ -326,24 +516,15 @@ impl McpServer {
 
     /// Calls a registered tool and converts validation or handler failures into
     /// a protocol-level tool result.
+    #[must_use]
     pub fn call_tool(&self, name: &str, arguments: Option<Value>) -> ToolCallResult {
-        match self.tools.get(name) {
-            Some(executor) => {
-                let call = match McpToolCall::from_value(arguments) {
-                    Ok(call) => call,
-                    Err(error) => return tool_error_result_for(error),
-                };
-                let output_schema = executor.definition().output_schema;
-                validate_tool_call_result(
-                    name,
-                    output_schema.as_deref(),
-                    block_on_tool_future(executor.call(call)),
-                )
-            },
-            None => tool_error_result_for(McpToolError::UnknownTool {
-                name: name.to_string(),
-            }),
-        }
+        self.tools.call_tool(name, arguments)
+    }
+
+    /// Asynchronously calls a registered tool and converts validation or
+    /// handler failures into a protocol-level tool result.
+    pub async fn call_tool_async(&self, name: &str, arguments: Option<Value>) -> ToolCallResult {
+        self.tools.call_tool_async(name, arguments).await
     }
 
     /// Serve this server over stdin/stdout using the MCP stdio transport.
@@ -567,7 +748,7 @@ impl ServerHandler for McpServer {
     }
 
     fn get_tool(&self, name: &str) -> Option<Tool> {
-        self.tools.get(name).map(|executor| executor.definition())
+        self.tools.definition(name)
     }
 
     fn call_tool(
@@ -577,19 +758,16 @@ impl ServerHandler for McpServer {
     ) -> impl Future<Output = Result<CallToolResponse, ErrorData>> + MaybeSendFuture + '_ {
         let name = request.name.to_string();
         let call = McpToolCall::new(request.arguments.unwrap_or_default());
-        let call = match self.tools.get(&name) {
-            Some(executor) => {
-                let output_schema = executor.definition().output_schema;
+        let call = match self.tools.resolve_tool(&name, call) {
+            Ok((definition, call)) => {
+                let output_schema = definition.output_schema;
                 let name = name.clone();
-                let call = executor.call(call);
                 Box::pin(async move {
                     validate_tool_call_result(&name, output_schema.as_deref(), call.await)
                 }) as ToolFuture
             },
-            None => {
-                let result = tool_error_result_for(McpToolError::UnknownTool {
-                    name: name.to_string(),
-                });
+            Err(error) => {
+                let result = tool_error_result_for(error);
                 Box::pin(std::future::ready(result))
             },
         };

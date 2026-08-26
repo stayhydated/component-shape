@@ -1,7 +1,7 @@
 # Getting started
 
-Use Rust 1.96 or newer, then add the narrowest crate that owns your integration.
-All three crates use edition 2024.
+Use Rust 1.98 or newer, then add the narrowest crate that owns your integration.
+All crates use edition 2024.
 
 ## Framework-neutral metadata
 

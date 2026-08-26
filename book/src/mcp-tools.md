@@ -12,11 +12,7 @@ struct SearchArgs {
     page_size: Option<u32>,
 }
 
-let mut server = component_shape_mcp::McpServer::builder(
-    "search-server",
-    env!("CARGO_PKG_VERSION"),
-)
-.build()?;
+let mut tools = component_shape_mcp::McpToolRegistry::new();
 
 let tool = component_shape_mcp::tool_definition_for_input::<SearchArgs>(
     "search",
@@ -25,11 +21,17 @@ let tool = component_shape_mcp::tool_definition_for_input::<SearchArgs>(
     None,
 )?;
 
-server.add_typed_tool(tool, |args: SearchArgs| {
+tools.add_typed_tool(tool, |args: SearchArgs| {
     component_shape_mcp::tool_structured_result(
         component_shape_mcp::serde_json::json!({ "query": args.query }),
     )
 })?;
+
+let server = component_shape_mcp::McpServer::from_tool_registry(
+    "search-server",
+    env!("CARGO_PKG_VERSION"),
+    tools,
+);
 ```
 
 Use the async registration methods when the handler returns a future. Use an

@@ -1,6 +1,6 @@
 ---
 name: use-component-shape-mcp
-description: "Add, review, refactor, or document component-shape-mcp integrations. Use for typed JSON Schema, strict MCP argument decoding, tool definitions and metadata, sync or async handlers, structured results, server composition, validation metadata, resources, prompts, stdio serving, or process-level smoke tests."
+description: "Add, review, refactor, or document component-shape-mcp integrations. Use for typed JSON Schema, strict MCP argument decoding, tool definitions and metadata, shared tool registries, sync or async handlers, structured results, server composition, validation metadata, resources, prompts, stdio serving, or process-level smoke tests."
 ---
 
 # Use component shape MCP
@@ -74,6 +74,11 @@ Return `structured_content` matching a declared output schema on success. Use
 clients can inspect without parsing display text.
 
 ## Compose and serve
+
+Use `McpToolRegistry` when tool definitions and handlers are assembled
+independently from a server. Clone the registry to share handler allocations
+and install it in `McpServer::from_tool_registry`. Keep resources, prompts,
+server identity, and transport lifecycle in `McpServer`.
 
 Use `McpServer::builder(name, version)` to combine generated registrars,
 custom tools, resources, templates, and prompts. Propagate duplicate-name and

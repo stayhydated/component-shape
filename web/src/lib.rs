@@ -3,7 +3,7 @@ use stayhydated_dioxus::{Project, ProjectSite, StayhydatedSinglePageProjectApp};
 
 const PROJECT: Project = Project::new(
     "component-shape",
-    "Framework-neutral component metadata, GPUI contracts, and MCP integration for Rust.",
+    "Framework-neutral component metadata, GPUI contracts, and shared MCP integrations for Rust.",
 )
 .with_skill_command("npx skills add stayhydated/component-shape");
 const SITE_URL: &str = "https://stayhydated.github.io/component-shape/";

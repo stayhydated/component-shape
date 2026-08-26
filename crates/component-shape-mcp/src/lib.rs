@@ -1,4 +1,5 @@
-//! Shared MCP schema helpers and `rmcp` server glue for component-shape integrations.
+//! Shared MCP schemas, tool registries, and `rmcp` server glue for
+//! component-shape integrations.
 //!
 //! This crate owns protocol-level building blocks, schema-paired value
 //! decoding, and common validation metadata/error helpers. Domain integrations

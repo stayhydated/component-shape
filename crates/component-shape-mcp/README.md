@@ -1,7 +1,8 @@
 # component-shape-mcp
 
-Typed JSON Schema, strict argument decoding, tool definitions, structured
-results, composed servers, and stdio support for Rust MCP integrations.
+Typed JSON Schema, strict argument decoding, shared tool registries,
+structured results, composed servers, and stdio support for Rust MCP
+integrations.
 
 Most component authors should start with
 [`component-shape`](https://docs.rs/component-shape/) or
@@ -19,6 +20,13 @@ component-shape-mcp = "0.2"
 The default features include the `McpJsonSchema` and `McpToolInput` derives.
 Disable default features when an integration only consumes coarse `McpInput`
 metadata or implements its schema contracts manually.
+
+Register reusable definitions and handlers in `McpToolRegistry`. Install that
+registry in `McpServer::from_tool_registry` when the application builds its MCP
+tool surface independently. Registry clones share handler allocations. MCP
+servers retain the registry for their host lifetime. Individual tool
+completion never implies shutdown; a host that wants one request terminates
+explicitly after receiving its result.
 
 ## Learn more
 

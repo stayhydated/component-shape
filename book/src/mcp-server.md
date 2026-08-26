@@ -5,6 +5,11 @@ tools, resources, resource templates, and prompts. Duplicate tool names,
 resource URIs, and prompt names fail registration instead of silently replacing
 an existing entry.
 
+`McpToolRegistry` owns reusable MCP definitions and handlers. Use
+`McpServer::from_tool_registry` when the application builds that tool surface
+independently. Registry clones share handler allocations, while each server
+retains its own identity, resources, prompts, and transport lifecycle.
+
 ## Compose registrations
 
 Start with `McpServer::builder(name, version)`. Chain generated registrars
@@ -27,7 +32,10 @@ I/O.
 - Call `serve_stdio_blocking()` at a synchronous binary boundary.
 
 The stdio server uses newline-delimited JSON-RPC and delegates MCP lifecycle
-handling to `rmcp`.
+handling to `rmcp`. Treat it as a long-lived host: the registry and stateful
+handlers remain alive across calls until EOF, cancellation, or another
+application-owned shutdown signal ends the transport. Serving one call and
+then stopping is an explicit host policy.
 
 ## Smoke-test a binary
 

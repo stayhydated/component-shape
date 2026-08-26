@@ -1086,6 +1086,40 @@ fn server_handles_direct_tools_call() {
 }
 
 #[test]
+fn tool_registry_supports_direct_and_server_calls() {
+    let mut tools = super::McpToolRegistry::new();
+    tools
+        .add_tool(
+            super::tool_definition(
+                "echo",
+                None,
+                None,
+                schema(json!({ "type": "object" })),
+                None,
+            )
+            .expect("tool definition should build"),
+            |call| super::tool_structured_result(Value::Object(call.into_arguments().into_inner())),
+        )
+        .expect("tool should register");
+
+    let direct = tools.call_tool("echo", Some(json!({ "source": "registry" })));
+    let server = McpServer::from_tool_registry("test-server", "0.0.0", tools.clone());
+    let protocol = server.call_tool("echo", Some(json!({ "source": "server" })));
+
+    assert_eq!(tools.tool_count(), 1);
+    assert_eq!(server.tool_registry().tool_count(), 1);
+    assert_eq!(
+        direct.structured_content.expect("structured")["source"],
+        "registry"
+    );
+    assert_eq!(
+        protocol.structured_content.expect("structured")["source"],
+        "server"
+    );
+    assert_eq!(server.into_tool_registry().tool_count(), 1);
+}
+
+#[test]
 fn server_handles_async_tools_call() {
     let mut server = McpServer::new("test-server", "0.0.0");
     server

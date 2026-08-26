@@ -14,8 +14,8 @@ and MCP integrations.
 - [`component-shape-gpui`](https://docs.rs/component-shape-gpui/) adds GPUI
   declaration macros, render contracts, configured builders, and value binding.
 - [`component-shape-mcp`](https://docs.rs/component-shape-mcp/) adds typed JSON
-  Schema, strict argument decoding, MCP tools, composed servers, and stdio
-  support.
+  Schema, strict argument decoding, shared tool registries, composed MCP
+  servers, and stdio support.
 
 Follow the [user guide](https://stayhydated.github.io/component-shape/book/) to
 choose and combine these contracts.

@@ -16,8 +16,8 @@ Start here:
 
 - Framework-neutral component metadata: `crates/component-shape`.
 - GPUI component contracts and public macros: `crates/component-shape-gpui`.
-- MCP schema, typed tool input, server, resource, prompt, and stdio helpers:
-  `crates/component-shape-mcp`.
+- MCP schema, typed tool input, shared tool registry, server, resource, prompt,
+  and stdio helpers: `crates/component-shape-mcp`.
 - User documentation sources and generated Pages application: `book/` and
   `web/`.
 - Book, llms.txt, Pages build, preview, and release commands: `xtask/`.
@@ -119,10 +119,10 @@ diagnostic text changes:
 
 - `crates/component-shape-mcp`
   Audience: **User-facing**
-  Role: MCP schema, typed decoding, tool metadata, validation metadata,
-  structured result, server, resource, prompt, stdio serving, and smoke-client
-  helpers for integrations that consume `McpInput` metadata. Its README is the
-  current user-facing guide for this surface.
+  Role: MCP schema, typed decoding, tool metadata, validation metadata, shared
+  tool registries, structured result, server, resource, prompt, stdio serving,
+  and smoke-client helpers for integrations that consume `McpInput` metadata.
+  Its README is the current user-facing guide for this surface.
 
 ### Public Integration Crates
 
