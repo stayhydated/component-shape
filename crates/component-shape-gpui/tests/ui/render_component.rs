@@ -9,7 +9,7 @@ use component_shape_gpui::{
 pub struct InputState<T>(PhantomData<T>);
 
 impl<T> InputState<T> {
-    fn new(_window: &mut gpui::Window, _cx: &mut gpui::Context<'_, Self>) -> Self {
+    fn new(_window: &mut gpui_kit::Window, _cx: &mut gpui_kit::Context<'_, Self>) -> Self {
         Self(PhantomData)
     }
 }
@@ -17,8 +17,8 @@ impl<T> InputState<T> {
 pub struct GenericInput<T>(PhantomData<T>);
 
 impl<T> GenericInput<InputState<T>> {
-    pub fn new(_entity: &gpui::Entity<InputState<T>>) -> impl gpui::IntoElement {
-        gpui::div()
+    pub fn new(_entity: &gpui_kit::Entity<InputState<T>>) -> impl gpui_kit::IntoElement {
+        gpui_kit::div()
     }
 }
 

@@ -13,10 +13,10 @@ repository.workspace = true
 [dependencies]
 component-shape = { workspace = true }
 component-shape-gpui-macros = { workspace = true }
-gpui = { workspace = true }
+gpui-kit = { workspace = true }
 
 [dev-dependencies]
-gpui = { features = [ "test-support" ], workspace = true }
+gpui-kit = { features = [ "test-support" ], workspace = true }
 trybuild = { workspace = true }
 
 [lints]

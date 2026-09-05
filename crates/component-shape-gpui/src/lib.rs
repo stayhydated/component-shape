@@ -23,7 +23,7 @@ pub trait GpuiComponentRender<State: 'static>: 'static {
     const RENDERS: bool;
 
     /// Build a render component from the generated form field entity.
-    fn new(entity: &gpui::Entity<State>) -> impl gpui::IntoElement;
+    fn new(entity: &gpui_kit::Entity<State>) -> impl gpui_kit::IntoElement;
 }
 
 /// Marker render contract for shapes that do not publish render metadata.
@@ -33,8 +33,8 @@ pub struct NoGpuiRenderComponent;
 impl<State: 'static> GpuiComponentRender<State> for NoGpuiRenderComponent {
     const RENDERS: bool = false;
 
-    fn new(_entity: &gpui::Entity<State>) -> impl gpui::IntoElement {
-        gpui::div()
+    fn new(_entity: &gpui_kit::Entity<State>) -> impl gpui_kit::IntoElement {
+        gpui_kit::div()
     }
 }
 
@@ -47,7 +47,10 @@ pub trait GpuiComponentShape: ComponentShapeMetadata {
     type RenderComponent: GpuiComponentRender<Self::State>;
 
     /// Build the component state.
-    fn new(window: &mut gpui::Window, cx: &mut gpui::Context<'_, Self::State>) -> Self::State;
+    fn new(
+        window: &mut gpui_kit::Window,
+        cx: &mut gpui_kit::Context<'_, Self::State>,
+    ) -> Self::State;
 }
 
 /// Configured builder for a GPUI component shape.
@@ -60,8 +63,8 @@ pub trait GpuiComponentShapeBuilder<Shape: GpuiComponentShape> {
     /// Build the configured component state.
     fn build(
         self,
-        window: &mut gpui::Window,
-        cx: &mut gpui::Context<'_, Shape::State>,
+        window: &mut gpui_kit::Window,
+        cx: &mut gpui_kit::Context<'_, Shape::State>,
     ) -> Shape::State;
 }
 
@@ -82,8 +85,8 @@ where
 {
     fn build(
         self,
-        window: &mut gpui::Window,
-        cx: &mut gpui::Context<'_, Shape::State>,
+        window: &mut gpui_kit::Window,
+        cx: &mut gpui_kit::Context<'_, Shape::State>,
     ) -> Shape::State {
         Shape::new(window, cx)
     }
@@ -114,7 +117,7 @@ pub trait GpuiComponentShapeFor<Value>: GpuiComponentShape + ComponentShapeFor<V
 )]
 pub trait GpuiComponentValueBinding<Value>: GpuiComponentShape
 where
-    Self::State: gpui::EventEmitter<Self::Event>,
+    Self::State: gpui_kit::EventEmitter<Self::Event>,
 {
     /// Event emitted by the component state.
     type Event: 'static;
@@ -123,8 +126,8 @@ where
     fn seed_value_binding_state(
         _state: &mut Self::State,
         _value: Option<&Value>,
-        _window: &mut gpui::Window,
-        _cx: &mut gpui::Context<'_, Self::State>,
+        _window: &mut gpui_kit::Window,
+        _cx: &mut gpui_kit::Context<'_, Self::State>,
     ) {
     }
 
@@ -137,7 +140,7 @@ where
     message = "GPUI component state `{Self}` does not implement value binding for `{Value}`",
     note = "implement `GpuiComponentStateValueBinding<T>` for the backing state"
 )]
-pub trait GpuiComponentStateValueBinding<Value>: gpui::EventEmitter<Self::Event> {
+pub trait GpuiComponentStateValueBinding<Value>: gpui_kit::EventEmitter<Self::Event> {
     /// Event emitted by the backing component state.
     type Event: 'static;
 
@@ -145,8 +148,8 @@ pub trait GpuiComponentStateValueBinding<Value>: gpui::EventEmitter<Self::Event>
     fn seed_value_binding_state(
         _state: &mut Self,
         _value: Option<&Value>,
-        _window: &mut gpui::Window,
-        _cx: &mut gpui::Context<'_, Self>,
+        _window: &mut gpui_kit::Window,
+        _cx: &mut gpui_kit::Context<'_, Self>,
     ) where
         Self: Sized,
     {
@@ -165,8 +168,8 @@ pub type GpuiComponentEventOf<Shape, Value> = <Shape as GpuiComponentValueBindin
 /// Build component state from a configured shape builder.
 pub fn build_component_shape<Shape, Builder>(
     builder: Builder,
-    window: &mut gpui::Window,
-    cx: &mut gpui::Context<'_, GpuiComponentStateOf<Shape>>,
+    window: &mut gpui_kit::Window,
+    cx: &mut gpui_kit::Context<'_, GpuiComponentStateOf<Shape>>,
 ) -> GpuiComponentStateOf<Shape>
 where
     Shape: GpuiComponentShape,
@@ -180,11 +183,11 @@ where
 pub fn seed_value_binding_state<Shape, Value>(
     state: &mut GpuiComponentStateOf<Shape>,
     value: Option<&Value>,
-    window: &mut gpui::Window,
-    cx: &mut gpui::Context<'_, GpuiComponentStateOf<Shape>>,
+    window: &mut gpui_kit::Window,
+    cx: &mut gpui_kit::Context<'_, GpuiComponentStateOf<Shape>>,
 ) where
     Shape: GpuiComponentValueBinding<Value>,
-    GpuiComponentStateOf<Shape>: gpui::EventEmitter<GpuiComponentEventOf<Shape, Value>>,
+    GpuiComponentStateOf<Shape>: gpui_kit::EventEmitter<GpuiComponentEventOf<Shape, Value>>,
 {
     Shape::seed_value_binding_state(state, value, window, cx);
 }
@@ -197,7 +200,7 @@ pub fn value_change<Shape, Value>(
 ) -> ValueChange<Value>
 where
     Shape: GpuiComponentValueBinding<Value>,
-    GpuiComponentStateOf<Shape>: gpui::EventEmitter<GpuiComponentEventOf<Shape, Value>>,
+    GpuiComponentStateOf<Shape>: gpui_kit::EventEmitter<GpuiComponentEventOf<Shape, Value>>,
 {
     Shape::value_change(state, event)
 }
@@ -216,19 +219,19 @@ mod tests {
         value: Option<u32>,
     }
 
-    impl gpui::Render for TestState {
+    impl gpui_kit::Render for TestState {
         fn render(
             &mut self,
-            _window: &mut gpui::Window,
-            _cx: &mut gpui::Context<'_, Self>,
-        ) -> impl gpui::IntoElement {
-            gpui::div()
+            _window: &mut gpui_kit::Window,
+            _cx: &mut gpui_kit::Context<'_, Self>,
+        ) -> impl gpui_kit::IntoElement {
+            gpui_kit::div()
         }
     }
 
     struct TestEvent(Option<u32>);
 
-    impl gpui::EventEmitter<TestEvent> for TestState {}
+    impl gpui_kit::EventEmitter<TestEvent> for TestState {}
 
     struct TestShape;
 
@@ -239,8 +242,8 @@ mod tests {
         type RenderComponent = NoGpuiRenderComponent;
 
         fn new(
-            _window: &mut gpui::Window,
-            _cx: &mut gpui::Context<'_, Self::State>,
+            _window: &mut gpui_kit::Window,
+            _cx: &mut gpui_kit::Context<'_, Self::State>,
         ) -> Self::State {
             TestState { value: Some(1) }
         }
@@ -273,8 +276,8 @@ mod tests {
     impl GpuiComponentShapeBuilder<TestShape> for ConfiguredBuilder {
         fn build(
             self,
-            _window: &mut gpui::Window,
-            _cx: &mut gpui::Context<'_, TestState>,
+            _window: &mut gpui_kit::Window,
+            _cx: &mut gpui_kit::Context<'_, TestState>,
         ) -> TestState {
             TestState {
                 value: Some(self.0),
@@ -295,7 +298,7 @@ mod tests {
 
     #[test]
     fn runtime_helpers_dispatch_through_shape_contracts() {
-        let mut app = gpui::TestApp::new();
+        let mut app = gpui_kit::TestApp::new();
         let mut window = app.open_window(|window, cx| {
             build_component_shape::<TestShape, _>(
                 DefaultGpuiComponentShapeBuilder::new(),

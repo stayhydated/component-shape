@@ -21,7 +21,7 @@ pub enum Alias {
 /// A single item to be imported into generated code.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ImportItem {
-    /// Full path to the imported item, e.g. `"gpui::Render"`.
+    /// Full path to the imported item, e.g. `"gpui_kit::Render"`.
     pub path: &'static str,
     /// Optional alias applied to the import.
     pub alias: Option<Alias>,
@@ -139,38 +139,41 @@ mod tests {
     #[test]
     fn deduplicates_imports() {
         let mut imports = ImportSet::default();
-        imports.add(ImportItem::path("gpui::Render"));
-        imports.add(ImportItem::path("gpui::Render"));
+        imports.add(ImportItem::path("gpui_kit::Render"));
+        imports.add(ImportItem::path("gpui_kit::Render"));
 
-        assert_eq!(compact(imports.to_token_stream()), "usegpui::Render;");
+        assert_eq!(compact(imports.to_token_stream()), "usegpui_kit::Render;");
     }
 
     #[test]
     fn groups_deterministically_by_parent_module() {
         let mut imports = ImportSet::default();
-        imports.add(ImportItem::path("gpui_component::table::DataTable"));
-        imports.add(ImportItem::path("gpui::Window"));
-        imports.add(ImportItem::path("gpui::App"));
-        imports.add(ImportItem::path("gpui_component::table::TableState"));
+        imports.add(ImportItem::path("gpui_kit::component::table::DataTable"));
+        imports.add(ImportItem::path("gpui_kit::Window"));
+        imports.add(ImportItem::path("gpui_kit::App"));
+        imports.add(ImportItem::path("gpui_kit::component::table::TableState"));
 
         assert_eq!(
             compact(imports.to_token_stream()),
-            "usegpui::{App,Window};usegpui_component::table::{DataTable,TableState};"
+            "usegpui_kit::{App,Window};usegpui_kit::component::table::{DataTable,TableState};"
         );
     }
 
     #[test]
     fn renders_anonymous_and_rename_aliases() {
         let mut imports = ImportSet::default();
-        imports.add(ImportItem::aliased("gpui::ParentElement", Alias::Anonymous));
         imports.add(ImportItem::aliased(
-            "gpui::AppContext",
+            "gpui_kit::ParentElement",
+            Alias::Anonymous,
+        ));
+        imports.add(ImportItem::aliased(
+            "gpui_kit::AppContext",
             Alias::Rename("GpuiAppContext"),
         ));
 
         assert_eq!(
             compact(imports.to_token_stream()),
-            "usegpui::{AppContextasGpuiAppContext,ParentElementas_};"
+            "usegpui_kit::{AppContextasGpuiAppContext,ParentElementas_};"
         );
     }
 
@@ -178,15 +181,15 @@ mod tests {
     fn skips_bare_imports() {
         let mut imports = ImportSet::default();
         imports.add(ImportItem::path("AlreadyInScope"));
-        imports.add(ImportItem::path("gpui::Render"));
+        imports.add(ImportItem::path("gpui_kit::Render"));
 
-        assert_eq!(compact(imports.to_token_stream()), "usegpui::Render;");
+        assert_eq!(compact(imports.to_token_stream()), "usegpui_kit::Render;");
     }
 
     #[test]
     fn reports_invalid_parent_path() {
         let mut imports = ImportSet::default();
-        imports.add(ImportItem::path("gpui::123::Render"));
+        imports.add(ImportItem::path("gpui_kit::123::Render"));
 
         let error = imports
             .try_to_token_stream()
@@ -195,7 +198,7 @@ mod tests {
         assert!(
             error
                 .to_string()
-                .contains("invalid import parent path `gpui::123`"),
+                .contains("invalid import parent path `gpui_kit::123`"),
             "unexpected error: {error}"
         );
     }
@@ -204,14 +207,14 @@ mod tests {
     fn extends_imports_from_slices_and_iterators() {
         let mut imports = ImportSet::default();
         imports.extend_items(&[
-            ImportItem::path("gpui::App"),
-            ImportItem::path("gpui::Window"),
+            ImportItem::path("gpui_kit::App"),
+            ImportItem::path("gpui_kit::Window"),
         ]);
-        imports.extend([ImportItem::path("gpui::Context")]);
+        imports.extend([ImportItem::path("gpui_kit::Context")]);
 
         assert_eq!(
             compact(imports.to_token_stream()),
-            "usegpui::{App,Context,Window};"
+            "usegpui_kit::{App,Context,Window};"
         );
     }
 }

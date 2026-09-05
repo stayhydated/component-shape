@@ -19,12 +19,13 @@ Implement `ComponentShapeMetadata` on a shape type. Add
 ```toml
 [dependencies]
 component-shape-gpui = "0.2"
+gpui-kit = "0.6.0"
 ```
 
-The GPUI crate re-exports the shared framework-neutral traits. Align the
-application's `gpui` source and version with `component-shape-gpui`, then
-choose the derive for an owned component or `component_shape!` for a local
-wrapper around external types. Continue with [GPUI shapes](gpui-shapes.md).
+The GPUI crate re-exports the shared framework-neutral traits and uses the
+`gpui-kit` facade for GPUI types and components. Choose the derive for an owned
+component or `component_shape!` for a local wrapper around external types.
+Continue with [GPUI shapes](gpui-shapes.md).
 
 ## MCP integrations
 

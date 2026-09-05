@@ -8,7 +8,7 @@ pub struct SelectState {
 }
 
 impl SelectState {
-    fn new(_window: &mut gpui::Window, _cx: &mut gpui::Context<'_, Self>) -> Self {
+    fn new(_window: &mut gpui_kit::Window, _cx: &mut gpui_kit::Context<'_, Self>) -> Self {
         Self { searchable: false }
     }
 }
@@ -37,8 +37,8 @@ impl SelectShape {
 impl GpuiComponentShapeBuilder<SelectShape> for SelectArgs {
     fn build(
         self,
-        _window: &mut gpui::Window,
-        _cx: &mut gpui::Context<'_, SelectState>,
+        _window: &mut gpui_kit::Window,
+        _cx: &mut gpui_kit::Context<'_, SelectState>,
     ) -> SelectState {
         SelectState {
             searchable: self.searchable,
@@ -47,8 +47,8 @@ impl GpuiComponentShapeBuilder<SelectShape> for SelectArgs {
 }
 
 fn default_select(
-    window: &mut gpui::Window,
-    cx: &mut gpui::Context<'_, <SelectShape as GpuiComponentShape>::State>,
+    window: &mut gpui_kit::Window,
+    cx: &mut gpui_kit::Context<'_, <SelectShape as GpuiComponentShape>::State>,
 ) -> SelectState {
     build_component_shape::<SelectShape, _>(
         DefaultGpuiComponentShapeBuilder::<SelectShape>::new(),
@@ -58,15 +58,15 @@ fn default_select(
 }
 
 fn searchable_select(
-    window: &mut gpui::Window,
-    cx: &mut gpui::Context<'_, <SelectShape as GpuiComponentShape>::State>,
+    window: &mut gpui_kit::Window,
+    cx: &mut gpui_kit::Context<'_, <SelectShape as GpuiComponentShape>::State>,
 ) -> SelectState {
     build_component_shape::<SelectShape, _>(SelectShape::searchable(true), window, cx)
 }
 
 fn configured_select(
-    window: &mut gpui::Window,
-    cx: &mut gpui::Context<'_, <SelectShape as GpuiComponentShape>::State>,
+    window: &mut gpui_kit::Window,
+    cx: &mut gpui_kit::Context<'_, <SelectShape as GpuiComponentShape>::State>,
 ) -> SelectState {
     build_component_shape::<SelectShape, _>(
         SelectShape::from(SelectArgs { searchable: true }),

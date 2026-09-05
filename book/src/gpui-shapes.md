@@ -15,8 +15,8 @@ pub struct TextInputState;
 
 impl TextInputState {
     pub fn new(
-        _window: &mut gpui::Window,
-        _cx: &mut gpui::Context<'_, Self>,
+        _window: &mut gpui_kit::Window,
+        _cx: &mut gpui_kit::Context<'_, Self>,
     ) -> Self {
         Self
     }
@@ -27,8 +27,8 @@ impl TextInputState {
 pub struct TextInput;
 
 impl TextInput {
-    pub fn new(_state: &gpui::Entity<TextInputState>) -> impl gpui::IntoElement {
-        gpui::div()
+    pub fn new(_state: &gpui_kit::Entity<TextInputState>) -> impl gpui_kit::IntoElement {
+        gpui_kit::div()
     }
 }
 ```
@@ -46,8 +46,8 @@ orphan-rule conflicts.
 ```rust
 component_shape_gpui::component_shape! {
     pub struct EmailInputShape {
-        state = gpui_component::input::InputState;
-        component = gpui_component::input::Input;
+        state = gpui_kit::component::input::InputState;
+        component = gpui_kit::component::input::Input;
         value = String;
         field_suffix = "input";
     }

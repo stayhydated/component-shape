@@ -32,7 +32,7 @@ component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.2.0" }
 component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.2.0" }
 derive_more = "2.1"
 dioxus = { default-features = false, version = "0.7" }
-gpui = { branch = "linux-headless-renderer", git = "https://github.com/stayhydated/zed", version = "0.2.2" }
+gpui-kit = "0.6.0"
 heck = "0.5"
 prettyplease = "0.3"
 proc-macro-crate = "3.5"

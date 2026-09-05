@@ -48,8 +48,8 @@ For external types:
 ```rust
 component_shape_gpui::component_shape! {
     pub struct EmailInputShape {
-        state = gpui_component::input::InputState;
-        component = gpui_component::input::Input;
+        state = gpui_kit::component::input::InputState;
+        component = gpui_kit::component::input::Input;
         value = String;
         field_suffix = "input";
     }

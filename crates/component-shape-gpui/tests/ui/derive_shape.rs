@@ -7,7 +7,7 @@ use component_shape_gpui::{
 pub struct InferredInputState;
 
 impl InferredInputState {
-    fn new(_window: &mut gpui::Window, _cx: &mut gpui::Context<'_, Self>) -> Self {
+    fn new(_window: &mut gpui_kit::Window, _cx: &mut gpui_kit::Context<'_, Self>) -> Self {
         Self
     }
 }
@@ -17,7 +17,7 @@ pub enum InputEvent {
     Change(String),
 }
 
-impl gpui::EventEmitter<InputEvent> for InferredInputState {}
+impl gpui_kit::EventEmitter<InputEvent> for InferredInputState {}
 
 impl GpuiComponentStateValueBinding<String> for InferredInputState {
     type Event = InputEvent;
@@ -38,8 +38,8 @@ impl GpuiComponentStateValueBinding<String> for InferredInputState {
 pub struct InferredInput;
 
 impl InferredInput {
-    pub fn new(_entity: &gpui::Entity<InferredInputState>) -> impl gpui::IntoElement {
-        gpui::div()
+    pub fn new(_entity: &gpui_kit::Entity<InferredInputState>) -> impl gpui_kit::IntoElement {
+        gpui_kit::div()
     }
 }
 

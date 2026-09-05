@@ -15,7 +15,7 @@ impl CratePaths {
         Self {
             component_shape: component_shape_gpui.clone(),
             component_shape_gpui,
-            gpui: resolve_crate_path("gpui", "::gpui"),
+            gpui: resolve_crate_path("gpui-kit", "::gpui_kit"),
         }
     }
 }

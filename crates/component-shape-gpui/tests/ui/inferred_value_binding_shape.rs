@@ -6,7 +6,7 @@ use component_shape_gpui::{
 pub struct InputState;
 
 impl InputState {
-    fn new(_window: &mut gpui::Window, _cx: &mut gpui::Context<'_, Self>) -> Self {
+    fn new(_window: &mut gpui_kit::Window, _cx: &mut gpui_kit::Context<'_, Self>) -> Self {
         Self
     }
 }
@@ -16,7 +16,7 @@ pub enum InputEvent {
     Change(String),
 }
 
-impl gpui::EventEmitter<InputEvent> for InputState {}
+impl gpui_kit::EventEmitter<InputEvent> for InputState {}
 
 component_shape! {
     pub struct InputShape {
