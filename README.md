@@ -2,6 +2,8 @@
 
 [![Build Status](https://github.com/stayhydated/component-shape/actions/workflows/ci.yml/badge.svg)](https://github.com/stayhydated/component-shape/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/github/stayhydated/component-shape/graph/badge.svg?token=34CV04UOU1)](https://codecov.io/github/stayhydated/component-shape)
+[![Book](https://img.shields.io/badge/docs-book-black)](https://stayhydated.github.io/component-shape/book/)
+[![Crates.io](https://img.shields.io/crates/v/component-shape.svg)](https://crates.io/crates/component-shape)
 
 Rust contracts for describing UI components to frameworks, code generators,
 and MCP integrations.
