@@ -17,29 +17,29 @@ license = "MIT OR Apache-2.0"
 publish = true
 repository = "https://github.com/stayhydated/component-shape"
 rust-version = "1.98"
-version = "0.2.0"
+version = "0.3.0"
 
 [workspace.dependencies]
 anyhow = "1.0"
-attribute-dsl = { git = "https://github.com/stayhydated/attribute-dsl", rev = "503bebaa926e750005e80b03ee4a801052b79d47", version = "0.2.0" }
+attribute-dsl = "0.2.0"
 chrono = "0.4"
 clap = "4.6"
-component-shape = { path = "crates/component-shape", version = "0.2.0" }
-component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.2.0" }
-component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.2.0" }
-component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", version = "0.2.0" }
-component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.2.0" }
-component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.2.0" }
+component-shape = { path = "crates/component-shape", version = "0.3.0" }
+component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.3.0" }
+component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.3.0" }
+component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", version = "0.3.0" }
+component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.3.0" }
+component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.3.0" }
 derive_more = "2.1"
 dioxus = { default-features = false, version = "0.7" }
-gpui-kit = "0.6.0"
+gpui-kit = "0.6.1"
 heck = "0.5"
 prettyplease = "0.3"
 proc-macro-crate = "3.5"
 proc-macro2 = "1.0"
 quote = "1.0"
-rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "3.1" }
-rust_decimal = "1.42"
+rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "3.3" }
+rust_decimal = "1.43"
 serde = "1.0"
 serde_json = "1.0"
 stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "809946144fe13b04a57ba17677c4c699143f4786" }
