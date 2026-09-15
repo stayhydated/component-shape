@@ -1,9 +1,13 @@
 # Introduction
 
 `component-shape` lets Rust libraries describe a UI component once and expose
-the public contracts that frameworks, code generators, and MCP integrations
-need. Those contracts cover stable naming, value compatibility, runtime
-capabilities, render behavior, and structured model input.
+the public contracts that frameworks, code generators, and Model Context
+Protocol (MCP) integrations need. Those contracts cover naming, value
+compatibility, runtime capabilities, render behavior, and structured model input.
+
+A shape is a Rust type that describes a component. Its metadata lets a consumer
+choose compatible values and input formats; framework-specific traits add
+construction, rendering, and event handling.
 
 Choose the entry point that owns your task:
 

@@ -27,9 +27,10 @@ I/O.
 
 ## Choose a serving boundary
 
-- Call `build()?` when the caller owns the transport.
-- Call `serve_stdio().await` from an async application.
-- Call `serve_stdio_blocking()` at a synchronous binary boundary.
+- Call `build()?` on a builder to obtain an `McpServer` for your transport.
+- Call `serve_stdio().await` on a server or builder from an async application.
+- Call `serve_stdio_blocking()` at a synchronous binary boundary; it creates
+  its own Tokio runtime.
 
 The stdio server uses newline-delimited JSON-RPC and delegates MCP lifecycle
 handling to `rmcp`. Treat it as a long-lived host: the registry and stateful

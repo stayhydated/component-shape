@@ -1,17 +1,15 @@
 ---
 name: use-component-shape-gpui
-description: "Add, review, refactor, or document GPUI component shape declarations and runtime contracts. Use for component_shape_gpui::GpuiComponentShape, component_shape_gpui::component_shape!, declared-shape markers, render contracts, configured builders, value compatibility, value binding, inferred or explicit McpInput metadata, and GPUI macro syntax."
+description: "Add, review, or document GPUI component shapes with GpuiComponentShape or component_shape!. Covers construction, rendering, builders, value binding, and coarse MCP metadata; use downstream integration skills when consuming existing shapes in forms or tables."
 ---
 
 # Use component shape GPUI
 
 ## Route the task
 
-Use this skill for the `component-shape-gpui` public surface. Use
-`use-component-shape` for framework-neutral metadata and
-`use-component-shape-mcp` for typed schemas, decoding, tools, servers, and
-stdio. Use a downstream integration skill when a form or table framework is
-consuming an existing shape.
+Use this skill for the `component-shape-gpui` public surface. Shared metadata
+belongs in `component-shape`; typed schemas, decoding, and servers belong in
+`component-shape-mcp`. Use their dedicated skills when available.
 
 Inside this repository, read `AGENTS.md` first. Keep public runtime contracts
 in `crates/component-shape-gpui`, macro implementation in
@@ -36,6 +34,21 @@ For an owned component:
 pub struct TextInput;
 
 pub struct TextInputState;
+
+impl TextInputState {
+    pub fn new(
+        _window: &mut gpui_kit::Window,
+        _cx: &mut gpui_kit::Context<'_, Self>,
+    ) -> Self {
+        Self
+    }
+}
+
+impl TextInput {
+    pub fn new(_state: &gpui_kit::Entity<TextInputState>) -> impl gpui_kit::IntoElement {
+        gpui_kit::div()
+    }
+}
 ```
 
 The derive infers `TextInputState`. Set `state = path::State` for another
@@ -56,7 +69,8 @@ component_shape_gpui::component_shape! {
 }
 ```
 
-Omit `component = ...` for metadata-only shapes.
+Omit `component = ...` for a wrapper that needs state and metadata with
+`NoGpuiRenderComponent` as its render contract.
 
 ## Publish value behavior
 
@@ -88,8 +102,10 @@ richer wire schemas.
 
 ## Coordinate changes
 
-Update public rustdoc and focused trybuild fixtures when macro syntax,
-generated implementations, trait requirements, or diagnostics change. Update
+When editing this repository, update public rustdoc and focused trybuild
+fixtures when macro syntax, generated implementations, trait requirements, or
+diagnostics change. Update
 `.stderr` fixtures only for intentional diagnostics. Keep the GPUI book
 chapter and this skill aligned with public behavior; do not duplicate downstream
-form or table rules here.
+form or table rules here. In a consumer, validate the affected declaration and
+integration. For review requests, report needed changes without applying them.

@@ -9,6 +9,8 @@ Derive `GpuiComponentShape` when your crate owns the rendered component and
 its backing state:
 
 ```rust
+# extern crate component_shape_gpui;
+# extern crate gpui_kit;
 use component_shape_gpui::GpuiComponentShape;
 
 pub struct TextInputState;
@@ -44,6 +46,8 @@ crate. The local wrapper owns the generated implementations and avoids
 orphan-rule conflicts.
 
 ```rust
+# extern crate component_shape_gpui;
+# extern crate gpui_kit;
 component_shape_gpui::component_shape! {
     pub struct EmailInputShape {
         state = gpui_kit::component::input::InputState;
@@ -54,8 +58,8 @@ component_shape_gpui::component_shape! {
 }
 ```
 
-Omit `component = ...` for a metadata-only shape. That shape publishes no
-render component.
+Omit `component = ...` when the wrapper only needs state, construction, and
+metadata. It then uses `NoGpuiRenderComponent`, whose `RENDERS` value is `false`.
 
 ## Publish value and construction behavior
 

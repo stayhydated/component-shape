@@ -8,8 +8,9 @@ binding, or implement both `ComponentShapeFor<T>` and
 
 ## A consumer rejects a hand-written GPUI shape
 
-The consumer requires `DeclaredGpuiComponentShape`. Declare the shape with
-the derive or `component_shape!` so the trusted marker is generated.
+If the error names `DeclaredGpuiComponentShape`, the consumer requires a
+macro-declared shape. Use the derive or `component_shape!` so that marker is
+generated, then rerun the consumer's Cargo check.
 
 ## A derive cannot find component-shape-mcp
 

@@ -1,223 +1,67 @@
-# AGENTS.md
+# Working in component-shape
 
-This is the working guide for contributors and coding agents in the
-`component-shape` workspace.
+Start with `just --list` for repository commands. Use the owning crate's
+public rustdoc and tests to verify behavior before changing its documentation.
 
-Use it to decide:
+## Where changes belong
 
-1. which crate or surface owns a change,
-2. whether that surface is user-facing, public integration, reusable guidance,
-   or validation,
-3. which docs, skills, macro tests, and diagnostic expectations must change
-   together,
-4. which validation command should run before handoff.
+| Surface | Ownership |
+| --- | --- |
+| `crates/component-shape` | Public framework-neutral metadata, capabilities, suffixes, Rust syntax wrappers, coarse `McpInput`, and `ValueChange`. |
+| `crates/component-shape-gpui` | Public GPUI state, rendering, construction, value binding, and macro re-exports. |
+| `crates/component-shape-mcp` | Public schemas, strict decoding, tool registries, results, validation metadata, servers, resources, prompts, and stdio helpers. |
+| `crates/component-shape-codegen` | Shared generator contracts: paths, suffixes, `_` substitution, imports, spans, and emitted metadata. |
+| `crates/component-shape-gpui-macros` | GPUI declaration macro implementation; users enter through `component-shape-gpui`. |
+| `crates/component-shape-mcp-macros` | Schema and input derive implementation; users enter through the MCP crate's `derive` feature. |
+| `book/src` and `skills` | User workflows and reusable guidance for framework-neutral, GPUI, and MCP consumers. |
+| `web/src/lib.rs` | Pages project identity, destinations, and route manifest. |
+| `xtask/src/commands` | Shared book, llms.txt, Pages, preview, and release command integration. |
 
-Start here:
+Keep shared metadata independent of GPUI. GPUI crates depend on
+`component-shape`; the framework-neutral crate must not depend on GPUI.
+Protocol behavior belongs in the MCP crate; applications own authorization,
+domain validation execution, and handler policy.
 
-- Framework-neutral component metadata: `crates/component-shape`.
-- GPUI component contracts and public macros: `crates/component-shape-gpui`.
-- MCP schema, typed tool input, shared tool registry, server, resource, prompt,
-  and stdio helpers: `crates/component-shape-mcp`.
-- User documentation sources and generated Pages application: `book/` and
-  `web/`.
-- Book, llms.txt, Pages build, preview, and release commands: `xtask/`.
-- Repository command index: `justfile`; run `just --list` to inspect recipes.
+## What changes together
 
-## Project Summary
+- When a public trait, macro syntax, generated implementation, or runtime
+  behavior changes, update its rustdoc and the README, book chapter, and skill
+  that describe it. Check downstream macro consumers when shared codegen
+  changes paths, identifiers, `_` substitution, or metadata output.
+- GPUI compile contracts live in `crates/component-shape-gpui/tests/ui` and
+  are registered in `crates/component-shape-gpui/tests/trybuild.rs`. Keep
+  pass/fail fixtures aligned with changed syntax, generated implementations,
+  and trait requirements.
+- Preserve diagnostic spans and generated naming contracts in macro edits.
+  Regenerate `.stderr` files only for intentional diagnostic changes, then
+  inspect their diff.
+- MCP runtime contracts are exercised in
+  `crates/component-shape-mcp/src/tests`; schema and input expansion tests live
+  in `crates/component-shape-mcp-macros/src/tests.rs`. Pair schema and decoder
+  changes with their focused tests and affected MCP guidance.
+- Edit book and site sources, then regenerate their outputs through `xtask`.
+  Keep project destinations aligned with `web/src/lib.rs` and its route test.
+- Update this guide when ownership, synchronization, or validation routes
+  change. Keep implementation rationale near the owning code and tests.
 
-`component-shape` is a Rust workspace for framework-neutral component shape
-metadata, GPUI-specific component shape contracts, shared code generation
-helpers, and MCP integration helpers.
+## Validation
 
-Keep shared shape naming, capability, syntax, MCP input, and value-change
-concepts independent of GPUI. GPUI crates may depend on `component-shape`;
-`component-shape` must not depend on GPUI.
+Run the narrowest check that covers the change:
 
-## Quick Decision Flow
-
-Before editing, classify the change:
-
-1. **Find the surface in the workspace map.** Use its audience label to decide
-   the docs, tests, and validation that must move with the change.
-2. **Keep framework-neutral behavior in `crates/component-shape`.** Shared
-   metadata, suffix validation, syntax wrappers, `McpInput`, and value-change
-   primitives belong there.
-3. **Route GPUI public workflows through `crates/component-shape-gpui`.**
-   Macro implementation internals belong in `crates/component-shape-gpui-macros`.
-4. **Route MCP public workflows through `crates/component-shape-mcp`.** Schema
-   derives are implemented in `crates/component-shape-mcp-macros`; coarse
-   shape metadata still starts in `crates/component-shape`.
-5. **Sync public contracts.** When public API shape, macro syntax, generated
-   impls, diagnostics, MCP schema/server behavior, value binding, render
-   metadata, or documented usage changes, update the owning crate and any
-   rustdoc, README, reusable skill, or test surface that names or locks the
-   changed behavior.
-6. **Validate narrowly.** Run the smallest evidenced command that proves the
-   edited crate, macro, fixture, docs, or workflow surface.
-
-## Audience Labels
-
-- **User-facing**: normal entry points for application, framework, or
-  integration developers.
-- **Public integration**: crates meant for code generation, proc macros, or
-  deeper customization.
-- **Reusable guidance**: checked-in Codex skills that document public
-  component-shape workflows.
-- **Validation**: tests, compile fixtures, and diagnostic expectations.
-
-## Documentation And Sync
-
-Treat these surfaces as user-facing when they name public behavior:
-
-- `book/src/`,
-- `crates/component-shape-mcp/README.md`,
-- rustdoc on public traits, types, functions, and macros,
-- checked-in reusable skills under `skills/`,
-- the project identity and destinations under `web/src/site/`,
-- public examples or integration snippets inside tests.
-
-Keep implementation details close to the code, tests, fixtures, or rustdoc that
-prove the behavior. Use README and skill files for entry points, supported
-workflows, and public examples.
-
-When public component metadata, GPUI macro input syntax, generated output, trait
-contracts, value-binding behavior, render capability behavior, MCP tool
-metadata, schema or decoding behavior, server/resource/prompt behavior, or
-diagnostic text changes:
-
-1. Update the owning crate implementation.
-2. Update rustdoc, README, or `skills/` guidance when they name the changed
-   behavior.
-3. Update `crates/component-shape-codegen` when shared token generation, shape
-   path normalization, suffix derivation, `_`-type substitution, imports, or
-   MCP metadata token output changes.
-4. Update `trybuild` pass or compile-fail tests when GPUI macro behavior is
-   involved.
-5. Update `.stderr` fixtures only when the new diagnostic output is intentional.
-6. Update `AGENTS.md` when ownership, synchronization, or validation guidance
-   changes.
-
-## Workspace Map
-
-### User-Facing Crates
-
-- `crates/component-shape`
-  Audience: **User-facing**
-  Role: framework-neutral component shape metadata, capability flags,
-  component suffix validation, Rust syntax wrappers, `McpInput`, and normalized
-  value-change primitives. This crate owns shared contracts such as
-  `ComponentShapeMetadata`, `ComponentCapabilities`, `ComponentPrototyping`,
-  `ComponentSuffix`, `ComponentShapeFor`, and `ValueChange`.
-
-- `crates/component-shape-gpui`
-  Audience: **User-facing**
-  Role: GPUI runtime contracts and public macro re-exports. This is the normal
-  GPUI entry point for `GpuiComponentShape`, `GpuiComponentRender`,
-  `GpuiComponentShapeFor`, `GpuiComponentValueBinding`,
-  `GpuiComponentShapeBuilder`, the `GpuiComponentShape` derive, and the
-  `component_shape!` macro.
-
-- `crates/component-shape-mcp`
-  Audience: **User-facing**
-  Role: MCP schema, typed decoding, tool metadata, validation metadata, shared
-  tool registries, structured result, server, resource, prompt, stdio serving,
-  and smoke-client helpers for integrations that consume `McpInput` metadata.
-  Its README is the current user-facing guide for this surface.
-
-### Public Integration Crates
-
-- `crates/component-shape-codegen`
-  Audience: **Public integration**
-  Role: shared code generation helpers for component-shape consumers. It owns
-  token span rewriting, shape path normalization, suffix derivation,
-  `_`-type substitution, import helpers, documentation extraction, and MCP
-  metadata token helpers used by macro or generator crates.
-
-- `crates/component-shape-gpui-macros`
-  Audience: **Public integration**
-  Role: proc-macro implementation for GPUI shape declarations. Most users
-  should use the re-exports from `component-shape-gpui` instead of depending on
-  this crate directly.
-
-- `crates/component-shape-mcp-macros`
-  Audience: **Public integration**
-  Role: proc-macro implementation for `component-shape-mcp` schema and typed
-  input derives. Most users should use the `McpJsonSchema` and `McpToolInput`
-  derive re-exports from `component-shape-mcp` with the `derive` feature.
-
-### Validation And Reusable Guidance
-
-- `crates/component-shape-gpui/tests/ui`
-  Audience: **Validation**
-  Role: `trybuild` pass and compile-fail fixtures that lock GPUI macro
-  expansion behavior and diagnostic output.
-
-- `skills/use-component-shape`
-  Audience: **Reusable guidance**
-  Role: framework-neutral shape metadata guidance for Codex tasks involving
-  `ComponentShapeMetadata`, capabilities, suffixes, `McpInput`, value changes,
-  and generator-facing contracts.
-
-- `skills/use-component-shape-gpui`
-  Audience: **Reusable guidance**
-  Role: GPUI component shape declaration guidance for Codex tasks involving
-  `GpuiComponentShape`, `component_shape!`, render contracts, value binding,
-  and GPUI macro syntax.
-
-- `skills/use-component-shape-mcp`
-  Audience: **Reusable guidance**
-  Role: typed MCP schema, decoding, tool/server composition, validation,
-  resource, prompt, and stdio smoke-test guidance.
-
-### Documentation And Site
-
-- `book`
-  Audience: **User-facing**
-  Role: mdBook sources for framework-neutral, GPUI, and MCP workflows. Keep
-  examples aligned with public rustdoc, compile fixtures, and the MCP README.
-
-- `web`
-  Audience: **User-facing**
-  Role: demo-less single-page Dioxus portal for GitHub Pages. Project identity,
-  canonical destinations, route manifest, optional project stylesheet, and the
-  absence of a Demos destination are consumer-owned contracts.
-
-- `xtask`
-  Audience: **Public integration**
-  Role: repository commands that invoke shared book, llms.txt, Pages, static
-  preview, and release helpers. Generated outputs belong to these commands.
-
-## Validation And Editing Rules
-
-- Run the narrowest command that proves the edited behavior for the affected
-  crate, macro, fixture, docs, skill, or workspace surface.
-- Use `just check`, `just clippy`, `just test`, or a matching focused `cargo`
-  command when the change spans code surfaces.
-- Use `just cov` for local workspace coverage. CI publishes the matching
-  all-features, all-targets Cobertura report to Codecov.
-- Run `just test-publish` before handoff for public crate layout or
-  publishability-sensitive Cargo metadata changes.
-- For rustdoc changes, match CI with
-  `cargo doc --workspace --all-features --no-deps --locked`.
-- For book and llms.txt changes, run `cargo xtask build book` and
+- Crate behavior: `cargo test -p <crate> --all-features --locked`.
+- GPUI macro contracts:
+  `cargo test -p component-shape-gpui --test trybuild --locked`.
+  Use `TRYBUILD=overwrite` with that command only to regenerate intentional
+  diagnostic expectations.
+- Rustdoc: `cargo doc --workspace --all-features --no-deps --locked`.
+- Markdown: `rumdl check` with the edited files or directories.
+- Book and llms.txt: `cargo xtask build book` and
   `cargo xtask build llms-txt`.
-- For portal changes, run the focused `web` library test, `just web-build`, and
-  the stayhydated Pages consumer audit against `web/dist`.
-- Validate each checked-in skill with the skill-creator `quick_validate.py`.
-- CI runs docs, package dry-run, and coverage jobs from
-  `.github/workflows/ci.yml`.
-- If validation cannot run, state why and what remains unvalidated.
-- Do not claim a change works unless it was validated or the remaining risk is
-  explicitly documented.
+- Skills: run the skill-creator `quick_validate.py` on each edited skill.
+- Pages: `cargo test -p web --lib --locked`, `just web-build`, and the
+  stayhydated Pages consumer audit against `web/dist`.
+- Workspace-wide Rust changes: select `just check`, `just clippy`, or
+  `just test`. Use `just cov` for coverage work and `just test-publish` for
+  changes to public crate packaging.
 
-### When Editing Proc Macros, Codegen, Or Fixtures
-
-- Keep macro parsing errors specific and close to the offending syntax.
-- Preserve spans when generating diagnostics or transformed tokens.
-- Keep generated identifiers stable unless the public helper naming rule is
-  intentionally changing.
-- Add focused `trybuild` pass or compile-fail fixtures for new GPUI macro
-  success cases, failure cases, or diagnostics.
-- Use `TRYBUILD=overwrite cargo test -p component-shape-gpui --test trybuild`
-  only when intentionally regenerating `.stderr` expectations, then inspect the
-  `.stderr` diff before handoff.
+Report commands that passed separately from failed or unexecuted checks.

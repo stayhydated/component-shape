@@ -1,37 +1,29 @@
 # component-shape-mcp
 
+[![CI](https://github.com/stayhydated/component-shape/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/stayhydated/component-shape/actions/workflows/ci.yml)
+[![Codecov](https://codecov.io/gh/stayhydated/component-shape/branch/master/graph/badge.svg)](https://codecov.io/gh/stayhydated/component-shape)
+[![Book](https://img.shields.io/badge/book-online-blue)](https://stayhydated.github.io/component-shape/book/)
+[![crates.io](https://img.shields.io/crates/v/component-shape-mcp.svg)](https://crates.io/crates/component-shape-mcp)
+
 Typed JSON Schema, strict argument decoding, shared tool registries,
 structured results, composed servers, and stdio support for Rust MCP
 integrations.
 
-Most component authors should start with
-[`component-shape`](https://docs.rs/component-shape/) or
-[`component-shape-gpui`](https://docs.rs/component-shape-gpui/). Add this
-crate when an application needs to expose component metadata or typed Rust
-inputs through MCP.
+Use this crate to expose component metadata or typed Rust inputs through the
+Model Context Protocol (MCP). Applications own authorization, domain validation,
+and handler behavior.
 
-## Add the dependency
+## Pair schemas with handlers
 
-```toml
-[dependencies]
-component-shape-mcp = "0.2"
-```
+- Derive `McpToolInput` for named tool arguments with strict field decoding.
+- Use `McpJsonSchema` for nested schemas and `McpToolValue` for values that
+  pair a schema with a decoder.
+- Register typed handlers in `McpToolRegistry` and return structured results.
+- Compose tools, resources, and prompts in `McpServer`.
 
-The default features include the `McpJsonSchema` and `McpToolInput` derives.
-Disable default features when an integration only consumes coarse `McpInput`
-metadata or implements its schema contracts manually.
+## Reuse a tool registry
 
 Register reusable definitions and handlers in `McpToolRegistry`. Install that
 registry in `McpServer::from_tool_registry` when the application builds its MCP
 tool surface independently. Registry clones share handler allocations. MCP
-servers retain the registry for their host lifetime. Individual tool
-completion never implies shutdown; a host that wants one request terminates
-explicitly after receiving its result.
-
-## Learn more
-
-- [MCP integration guide](https://stayhydated.github.io/component-shape/book/mcp-integration.html)
-- [Schemas and decoding](https://stayhydated.github.io/component-shape/book/mcp-schemas.html)
-- [Tools and results](https://stayhydated.github.io/component-shape/book/mcp-tools.html)
-- [Servers and stdio](https://stayhydated.github.io/component-shape/book/mcp-server.html)
-- [API documentation](https://docs.rs/component-shape-mcp/)
+servers retain the registry across calls until the host shuts down.
