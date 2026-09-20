@@ -19,7 +19,7 @@ Implement `ComponentShapeMetadata` on a shape type. Add
 ```toml
 [dependencies]
 component-shape-gpui = "0.3"
-gpui-kit = "0.6.1"
+gpui-kit = "0.6.4"
 ```
 
 The GPUI crate re-exports the shared framework-neutral traits and uses the

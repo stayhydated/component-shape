@@ -32,7 +32,7 @@ component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.3.1" }
 component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.3.1" }
 derive_more = "2.1"
 dioxus = { default-features = false, version = "0.7" }
-gpui-kit = "0.6.1"
+gpui-kit = "0.6.4"
 heck = "0.5"
 prettyplease = "0.3"
 proc-macro-crate = "3.5"
@@ -42,9 +42,9 @@ rmcp = { default-features = false, features = [ "server", "transport-io" ], vers
 rust_decimal = "1.43"
 serde = "1.0"
 serde_json = "1.0"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "809946144fe13b04a57ba17677c4c699143f4786" }
-stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "809946144fe13b04a57ba17677c4c699143f4786" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "809946144fe13b04a57ba17677c4c699143f4786" }
+stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "95347afe0081cbb4aabbb668dbf5289b471e848c" }
+stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "95347afe0081cbb4aabbb668dbf5289b471e848c" }
+stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "95347afe0081cbb4aabbb668dbf5289b471e848c" }
 strum = "0.28"
 syn = { default-features = false, version = "3.0" }
 thiserror = "2.0"
