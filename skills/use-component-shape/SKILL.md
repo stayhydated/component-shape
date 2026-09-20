@@ -1,6 +1,6 @@
 ---
 name: use-component-shape
-description: "Add, review, refactor, or document framework-neutral component-shape metadata and generator contracts. Use for ComponentShapeMetadata, ComponentShapeFor, DeclaredComponentShape, ComponentShapeUse, capabilities, prototyping suffixes, Rust syntax wrappers, McpInput metadata, ValueChange, or shared code-generation behavior; route GPUI declarations and typed MCP integrations to their dedicated skills."
+description: "Add, review, or document framework-neutral component-shape metadata and code-generation contracts. Covers shape/value compatibility, capabilities, suffixes, Rust syntax, coarse McpInput, and ValueChange; use dedicated skills for GPUI declarations or typed MCP integration."
 ---
 
 # Use component shape
@@ -8,9 +8,9 @@ description: "Add, review, refactor, or document framework-neutral component-sha
 ## Route the task
 
 Keep a contract in `component-shape` when it does not require a UI framework
-or protocol runtime. Use `use-component-shape-gpui` for GPUI declarations,
-rendering, builders, or value binding. Use `use-component-shape-mcp` for typed
-JSON Schema, decoding, tools, servers, resources, prompts, or stdio.
+or protocol runtime. GPUI declarations, rendering, builders, and value binding
+belong in `component-shape-gpui`; typed JSON Schema, decoding, and servers
+belong in `component-shape-mcp`. Use their dedicated skills when available.
 
 Inside this repository, read `AGENTS.md` before editing. The owning surfaces
 are:
@@ -31,7 +31,8 @@ are:
   backend-approved declaration surface.
 - Use `ComponentFieldName` and `ComponentShapeUse` to record a selected
   source field and shape path for generators.
-- Use `ComponentSuffix` for stable, non-empty ASCII identifier suffixes.
+- Use `ComponentSuffix` for ASCII identifier suffixes. They must start with a
+  letter or underscore; empty strings and `_` are rejected.
 - Use `RustPath`, `RustType`, and `RustExpr` to preserve validated Rust
   syntax.
 - Normalize framework events into `ValueChange::Unchanged`,
@@ -46,12 +47,15 @@ Use `McpInput` for common scalar, collection, object, and range shapes. Leave
 `McpInput::unsupported()` when a shape should not advertise model input. Use
 `McpInput::any()` only for intentionally arbitrary JSON.
 
-Keep precise schemas, strict JSON decoding, authorization, handler policy, and
-transport in `component-shape-mcp` or the consuming application.
+Keep precise schemas, strict JSON decoding, and transport in
+`component-shape-mcp`. The consuming application owns authorization, domain
+validation, and handler policy.
 
 ## Coordinate changes
 
-When shared semantics change:
+When editing this repository's shared semantics, coordinate the affected
+surfaces below. In a consumer, update its integration and focused checks.
+For review requests, report needed changes without applying them.
 
 1. Update the framework-neutral definition and rustdoc.
 2. Update `component-shape-codegen` only when token generation,
