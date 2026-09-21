@@ -15,7 +15,7 @@ public rustdoc and tests to verify behavior before changing its documentation.
 | `crates/component-shape-mcp-macros` | Schema and input derive implementation; users enter through the MCP crate's `derive` feature. |
 | `book/src` and `skills` | User workflows and reusable guidance for framework-neutral, GPUI, and MCP consumers. |
 | `web/src/lib.rs` | Pages project identity, destinations, and route manifest. |
-| `xtask/src/commands` | Shared book, llms.txt, Pages, preview, and release command integration. |
+| `xtask/src/commands` | Shared book, llms.txt, Pages, and preview command integration. |
 
 Keep shared metadata independent of GPUI. GPUI crates depend on
 `component-shape`; the framework-neutral crate must not depend on GPUI.
@@ -61,7 +61,6 @@ Run the narrowest check that covers the change:
 - Pages: `cargo test -p web --lib --locked`, `just web-build`, and the
   stayhydated Pages consumer audit against `web/dist`.
 - Workspace-wide Rust changes: select `just check`, `just clippy`, or
-  `just test`. Use `just cov` for coverage work and `just test-publish` for
-  changes to public crate packaging.
+  `just test`. Use `just cov` for coverage work.
 
 Report commands that passed separately from failed or unexecuted checks.

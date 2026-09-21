@@ -1,4 +1,4 @@
-use clap::{Args, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -24,11 +24,6 @@ pub enum Command {
         #[command(subcommand)]
         target: PreviewCommand,
     },
-    /// Release workspace crates in registry dependency order
-    Release {
-        #[command(subcommand)]
-        action: ReleaseCommand,
-    },
 }
 #[derive(Debug, Subcommand)]
 pub enum BuildCommand {
@@ -43,32 +38,4 @@ pub enum BuildCommand {
 pub enum PreviewCommand {
     /// Preview the generated static site with its GitHub Pages base path
     Web,
-}
-#[derive(Debug, Subcommand)]
-pub enum ReleaseCommand {
-    /// Print the publish order for workspace crates
-    Plan,
-    /// Publish workspace crates in registry dependency order
-    Publish(ReleasePublishArgs),
-}
-#[derive(Args, Debug)]
-pub struct ReleasePublishArgs {
-    #[arg(long)]
-    pub execute: bool,
-    #[arg(long)]
-    pub from: Option<String>,
-    #[arg(long)]
-    pub registry: Option<String>,
-    #[arg(long)]
-    pub allow_dirty: bool,
-    #[arg(long)]
-    pub no_verify: bool,
-    #[arg(long)]
-    pub include_dev_deps: bool,
-    #[arg(long)]
-    pub skip_existing: bool,
-    #[arg(long, default_value_t = 3)]
-    pub retries: u32,
-    #[arg(long, default_value_t = 20)]
-    pub retry_delay_seconds: u64,
 }
