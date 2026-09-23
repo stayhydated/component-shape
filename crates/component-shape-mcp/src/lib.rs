@@ -65,7 +65,7 @@ use rmcp::{
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, MetaObject,
         PaginatedRequestParams, Prompt, PromptMessage, ProtocolVersion, ReadResourceRequestParams,
         ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ResourceTemplate,
-        Role, ServerCapabilities, ServerInfo, Tool,
+        Role, ServerCapabilities, ServerConfig, Tool,
     },
     service::{MaybeSendFuture, RequestContext},
     transport::stdio,

@@ -718,13 +718,13 @@ impl McpServerBuilder {
 }
 
 impl ServerHandler for McpServer {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut capabilities = ServerCapabilities::builder().enable_tools().build();
         capabilities.resources = (!self.resources.is_empty()
             || !self.resource_templates.is_empty())
         .then(Default::default);
         capabilities.prompts = (!self.prompts.is_empty()).then(Default::default);
-        ServerInfo::new(capabilities)
+        ServerConfig::new(capabilities)
             .with_protocol_version(ProtocolVersion::V_2026_07_28)
             .with_server_info(Implementation::new(
                 self.server_name.clone(),
