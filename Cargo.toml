@@ -21,7 +21,7 @@ version = "0.3.1"
 
 [workspace.dependencies]
 anyhow = "1.0"
-attribute-dsl = "0.2.0"
+attribute-dsl = "0.2.1"
 chrono = "0.4"
 clap = "4.6"
 component-shape = { path = "crates/component-shape", version = "0.3.1" }
