@@ -8,6 +8,7 @@ MCP input metadata.
 ## Declare metadata and value compatibility
 
 ```rust
+# extern crate component_shape;
 use component_shape::{ComponentShapeFor, ComponentShapeMetadata, McpInput};
 
 struct TextInputShape;
@@ -35,13 +36,15 @@ values with different model-facing forms.
 - Normalize component events into `ValueChange::Unchanged`,
   `ValueChange::Set`, or `ValueChange::Clear`.
 
-Use `ComponentSuffix` for non-empty ASCII suffixes that become part of
-generated identifiers. Use `RustPath`, `RustType`, and `RustExpr` when a
-generator must preserve validated Rust syntax.
+Use `ComponentSuffix` for generated identifier suffixes: ASCII letters, digits,
+and underscores, starting with a letter or underscore. Empty strings and `_`
+are rejected. Use `RustPath`, `RustType`, and `RustExpr` when a generator must
+preserve validated Rust syntax.
 
 ## Keep MCP metadata coarse
 
-Use `McpInput` for common scalar, collection, object, and range shapes. Use
+Use `McpInput` for common scalar, collection, object, and range shapes. The
+default, `McpInput::unsupported()`, leaves model input unadvertised. Use
 `McpInput::any()` only when arbitrary JSON is intentional. Move precise JSON
 Schema, typed decoding, tool registration, and transport behavior to
 [`component-shape-mcp`](mcp-integration.md).

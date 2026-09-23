@@ -4,14 +4,8 @@ Use `component-shape-mcp` when an application must expose component metadata
 or typed Rust inputs through MCP. The crate keeps each published schema paired
 with the decoder and handler contract that accepts it.
 
-Add the dependency:
-
-```toml
-[dependencies]
-component-shape-mcp = "0.2"
-```
-
-The default features include the schema and tool-input derives.
+Add the crate as shown in [Getting started](getting-started.md#mcp-integrations).
+Its default features include the schema and tool-input derives.
 
 ## Choose the input contract
 
@@ -32,6 +26,6 @@ The default features include the schema and tool-input derives.
 3. Compose registrations and choose a transport in
    [Servers and stdio](mcp-server.md).
 
-Keep authorization, domain validation execution, and handler policy in the
-application. `component-shape-mcp` provides protocol contracts and shared
-validation metadata, not application policy.
+The crate checks protocol contracts and exposes shared validation metadata.
+Your application executes domain validation, authorizes calls, and decides
+what each handler may do.

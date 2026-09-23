@@ -7,7 +7,7 @@ All crates use edition 2024.
 
 ```toml
 [dependencies]
-component-shape = "0.2"
+component-shape = "0.3"
 ```
 
 Implement `ComponentShapeMetadata` on a shape type. Add
@@ -18,8 +18,8 @@ Implement `ComponentShapeMetadata` on a shape type. Add
 
 ```toml
 [dependencies]
-component-shape-gpui = "0.2"
-gpui-kit = "0.6.0"
+component-shape-gpui = "0.3"
+gpui-kit = "0.6.4"
 ```
 
 The GPUI crate re-exports the shared framework-neutral traits and uses the
@@ -31,7 +31,7 @@ Continue with [GPUI shapes](gpui-shapes.md).
 
 ```toml
 [dependencies]
-component-shape-mcp = "0.2"
+component-shape-mcp = "0.3"
 ```
 
 The default features export the `McpJsonSchema` and `McpToolInput` derives.
@@ -41,7 +41,8 @@ Use `default-features = false` when an integration only consumes coarse
 
 ## Check the integration
 
-Run Cargo against the package that owns the new dependency:
+From your workspace root, replace `<package-name>` with the package that owns
+the new dependency:
 
 ```sh
 cargo check -p <package-name>

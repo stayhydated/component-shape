@@ -4,8 +4,11 @@ Register a typed tool so its published input schema and Rust handler argument
 remain paired by type.
 
 ```rust
+# extern crate component_shape_mcp;
+# fn main() -> Result<(), component_shape_mcp::McpToolError> {
 #[derive(component_shape_mcp::McpToolInput)]
 #[serde(rename_all = "camelCase")]
+# #[mcp(crate = component_shape_mcp)]
 struct SearchArgs {
     #[serde(alias = "q")]
     query: String,
@@ -29,10 +32,15 @@ tools.add_typed_tool(tool, |args: SearchArgs| {
 
 let server = component_shape_mcp::McpServer::from_tool_registry(
     "search-server",
-    env!("CARGO_PKG_VERSION"),
+    "1.0.0",
     tools,
 );
+# Ok(())
+# }
 ```
+
+This creates a server with one registered tool. It can now serve requests
+using the transport described in [Servers and stdio](mcp-server.md).
 
 Use the async registration methods when the handler returns a future. Use an
 untyped tool only when the integration must decode a dynamic argument set.

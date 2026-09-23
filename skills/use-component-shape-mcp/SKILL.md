@@ -1,17 +1,17 @@
 ---
 name: use-component-shape-mcp
-description: "Add, review, refactor, or document component-shape-mcp integrations. Use for typed JSON Schema, strict MCP argument decoding, tool definitions and metadata, shared tool registries, sync or async handlers, structured results, server composition, validation metadata, resources, prompts, stdio serving, or process-level smoke tests."
+description: "Build, review, or document component-shape-mcp integrations: paired schemas and argument decoding, typed tools, registries, structured results, composed servers, and stdio. Use the framework-neutral skill for coarse McpInput metadata alone."
 ---
 
 # Use component shape MCP
 
 ## Route the task
 
-Use this skill for protocol-facing code built with `component-shape-mcp`. Use
-`use-component-shape` for coarse `McpInput` metadata and
-`use-component-shape-gpui` for GPUI declarations that only publish that
-metadata. Keep authorization, domain validation execution, and handler policy
-in the consumer.
+Use this skill for protocol-facing code built with `component-shape-mcp`.
+Coarse `McpInput` metadata belongs in `component-shape`, and GPUI declarations
+belong in `component-shape-gpui`; use their dedicated skills when available.
+Keep authorization, domain validation execution, and handler policy in the
+consumer.
 
 Inside this repository, read `AGENTS.md` first. Keep public contracts and
 rustdoc in `crates/component-shape-mcp`, derive implementation in
@@ -37,24 +37,35 @@ struct SearchArgs {
     query: String,
 }
 
-let tool = component_shape_mcp::tool_definition_for_input::<SearchArgs>(
-    "search",
-    Some("Search".to_owned()),
-    None,
-    None,
-)?;
+fn main() -> Result<(), component_shape_mcp::McpToolError> {
+    let mut tools = component_shape_mcp::McpToolRegistry::new();
+    let tool = component_shape_mcp::tool_definition_for_input::<SearchArgs>(
+        "search",
+        Some("Search".to_owned()),
+        None,
+        None,
+    )?;
 
-server.add_typed_tool(tool, |args: SearchArgs| {
-    component_shape_mcp::tool_structured_result(
-        component_shape_mcp::serde_json::json!({ "query": args.query }),
-    )
-})?;
+    tools.add_typed_tool(tool, |args: SearchArgs| {
+        component_shape_mcp::tool_structured_result(
+            component_shape_mcp::serde_json::json!({ "query": args.query }),
+        )
+    })?;
+
+    let server = component_shape_mcp::McpServer::from_tool_registry(
+        "search-server",
+        "1.0.0",
+        tools,
+    );
+    assert_eq!(server.tool_count(), 1);
+    Ok(())
+}
 ```
 
-Follow serde deserialize names, aliases, skips, and defaults. Reject flattened
-fields unless the integration owns a custom schema and decoder. Use
-`#[mcp(crate = facade::mcp)]` only for a renamed dependency or ambiguous
-facades.
+Follow serde deserialize names, aliases, skips, and defaults. The derives
+reject `#[serde(flatten)]`; use explicit nested fields or a custom schema and
+decoder. Use `#[mcp(crate = facade::mcp)]` only for a renamed dependency or
+ambiguous facades.
 
 For an untyped handler, convert `McpToolCall` with `into_arguments()`,
 consume fields through the typed `take_*` helpers, and call `finish()?` to
@@ -84,14 +95,17 @@ Use `McpServer::builder(name, version)` to combine generated registrars,
 custom tools, resources, templates, and prompts. Propagate duplicate-name and
 duplicate-URI errors.
 
-Use `build()?` when the caller owns transport, `serve_stdio().await` in an
-async application, and `serve_stdio_blocking()` at a synchronous binary
-boundary. Use `McpStdioSmokeClient` only for process-level tests over real
+Call `build()?` on a builder when the caller owns transport. Call
+`serve_stdio().await` in an async application or `serve_stdio_blocking()` at a
+synchronous binary boundary. The blocking method creates a Tokio runtime.
+Use `McpStdioSmokeClient` only for process-level tests over real
 stdin and stdout.
 
 ## Coordinate changes
 
-Align public rustdoc, focused schema or server tests, derive tests, MCP book
-chapters, the crate README landing page, and this skill when user-visible
-behavior changes. Prefer the narrowest test that proves schema, decoding,
-registration, result, or stdio behavior.
+When editing this repository, align public rustdoc, focused schema or server
+tests, derive tests, MCP book chapters, the crate README, and this skill when
+user-visible behavior changes. Prefer the narrowest test that proves schema, decoding,
+registration, result, or stdio behavior. In a consumer, update its affected
+integration and tests. For review requests, report needed changes without
+applying them.

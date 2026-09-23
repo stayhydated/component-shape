@@ -4,8 +4,10 @@ Define a named argument struct with `McpToolInput` when a tool should publish
 an object schema and decode the same contract into Rust.
 
 ```rust
+# extern crate component_shape_mcp;
 #[derive(component_shape_mcp::McpToolInput)]
 #[serde(rename_all = "camelCase")]
+# #[mcp(crate = component_shape_mcp)]
 struct SearchArgs {
     #[serde(alias = "q")]
     query: String,
@@ -29,7 +31,8 @@ The derive honors deserialize-facing serde behavior:
 - Renames and aliases become accepted input names.
 - Deserialization-skipped fields are omitted.
 - Defaulted and optional fields are not required.
-- Flattened fields are rejected when a safe schema cannot be inferred.
+- `#[serde(flatten)]` fields are rejected; use an explicit nested field or
+  implement a custom schema and decoder.
 - Rust doc comments become descriptions unless an `mcp` description is set.
 
 Use `#[mcp(crate = path::to::mcp)]` only when the dependency is renamed or
