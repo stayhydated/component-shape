@@ -17,34 +17,34 @@ license = "MIT OR Apache-2.0"
 publish = true
 repository = "https://github.com/stayhydated/component-shape"
 rust-version = "1.98"
-version = "0.3.2"
+version = "0.3.3"
 
 [workspace.dependencies]
 anyhow = "1.0"
 attribute-dsl = "0.2.1"
 chrono = "0.4"
 clap = "4.6"
-component-shape = { path = "crates/component-shape", version = "0.3.2" }
-component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.3.2" }
-component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.3.2" }
-component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", version = "0.3.2" }
-component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.3.2" }
-component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.3.2" }
+component-shape = { path = "crates/component-shape", version = "0.3.3" }
+component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.3.3" }
+component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.3.3" }
+component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", version = "0.3.3" }
+component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.3.3" }
+component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.3.3" }
 derive_more = "2.1"
 dioxus = { default-features = false, version = "0.7" }
-gpui-kit = "0.6.6"
+gpui-kit = "0.7.0"
 heck = "0.5"
 prettyplease = "0.3"
 proc-macro-crate = "3.5"
 proc-macro2 = "1.0"
 quote = "1.0"
-rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "3.4.1" }
+rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "3.5.0" }
 rust_decimal = "1.43"
 serde = "1.0"
 serde_json = "1.0"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "14df45a56f8fa847f816cf297c7b36dffb77ea1e" }
-stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "14df45a56f8fa847f816cf297c7b36dffb77ea1e" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "14df45a56f8fa847f816cf297c7b36dffb77ea1e" }
+stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "125e20e910e17d23a874399f6b88084830ac679d" }
+stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "125e20e910e17d23a874399f6b88084830ac679d" }
+stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "125e20e910e17d23a874399f6b88084830ac679d" }
 strum = "0.28"
 syn = { default-features = false, version = "3.0" }
 thiserror = "2.0"
