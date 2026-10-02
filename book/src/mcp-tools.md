@@ -45,6 +45,50 @@ using the transport described in [Servers and stdio](mcp-server.md).
 Use the async registration methods when the handler returns a future. Use an
 untyped tool only when the integration must decode a dynamic argument set.
 
+## Execute Koruma domain rules
+
+Derive `koruma::Koruma` alongside `McpToolInput` and register domain inputs through
+`add_koruma_tool` or `add_koruma_tool_async`. Koruma is the ecosystem's canonical
+domain validator. The registry strictly decodes arguments, runs `ValidateExt`,
+then invokes the handler only on success. Async validation also precedes creating
+the handler's future.
+
+```rust
+use koruma_collection::numeric::RangeValidation;
+
+#[derive(component_shape_mcp::McpToolInput, koruma::Koruma)]
+struct BatchArgs {
+    #[koruma(RangeValidation::<_>.min(1).max(5))]
+    count: u32,
+}
+
+# fn main() -> Result<(), component_shape_mcp::McpToolError> {
+let mut tools = component_shape_mcp::McpToolRegistry::new();
+let tool = component_shape_mcp::tool_definition_for_input::<BatchArgs>(
+    "batch", None, None, None,
+)?;
+tools.add_koruma_tool(tool, |args: BatchArgs| {
+    component_shape_mcp::tool_structured_result(
+        component_shape_mcp::serde_json::json!({ "count": args.count }),
+    )
+})?;
+# Ok(())
+# }
+```
+
+Add the `koruma` facade and `koruma-collection` for derives and built-in rules.
+`component-shape-mcp` uses the framework-neutral `koruma-core` runtime contracts.
+Server builders expose `koruma_tool` and `koruma_tool_async`. Applications retain
+rule selection, authorization, and handler policy.
+
+Failures return Koruma's structured form, field, and element issues through MCP,
+including source field names, labels, indices, and typed runtime parameters.
+`McpValidationIssue::from(&issue)` shares that conversion with domain adapters.
+Use `koruma_validation_error(&error)` to convert an error or `validate_koruma`
+after constructing an untyped input. Failed custom errors that enumerate no issues
+still return a form-level failure. Static schema rule descriptors and hints
+describe constraints to clients; domain validation executes the Koruma rules.
+
 ## Add metadata
 
 Store application-owned names, titles, descriptions, icons, and MCP annotation

@@ -19,8 +19,10 @@ public rustdoc and tests to verify behavior before changing its documentation.
 
 Keep shared metadata independent of GPUI. GPUI crates depend on
 `component-shape`; the framework-neutral crate must not depend on GPUI.
-Protocol behavior belongs in the MCP crate; applications own authorization,
-domain validation execution, and handler policy.
+Protocol behavior and Koruma execution for validated typed registrations belong
+in the MCP crate. Koruma owns domain validation contracts; applications choose
+rules and own authorization and handler policy. Keep Koruma independent of
+component-shape and shared metadata independent of its protocol runtime.
 
 ## What changes together
 
@@ -39,6 +41,11 @@ domain validation execution, and handler policy.
   `crates/component-shape-mcp/src/tests`; schema and input expansion tests live
   in `crates/component-shape-mcp-macros/src/tests.rs`. Pair schema and decoder
   changes with their focused tests and affected MCP guidance.
+- Koruma dispatch and runtime issue conversion are covered in
+  `crates/component-shape-mcp/src/tests/koruma.rs`. Preserve validation before
+  handler or future creation, structured parameter types, and failures with an
+  empty issue enumeration. Static schema descriptors remain distinct from runtime
+  Koruma metadata.
 - Output schema validation lives in
   `crates/component-shape-mcp/src/output_schema.rs`. Preserve its explicit denial
   of external retrieval even when Cargo features are unified. Schema changes must

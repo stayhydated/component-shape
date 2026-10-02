@@ -26,6 +26,6 @@ Its default features include the schema and tool-input derives.
 3. Compose registrations and choose a transport in
    [Servers and stdio](mcp-server.md).
 
-The crate checks protocol contracts and exposes shared validation metadata.
-Your application executes domain validation, authorizes calls, and decides
-what each handler may do.
+The crate checks protocol contracts and executes Koruma rules for validated typed
+registrations. Koruma is the ecosystem's canonical domain validator. Your
+application selects the rules, authorizes calls, and decides what handlers may do.

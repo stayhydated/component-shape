@@ -6,6 +6,7 @@ use super::{
 use serde_json::{Value, json};
 
 mod derive;
+mod koruma;
 mod metadata;
 mod output_schema;
 mod properties;

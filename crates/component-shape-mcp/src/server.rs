@@ -76,6 +76,57 @@ impl McpToolRegistry {
         })
     }
 
+    /// Register a typed handler with canonical Koruma domain validation.
+    ///
+    /// Strict decoding runs first, then [`validate_koruma`]. A failing value
+    /// returns structured issues without invoking the handler. Successful
+    /// results still pass the advertised output-schema checks.
+    ///
+    /// ```
+    /// use koruma_collection::numeric::RangeValidation;
+    ///
+    /// #[derive(component_shape_mcp::McpToolInput, koruma::Koruma)]
+    /// # #[mcp(crate = component_shape_mcp)]
+    /// struct BatchArgs {
+    ///     #[koruma(RangeValidation::<_>.min(1).max(5))]
+    ///     count: u32,
+    /// }
+    /// # fn main() -> Result<(), component_shape_mcp::McpToolError> {
+    /// let mut tools = component_shape_mcp::McpToolRegistry::new();
+    /// let definition = component_shape_mcp::tool_definition_for_input::<BatchArgs>(
+    ///     "batch", None, None, None,
+    /// )?;
+    /// tools.add_koruma_tool(definition, |args: BatchArgs| {
+    ///     component_shape_mcp::tool_structured_result(
+    ///         component_shape_mcp::serde_json::json!({ "count": args.count }),
+    ///     )
+    /// })?;
+    /// assert_eq!(tools.call_tool("batch", Some(
+    ///     component_shape_mcp::serde_json::json!({ "count": 0 }),
+    /// )).is_error, Some(true));
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] for an invalid or duplicate tool definition.
+    pub fn add_koruma_tool<Input, Call>(
+        &mut self,
+        definition: McpTypedTool<Input>,
+        call: Call,
+    ) -> Result<(), McpToolError>
+    where
+        Input: McpToolInput + koruma_core::ValidateExt,
+        Input::Error: koruma_core::ValidationIssues,
+        Call: Fn(Input) -> ToolCallResult + Send + Sync + 'static,
+    {
+        self.add_typed_tool(definition, move |input| match validate_koruma(&input) {
+            Ok(()) => call(input),
+            Err(error) => tool_error_result_for(error),
+        })
+    }
+
     /// Register an async MCP tool handler.
     ///
     /// # Errors
@@ -135,6 +186,31 @@ impl McpToolRegistry {
                 },
             };
             Box::pin(future) as ToolFuture
+        })
+    }
+
+    /// Register an async typed handler with Koruma domain validation.
+    ///
+    /// Decoding and validation run before the handler creates its future.
+    /// See [`Self::add_koruma_tool`] for issue and output-schema behavior.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] for an invalid or duplicate tool definition.
+    pub fn add_koruma_tool_async<Input, Call, Fut>(
+        &mut self,
+        definition: McpTypedTool<Input>,
+        call: Call,
+    ) -> Result<(), McpToolError>
+    where
+        Input: McpToolInput + koruma_core::ValidateExt,
+        Input::Error: koruma_core::ValidationIssues,
+        Call: Fn(Input) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ToolCallResult> + Send + 'static,
+    {
+        self.add_typed_tool_async(definition, move |input| match validate_koruma(&input) {
+            Ok(()) => Box::pin(call(input)) as ToolFuture,
+            Err(error) => Box::pin(std::future::ready(tool_error_result_for(error))) as ToolFuture,
         })
     }
 
@@ -302,6 +378,24 @@ impl McpServer {
         self.tools.add_typed_tool(definition, call)
     }
 
+    /// Register a typed handler with Koruma validation before dispatch.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] for an invalid or duplicate tool definition.
+    pub fn add_koruma_tool<Input, Call>(
+        &mut self,
+        definition: McpTypedTool<Input>,
+        call: Call,
+    ) -> Result<(), McpToolError>
+    where
+        Input: McpToolInput + koruma_core::ValidateExt,
+        Input::Error: koruma_core::ValidationIssues,
+        Call: Fn(Input) -> ToolCallResult + Send + Sync + 'static,
+    {
+        self.tools.add_koruma_tool(definition, call)
+    }
+
     /// Register an async MCP tool handler.
     ///
     /// # Errors
@@ -337,6 +431,25 @@ impl McpServer {
         Fut: Future<Output = ToolCallResult> + Send + 'static,
     {
         self.tools.add_typed_tool_async(definition, call)
+    }
+
+    /// Register an async typed handler with Koruma validation before dispatch.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`McpToolError`] for an invalid or duplicate tool definition.
+    pub fn add_koruma_tool_async<Input, Call, Fut>(
+        &mut self,
+        definition: McpTypedTool<Input>,
+        call: Call,
+    ) -> Result<(), McpToolError>
+    where
+        Input: McpToolInput + koruma_core::ValidateExt,
+        Input::Error: koruma_core::ValidationIssues,
+        Call: Fn(Input) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ToolCallResult> + Send + 'static,
+    {
+        self.tools.add_koruma_tool_async(definition, call)
     }
 
     /// Return registered MCP tool definitions.
@@ -625,6 +738,16 @@ impl McpServerBuilder {
         self.register(move |server| server.add_typed_tool(definition, call))
     }
 
+    /// Add a typed tool with Koruma domain validation before its handler.
+    pub fn koruma_tool<Input, Call>(self, definition: McpTypedTool<Input>, call: Call) -> Self
+    where
+        Input: McpToolInput + koruma_core::ValidateExt,
+        Input::Error: koruma_core::ValidationIssues,
+        Call: Fn(Input) -> ToolCallResult + Send + Sync + 'static,
+    {
+        self.register(move |server| server.add_koruma_tool(definition, call))
+    }
+
     /// Add an async MCP tool to the server being built.
     pub fn tool_async<Call, Fut>(self, definition: ToolDefinition, call: Call) -> Self
     where
@@ -646,6 +769,21 @@ impl McpServerBuilder {
         Fut: Future<Output = ToolCallResult> + Send + 'static,
     {
         self.register(move |server| server.add_typed_tool_async(definition, call))
+    }
+
+    /// Add an async typed tool with Koruma validation before creating its future.
+    pub fn koruma_tool_async<Input, Call, Fut>(
+        self,
+        definition: McpTypedTool<Input>,
+        call: Call,
+    ) -> Self
+    where
+        Input: McpToolInput + koruma_core::ValidateExt,
+        Input::Error: koruma_core::ValidationIssues,
+        Call: Fn(Input) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ToolCallResult> + Send + 'static,
+    {
+        self.register(move |server| server.add_koruma_tool_async(definition, call))
     }
 
     /// Add a static MCP resource to the server being built.

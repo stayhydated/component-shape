@@ -2,8 +2,8 @@
 //! component-shape integrations.
 //!
 //! This crate owns protocol-level building blocks, schema-paired value
-//! decoding, and common validation metadata/error helpers. Domain integrations
-//! still own validation execution, authorization, and handler contracts.
+//! decoding, and Koruma domain validation with common metadata/error helpers.
+//! Applications choose domain rules and own authorization and handler contracts.
 
 mod arguments;
 mod definitions;
@@ -46,6 +46,7 @@ pub(crate) use error::{
 };
 pub(crate) use input_schema::value_schema_allows_null;
 pub use input_schema::*;
+pub use koruma_core;
 pub use metadata::*;
 pub use names::*;
 pub use results::*;

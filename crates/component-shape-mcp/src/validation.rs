@@ -234,7 +234,7 @@ pub struct McpValidationIssue {
     target: Option<McpValidationTarget>,
     element_index: Option<usize>,
     message: String,
-    params: Vec<McpValidationParam>,
+    params: Vec<Value>,
 }
 
 impl McpValidationIssue {
@@ -297,7 +297,7 @@ impl McpValidationIssue {
         self.path = Some(rule.path().to_string());
         self.label = rule.label().map(str::to_string);
         self.target = rule.target();
-        self.params = rule.params().to_vec();
+        self.params = rule.params().iter().map(|param| param.to_value()).collect();
         self
     }
 
@@ -382,13 +382,89 @@ impl McpValidationIssue {
             );
         }
         if !self.params.is_empty() {
-            object.insert(
-                "params".to_string(),
-                Value::Array(self.params.iter().map(|param| param.to_value()).collect()),
-            );
+            object.insert("params".to_string(), Value::Array(self.params.clone()));
         }
         Value::Object(object)
     }
+}
+
+/// Translate canonical Koruma failures into MCP issue metadata.
+///
+/// Field names retain Koruma's source-level identifiers. Runtime parameter
+/// values retain their JSON types; opaque values and non-finite floats use
+/// tagged objects rather than becoming null or source expressions.
+impl From<&koruma_core::ValidationIssue> for McpValidationIssue {
+    fn from(issue: &koruma_core::ValidationIssue) -> Self {
+        use koruma_core::ValidationIssueScope;
+
+        let scope = match issue.scope() {
+            ValidationIssueScope::Form => McpValidationScope::Form,
+            ValidationIssueScope::Field => McpValidationScope::Field,
+            ValidationIssueScope::Element => McpValidationScope::Element,
+        };
+        let mut result = Self::custom(scope, issue.message());
+        result.field = issue.field_name_str().map(str::to_owned);
+        result.validator = issue.validator().map(str::to_owned);
+        result.label = issue.label().map(str::to_owned);
+        result.element_index = issue.element_index();
+        result.params = issue.params().iter().map(koruma_param_value).collect();
+        result
+    }
+}
+
+fn koruma_param_value(param: &koruma_core::ValidatorParam) -> Value {
+    use koruma_core::ValidatorParamValue;
+
+    let value = match param.value() {
+        ValidatorParamValue::Bool(value) => json!(value),
+        ValidatorParamValue::I64(value) => json!(value),
+        ValidatorParamValue::U64(value) => json!(value),
+        ValidatorParamValue::F64(value) if value.is_finite() => json!(value),
+        ValidatorParamValue::F64(value) => json!({ "kind": "f64", "value": value.to_string() }),
+        ValidatorParamValue::String(value) => json!(value),
+        ValidatorParamValue::None => Value::Null,
+        ValidatorParamValue::Opaque { type_name } => {
+            json!({ "kind": "opaque", "type_name": type_name })
+        },
+    };
+    json!({ "name": param.name(), "value": value })
+}
+
+/// Convert a Koruma validation error into structured MCP error details.
+///
+/// A failed custom error with no enumerated issues still produces a form-level
+/// failure. This function does not require display or debug rendering.
+pub fn koruma_validation_error<Error>(error: &Error) -> McpToolError
+where
+    Error: koruma_core::ValidationIssues + ?Sized,
+{
+    let mut issues: Vec<_> = error
+        .issues()
+        .iter()
+        .map(McpValidationIssue::from)
+        .collect();
+    if issues.is_empty() {
+        issues.push(McpValidationIssue::form("domain validation failed"));
+    }
+    validation_issues_error(issues)
+}
+
+/// Execute Koruma domain rules and translate a failure into an MCP error.
+///
+/// Use this after decoding an untyped tool's input, or use the registry's
+/// [`McpToolRegistry::add_koruma_tool`] methods for paired typed inputs.
+///
+/// # Errors
+///
+/// Returns a structured validation error when the value fails Koruma validation.
+pub fn validate_koruma<Input>(input: &Input) -> Result<(), McpToolError>
+where
+    Input: koruma_core::ValidateExt + ?Sized,
+    Input::Error: koruma_core::ValidationIssues,
+{
+    input
+        .validate()
+        .map_err(|error| koruma_validation_error(&error))
 }
 
 /// Convert validation issues into a structured MCP validation error.

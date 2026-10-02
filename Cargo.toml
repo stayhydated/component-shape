@@ -35,6 +35,9 @@ dioxus = { default-features = false, version = "0.7" }
 gpui-kit = "0.7.0"
 heck = "0.5"
 jsonschema = { default-features = false, version = "0.58.4" }
+koruma = "0.12.2"
+koruma-collection = "0.12.2"
+koruma-core = { default-features = false, version = "0.12.2" }
 prettyplease = "0.3"
 proc-macro-crate = "3.5"
 proc-macro2 = "1.0"
