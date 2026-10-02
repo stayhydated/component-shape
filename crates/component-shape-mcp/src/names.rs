@@ -6,16 +6,16 @@ pub fn tool_name(source_module_path: &str, subject_id: &str, fallback_prefix: &s
         Digit,
     }
 
-    let input: Vec<char> = source_module_path
+    let mut input = source_module_path
         .chars()
         .chain(['_'])
         .chain(subject_id.chars())
-        .collect();
+        .peekable();
     let mut output = String::new();
     let mut last_was_separator = false;
     let mut last_kind = None;
 
-    for (index, ch) in input.iter().copied().enumerate() {
+    while let Some(ch) = input.next() {
         let kind = if ch.is_ascii_uppercase() {
             CharKind::Upper
         } else if ch.is_ascii_lowercase() {
@@ -33,9 +33,7 @@ pub fn tool_name(source_module_path: &str, subject_id: &str, fallback_prefix: &s
         };
 
         if kind == CharKind::Upper && !last_was_separator && !output.is_empty() {
-            let next_is_lower = input
-                .get(index + 1)
-                .is_some_and(|next| next.is_ascii_lowercase());
+            let next_is_lower = input.peek().is_some_and(|next| next.is_ascii_lowercase());
             if matches!(last_kind, Some(CharKind::Lower | CharKind::Digit))
                 || (matches!(last_kind, Some(CharKind::Upper)) && next_is_lower)
             {

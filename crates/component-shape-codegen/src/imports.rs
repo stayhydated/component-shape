@@ -74,12 +74,12 @@ impl ImportSet {
 
     /// Fallible version of [`Self::to_token_stream`].
     pub fn try_to_token_stream(&self) -> syn::Result<TokenStream> {
-        let mut grouped: BTreeMap<String, Vec<(&'static str, Option<&Alias>)>> = BTreeMap::new();
+        let mut grouped: BTreeMap<&str, Vec<(&'static str, Option<&Alias>)>> = BTreeMap::new();
 
         for item in &self.0 {
             let (parent, name) = item.path.rsplit_once("::").unwrap_or(("", item.path));
             grouped
-                .entry(parent.to_string())
+                .entry(parent)
                 .or_default()
                 .push((name, item.alias.as_ref()));
         }

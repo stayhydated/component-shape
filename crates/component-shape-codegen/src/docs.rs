@@ -2,7 +2,7 @@ use super::*;
 
 /// Extract a rustdoc description from contiguous non-empty `///` lines.
 pub fn doc_description(attrs: &[syn::Attribute]) -> Option<String> {
-    let mut lines = attrs
+    let lines = attrs
         .iter()
         .filter(|attr| attr.path().is_ident("doc"))
         .filter_map(|attr| match &attr.meta {
@@ -19,8 +19,5 @@ pub fn doc_description(attrs: &[syn::Attribute]) -> Option<String> {
 
     let first = lines.iter().position(|line| !line.is_empty())?;
     let last = lines.iter().rposition(|line| !line.is_empty())?;
-    lines.drain(..first);
-    lines.truncate(last - first + 1);
-
-    Some(lines.join("\n"))
+    Some(lines[first..=last].join("\n"))
 }
