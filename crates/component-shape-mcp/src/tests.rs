@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 mod derive;
 mod metadata;
 mod output_schema;
+mod properties;
 mod protocol;
 mod registry_server;
 mod resource_prompt;

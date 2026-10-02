@@ -54,6 +54,14 @@ domain validation execution, and handler policy.
 Run the narrowest check that covers the change:
 
 - Crate behavior: `cargo test -p <crate> --all-features --locked`.
+- MCP property tests: `cargo test -p component-shape-mcp --all-features --locked properties`.
+  Keep generated inputs bounded and schema witnesses paired while shrinking;
+  expected results must not call the validator under test.
+- MCP benchmark compile: `cargo bench -p component-shape-mcp --bench output_validation --no-run --locked`.
+  Smoke workloads: `cargo bench -p component-shape-mcp --bench output_validation --locked -- --test`.
+  Use a quiet machine for timed runs; record compiler, commit, and baseline.
+  The harness separates cached async calls from cold definition and registration
+  costs. Do not add hosted-CI timing thresholds or interpret smoke mode as timing.
 - GPUI macro contracts:
   `cargo test -p component-shape-gpui --test trybuild --locked`.
   Use `TRYBUILD=overwrite` with that command only to regenerate intentional

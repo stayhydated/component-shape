@@ -15,6 +15,7 @@ own authorization, domain validation, and handler policy.
 - Use `McpJsonSchema` for nested schemas and `McpToolValue` for values that
   pair a schema with a decoder.
 - Follow Serde's deserialization names or choose explicit MCP wire-name overrides.
+- Reject duplicate field spellings and unknown arguments with strict tool-input decoding.
 - Register typed handlers in `McpToolRegistry` and return structured results.
 - Validate successful output against compiled JSON Schemas, with bundled
   references and no external retrieval. Formats remain annotations; output
