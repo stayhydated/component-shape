@@ -34,6 +34,7 @@ derive_more = "2.1"
 dioxus = { default-features = false, version = "0.7" }
 gpui-kit = "0.7.0"
 heck = "0.5"
+jsonschema = { default-features = false, version = "0.58.4" }
 prettyplease = "0.3"
 proc-macro-crate = "3.5"
 proc-macro2 = "1.0"

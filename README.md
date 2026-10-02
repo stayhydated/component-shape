@@ -19,7 +19,7 @@ Requires Rust 1.99 or newer (edition 2024).
 | --- | --- | --- |
 | `component-shape` | Framework-neutral metadata, value compatibility, naming, and coarse MCP input descriptions | [source][component-shape-source] |
 | `component-shape-gpui` | GPUI declaration macros, render contracts, configured builders, and value binding | [source][component-shape-gpui-source] |
-| `component-shape-mcp` | Typed JSON Schema, strict argument decoding, tool registries, composed MCP servers, and stdio support | [README][component-shape-mcp-readme] |
+| `component-shape-mcp` | Typed JSON Schema, strict argument decoding, validated tool output, composed MCP servers, and stdio support | [README][component-shape-mcp-readme] |
 
 ## Example
 

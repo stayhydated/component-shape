@@ -39,6 +39,11 @@ domain validation execution, and handler policy.
   `crates/component-shape-mcp/src/tests`; schema and input expansion tests live
   in `crates/component-shape-mcp-macros/src/tests.rs`. Pair schema and decoder
   changes with their focused tests and affected MCP guidance.
+- Output schema validation lives in
+  `crates/component-shape-mcp/src/output_schema.rs`. Preserve its explicit denial
+  of external retrieval even when Cargo features are unified. Schema changes must
+  cover registration failures and direct, async, and protocol results in MCP tests.
+  Output names must match the advertised schema without input alias normalization.
 - Edit book and site sources, then regenerate their outputs through `xtask`.
   Keep project destinations aligned with `web/src/lib.rs` and its route test.
 - Update this guide when ownership, synchronization, or validation routes

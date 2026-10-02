@@ -11,6 +11,7 @@ mod error;
 mod input_schema;
 mod metadata;
 mod names;
+mod output_schema;
 mod results;
 mod schema;
 mod server;

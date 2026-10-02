@@ -16,6 +16,9 @@ own authorization, domain validation, and handler policy.
   pair a schema with a decoder.
 - Follow Serde's deserialization names or choose explicit MCP wire-name overrides.
 - Register typed handlers in `McpToolRegistry` and return structured results.
+- Validate successful output against compiled JSON Schemas, with bundled
+  references and no external retrieval. Formats remain annotations; output
+  uses the exact advertised names.
 - Install a reusable registry with `McpServer::from_tool_registry`, or compose
   tools, resources, and prompts directly in `McpServer`.
 

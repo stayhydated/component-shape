@@ -4,6 +4,10 @@ use super::*;
 ///
 /// Resources, prompts, server identity, and transport lifecycle remain owned
 /// by [`McpServer`].
+/// Output schemas are compiled at registration and shared by cloned registries.
+/// Successful structured results are checked against the advertised schema on
+/// direct, async, and protocol calls; handler error results bypass this check.
+/// See [`tool_definition`] for dialect, format, and reference behavior.
 #[derive(Clone, Default)]
 pub struct McpToolRegistry {
     tools: BTreeMap<String, Arc<dyn ToolExecutor>>,
@@ -31,7 +35,8 @@ impl McpToolRegistry {
         Call: Fn(McpToolCall) -> ToolCallResult + Send + Sync + 'static,
     {
         let name = definition.name.to_string();
-        validate_tool_definition(&definition)?;
+        let output_validator =
+            definitions::validate_tool_definition_with_output(&definition)?.map(Arc::new);
         if self.tools.contains_key(&name) {
             return Err(McpToolError::duplicate_tool(name));
         }
@@ -40,6 +45,7 @@ impl McpToolRegistry {
             name,
             Arc::new(RegisteredTool {
                 definition,
+                output_validator,
                 call: Arc::new(move |arguments| Box::pin(std::future::ready(call(arguments)))),
             }),
         );
@@ -86,7 +92,8 @@ impl McpToolRegistry {
         Fut: Future<Output = ToolCallResult> + Send + 'static,
     {
         let name = definition.name.to_string();
-        validate_tool_definition(&definition)?;
+        let output_validator =
+            definitions::validate_tool_definition_with_output(&definition)?.map(Arc::new);
         if self.tools.contains_key(&name) {
             return Err(McpToolError::duplicate_tool(name));
         }
@@ -95,6 +102,7 @@ impl McpToolRegistry {
             name,
             Arc::new(RegisteredTool {
                 definition,
+                output_validator,
                 call: Arc::new(move |arguments| Box::pin(call(arguments))),
             }),
         );
@@ -159,15 +167,11 @@ impl McpToolRegistry {
             Ok(call) => call,
             Err(error) => return tool_error_result_for(error),
         };
-        let (definition, call) = match self.resolve_tool(name, call) {
+        let call = match self.resolve_tool(name, call) {
             Ok(resolved) => resolved,
             Err(error) => return tool_error_result_for(error),
         };
-        validate_tool_call_result(
-            name,
-            definition.output_schema.as_deref(),
-            block_on_tool_future(call),
-        )
+        block_on_tool_future(call)
     }
 
     /// Asynchronously calls a registered tool and converts validation or
@@ -177,24 +181,20 @@ impl McpToolRegistry {
             Ok(call) => call,
             Err(error) => return tool_error_result_for(error),
         };
-        let (definition, call) = match self.resolve_tool(name, call) {
+        let call = match self.resolve_tool(name, call) {
             Ok(resolved) => resolved,
             Err(error) => return tool_error_result_for(error),
         };
-        validate_tool_call_result(name, definition.output_schema.as_deref(), call.await)
+        call.await
     }
 
     fn definition(&self, name: &str) -> Option<ToolDefinition> {
         self.tools.get(name).map(|executor| executor.definition())
     }
 
-    fn resolve_tool(
-        &self,
-        name: &str,
-        call: McpToolCall,
-    ) -> Result<(ToolDefinition, ToolFuture), McpToolError> {
+    fn resolve_tool(&self, name: &str, call: McpToolCall) -> Result<ToolFuture, McpToolError> {
         match self.tools.get(name) {
-            Some(executor) => Ok((executor.definition(), executor.call(call))),
+            Some(executor) => Ok(executor.call(call)),
             None => Err(McpToolError::UnknownTool {
                 name: name.to_string(),
             }),
@@ -759,13 +759,7 @@ impl ServerHandler for McpServer {
         let name = request.name.to_string();
         let call = McpToolCall::new(request.arguments.unwrap_or_default());
         let call = match self.tools.resolve_tool(&name, call) {
-            Ok((definition, call)) => {
-                let output_schema = definition.output_schema;
-                let name = name.clone();
-                Box::pin(async move {
-                    validate_tool_call_result(&name, output_schema.as_deref(), call.await)
-                }) as ToolFuture
-            },
+            Ok(call) => call,
             Err(error) => {
                 let result = tool_error_result_for(error);
                 Box::pin(std::future::ready(result))
@@ -891,6 +885,7 @@ trait ToolExecutor: Send + Sync {
 
 struct RegisteredTool {
     definition: ToolDefinition,
+    output_validator: Option<Arc<jsonschema::Validator>>,
     call: Arc<dyn Fn(McpToolCall) -> ToolFuture + Send + Sync>,
 }
 
@@ -900,7 +895,12 @@ impl ToolExecutor for RegisteredTool {
     }
 
     fn call(&self, call: McpToolCall) -> ToolFuture {
-        (self.call)(call)
+        let future = (self.call)(call);
+        let Some(validator) = self.output_validator.clone() else {
+            return future;
+        };
+        let name = self.definition.name.clone();
+        Box::pin(async move { validate_tool_call_result(&name, &validator, future.await) })
     }
 }
 
@@ -946,12 +946,9 @@ impl PromptExecutor for RegisteredPrompt {
 
 fn validate_tool_call_result(
     tool_name: &str,
-    output_schema: Option<&JsonObject>,
+    output_validator: &jsonschema::Validator,
     result: ToolCallResult,
 ) -> ToolCallResult {
-    let Some(output_schema) = output_schema else {
-        return result;
-    };
     if result.is_error == Some(true) {
         return result;
     }
@@ -963,15 +960,14 @@ fn validate_tool_call_result(
         ));
     };
 
-    let output_schema = Value::Object(output_schema.clone());
-    if let Err(error) = validate_value_against_closed_schema(
-        "structured_content",
-        &output_schema,
-        structured_content,
-    ) {
+    if let Err(error) = output_validator.validate(structured_content) {
         return tool_error_result_for(McpToolError::invalid_tool_output(
             tool_name,
-            error.to_string(),
+            format!(
+                "structured_content{}: {}",
+                error.instance_path(),
+                error.masked()
+            ),
         ));
     }
 

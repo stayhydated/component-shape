@@ -20,6 +20,7 @@ rust_decimal = [ "dep:rust_decimal" ]
 chrono = { optional = true, workspace = true }
 component-shape = { workspace = true }
 component-shape-mcp-macros = { optional = true, workspace = true }
+jsonschema = { workspace = true }
 rmcp = { workspace = true }
 rust_decimal = { optional = true, workspace = true }
 serde = { features = [ "derive" ], workspace = true }

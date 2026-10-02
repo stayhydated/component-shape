@@ -62,6 +62,28 @@ Use `tool_structured_result` for a successful structured response. If the tool
 publishes an output schema, its successful `structured_content` must match
 that schema.
 
+The registry compiles each output schema at registration and shares the
+validator across calls and registry clones. Direct calls, async calls, and MCP
+protocol calls all validate successful results. Invalid schemas fail definition
+construction or registration with `InvalidSchema`; missing or invalid structured
+content produces `InvalidToolOutput`. Handler error results bypass output
+validation. Error kinds and structured fields are stable; diagnostic text may
+change with the validator.
+
+Output schemas use JSON Schema Draft 2020-12 when `$schema` is absent. Explicit
+Draft 4, 6, 7, 2019-09, and 2020-12 dialects are supported; unknown dialects are
+rejected. `format` remains annotation-only, including application formats such
+as `language-tag`. References must resolve within the supplied schema, including
+bundled `$defs` and identifiers. External retrieval is disabled for every URI
+scheme, including HTTP and local files, even if another dependency enables the
+validator's retrieval features.
+
+Return the exact advertised property and enum names. The input decoder's aliases
+and `x-mcp*` metadata do not rename or normalize output. If a type serializes with
+different names from its deserialize-facing `McpJsonSchema`, supply an output
+schema that describes the serialized representation. Application data containing
+keys such as `$ref` or `$schema` remains data and is never retrieved as a schema.
+
 Handler failures remain error results and may include a structured `error`
 object. `McpToolError` supplies stable error kinds and relevant fields so
 clients can branch on failures without parsing display text. Use

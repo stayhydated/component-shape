@@ -213,9 +213,9 @@ fn server_validates_success_output_against_declared_schema() {
         result.structured_content.expect("structured error")["error"],
         json!({
             "kind": "invalid_tool_output",
-            "message": "tool `schema_mismatch` returned invalid structured content: missing required field `structured_content.value`",
+            "message": "tool `schema_mismatch` returned invalid structured content: structured_content: \"value\" is a required property",
             "name": "schema_mismatch",
-            "detail": "missing required field `structured_content.value`"
+            "detail": "structured_content: \"value\" is a required property"
         })
     );
 
