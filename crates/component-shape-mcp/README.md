@@ -14,6 +14,7 @@ own authorization, domain validation, and handler policy.
 - Derive `McpToolInput` for named tool arguments with strict field decoding.
 - Use `McpJsonSchema` for nested schemas and `McpToolValue` for values that
   pair a schema with a decoder.
+- Follow Serde's deserialization names or choose explicit MCP wire-name overrides.
 - Register typed handlers in `McpToolRegistry` and return structured results.
 - Install a reusable registry with `McpServer::from_tool_registry`, or compose
   tools, resources, and prompts directly in `McpServer`.

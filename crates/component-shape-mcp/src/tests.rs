@@ -11,6 +11,7 @@ mod protocol;
 mod registry_server;
 mod resource_prompt;
 mod schema;
+mod serde_names;
 mod support;
 mod tool_value;
 mod validation;
