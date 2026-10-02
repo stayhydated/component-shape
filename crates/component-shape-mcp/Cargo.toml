@@ -20,6 +20,8 @@ rust_decimal = [ "dep:rust_decimal" ]
 chrono = { optional = true, workspace = true }
 component-shape = { workspace = true }
 component-shape-mcp-macros = { optional = true, workspace = true }
+jsonschema = { workspace = true }
+koruma-core = { workspace = true }
 rmcp = { workspace = true }
 rust_decimal = { optional = true, workspace = true }
 serde = { features = [ "derive" ], workspace = true }
@@ -29,7 +31,18 @@ thiserror = { workspace = true }
 tokio = { features = [ "rt-multi-thread" ], workspace = true }
 
 [dev-dependencies]
+koruma = { workspace = true }
+koruma-collection = { workspace = true }
+criterion = { default-features = false, features = [
+  "async_tokio",
+  "cargo_bench_support",
+], version = "0.8.2" }
+proptest = { default-features = false, features = [ "std" ], version = "1.11" }
 rmcp = { features = [ "client" ], workspace = true }
+
+[[bench]]
+harness = false
+name = "output_validation"
 
 [lints]
 workspace = true

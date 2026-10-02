@@ -93,14 +93,14 @@ pub(crate) fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_mac
         }
 
         let defaulted = options.defaulted();
-        let rust_field_name = field_ident.to_string();
+        let rust_field_name = field_ident.unraw().to_string();
         let serde_field_name = options
             .serde_rename
             .clone()
             .or_else(|| {
                 schema_options
                     .serde_rename_all
-                    .map(|rule| rule.apply(&rust_field_name))
+                    .map(|rule| rule.apply_serde_field(&rust_field_name))
             })
             .unwrap_or_else(|| rust_field_name.clone());
         let field_name = options
@@ -109,7 +109,7 @@ pub(crate) fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_mac
             .or_else(|| {
                 schema_options
                     .mcp_rename_all
-                    .map(|rule| rule.apply(&rust_field_name))
+                    .map(|rule| rule.apply_mcp(&rust_field_name))
             })
             .unwrap_or_else(|| serde_field_name.clone());
         claim_wire_name(
@@ -296,14 +296,14 @@ fn expand_enum_mcp_json_schema(
             ));
         }
 
-        let rust_variant_name = variant.ident.to_string();
+        let rust_variant_name = variant.ident.unraw().to_string();
         let serde_name = options
             .serde_rename
             .clone()
             .or_else(|| {
                 schema_options
                     .serde_rename_all
-                    .map(|rule| rule.apply(&rust_variant_name))
+                    .map(|rule| rule.apply_serde_variant(&rust_variant_name))
             })
             .unwrap_or_else(|| rust_variant_name.clone());
         let primary_name = options
@@ -312,7 +312,7 @@ fn expand_enum_mcp_json_schema(
             .or_else(|| {
                 schema_options
                     .mcp_rename_all
-                    .map(|rule| rule.apply(&rust_variant_name))
+                    .map(|rule| rule.apply_mcp(&rust_variant_name))
             })
             .unwrap_or_else(|| serde_name.clone());
         claim_wire_name(

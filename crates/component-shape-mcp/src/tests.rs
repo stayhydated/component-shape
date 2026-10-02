@@ -6,11 +6,15 @@ use super::{
 use serde_json::{Value, json};
 
 mod derive;
+mod koruma;
 mod metadata;
+mod output_schema;
+mod properties;
 mod protocol;
 mod registry_server;
 mod resource_prompt;
 mod schema;
+mod serde_names;
 mod support;
 mod tool_value;
 mod validation;

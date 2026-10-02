@@ -151,6 +151,16 @@ fn server_exposes_tools_through_rmcp_protocol() {
         );
         assert_eq!(result.structured_content.expect("structured")["value"], 42);
 
+        let invalid = client
+            .peer()
+            .call_tool(CallToolRequestParams::new("echo").with_arguments(
+                json!({"value": "wrong type"}).as_object().unwrap().clone(),
+            ))
+            .await
+            .expect("invalid handler output remains a tool result");
+        assert_eq!(invalid.is_error, Some(true));
+        assert_eq!(invalid.structured_content.unwrap()["error"]["kind"], "invalid_tool_output");
+
         client.cancel().await.expect("client should close");
         server_handle.await.expect("server should finish");
     });

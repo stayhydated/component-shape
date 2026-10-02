@@ -19,8 +19,10 @@ public rustdoc and tests to verify behavior before changing its documentation.
 
 Keep shared metadata independent of GPUI. GPUI crates depend on
 `component-shape`; the framework-neutral crate must not depend on GPUI.
-Protocol behavior belongs in the MCP crate; applications own authorization,
-domain validation execution, and handler policy.
+Protocol behavior and Koruma execution for validated typed registrations belong
+in the MCP crate. Koruma owns domain validation contracts; applications choose
+rules and own authorization and handler policy. Keep Koruma independent of
+component-shape and shared metadata independent of its protocol runtime.
 
 ## What changes together
 
@@ -39,6 +41,16 @@ domain validation execution, and handler policy.
   `crates/component-shape-mcp/src/tests`; schema and input expansion tests live
   in `crates/component-shape-mcp-macros/src/tests.rs`. Pair schema and decoder
   changes with their focused tests and affected MCP guidance.
+- Koruma dispatch and runtime issue conversion are covered in
+  `crates/component-shape-mcp/src/tests/koruma.rs`. Preserve validation before
+  handler or future creation, structured parameter types, and failures with an
+  empty issue enumeration. Static schema descriptors remain distinct from runtime
+  Koruma metadata.
+- Output schema validation lives in
+  `crates/component-shape-mcp/src/output_schema.rs`. Preserve its explicit denial
+  of external retrieval even when Cargo features are unified. Schema changes must
+  cover registration failures and direct, async, and protocol results in MCP tests.
+  Output names must match the advertised schema without input alias normalization.
 - Edit book and site sources, then regenerate their outputs through `xtask`.
   Keep project destinations aligned with `web/src/lib.rs` and its route test.
 - Update this guide when ownership, synchronization, or validation routes
@@ -49,6 +61,14 @@ domain validation execution, and handler policy.
 Run the narrowest check that covers the change:
 
 - Crate behavior: `cargo test -p <crate> --all-features --locked`.
+- MCP property tests: `cargo test -p component-shape-mcp --all-features --locked properties`.
+  Keep generated inputs bounded and schema witnesses paired while shrinking;
+  expected results must not call the validator under test.
+- MCP benchmark compile: `cargo bench -p component-shape-mcp --bench output_validation --no-run --locked`.
+  Smoke workloads: `cargo bench -p component-shape-mcp --bench output_validation --locked -- --test`.
+  Use a quiet machine for timed runs; record compiler, commit, and baseline.
+  The harness separates cached async calls from cold definition and registration
+  costs. Do not add hosted-CI timing thresholds or interpret smoke mode as timing.
 - GPUI macro contracts:
   `cargo test -p component-shape-gpui --test trybuild --locked`.
   Use `TRYBUILD=overwrite` with that command only to regenerate intentional

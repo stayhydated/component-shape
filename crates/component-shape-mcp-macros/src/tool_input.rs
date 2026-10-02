@@ -78,14 +78,14 @@ fn expand_mcp_tool_input_impl(input: DeriveInput) -> syn::Result<proc_macro2::To
             .push(parse_quote!(#ty: #mcp_crate::McpToolValue));
 
         let defaulted = options.defaulted();
-        let rust_field_name = field_ident.to_string();
+        let rust_field_name = field_ident.unraw().to_string();
         let serde_field_name = options
             .serde_rename
             .clone()
             .or_else(|| {
                 schema_options
                     .serde_rename_all
-                    .map(|rule| rule.apply(&rust_field_name))
+                    .map(|rule| rule.apply_serde_field(&rust_field_name))
             })
             .unwrap_or_else(|| rust_field_name.clone());
         let field_name = options
@@ -94,7 +94,7 @@ fn expand_mcp_tool_input_impl(input: DeriveInput) -> syn::Result<proc_macro2::To
             .or_else(|| {
                 schema_options
                     .mcp_rename_all
-                    .map(|rule| rule.apply(&rust_field_name))
+                    .map(|rule| rule.apply_mcp(&rust_field_name))
             })
             .unwrap_or_else(|| serde_field_name.clone());
         claim_wire_name(

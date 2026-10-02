@@ -45,6 +45,50 @@ using the transport described in [Servers and stdio](mcp-server.md).
 Use the async registration methods when the handler returns a future. Use an
 untyped tool only when the integration must decode a dynamic argument set.
 
+## Execute Koruma domain rules
+
+Derive `koruma::Koruma` alongside `McpToolInput` and register domain inputs through
+`add_koruma_tool` or `add_koruma_tool_async`. Koruma is the ecosystem's canonical
+domain validator. The registry strictly decodes arguments, runs `ValidateExt`,
+then invokes the handler only on success. Async validation also precedes creating
+the handler's future.
+
+```rust
+use koruma_collection::numeric::RangeValidation;
+
+#[derive(component_shape_mcp::McpToolInput, koruma::Koruma)]
+struct BatchArgs {
+    #[koruma(RangeValidation::<_>.min(1).max(5))]
+    count: u32,
+}
+
+# fn main() -> Result<(), component_shape_mcp::McpToolError> {
+let mut tools = component_shape_mcp::McpToolRegistry::new();
+let tool = component_shape_mcp::tool_definition_for_input::<BatchArgs>(
+    "batch", None, None, None,
+)?;
+tools.add_koruma_tool(tool, |args: BatchArgs| {
+    component_shape_mcp::tool_structured_result(
+        component_shape_mcp::serde_json::json!({ "count": args.count }),
+    )
+})?;
+# Ok(())
+# }
+```
+
+Add the `koruma` facade and `koruma-collection` for derives and built-in rules.
+`component-shape-mcp` uses the framework-neutral `koruma-core` runtime contracts.
+Server builders expose `koruma_tool` and `koruma_tool_async`. Applications retain
+rule selection, authorization, and handler policy.
+
+Failures return Koruma's structured form, field, and element issues through MCP,
+including source field names, labels, indices, and typed runtime parameters.
+`McpValidationIssue::from(&issue)` shares that conversion with domain adapters.
+Use `koruma_validation_error(&error)` to convert an error or `validate_koruma`
+after constructing an untyped input. Failed custom errors that enumerate no issues
+still return a form-level failure. Static schema rule descriptors and hints
+describe constraints to clients; domain validation executes the Koruma rules.
+
 ## Add metadata
 
 Store application-owned names, titles, descriptions, icons, and MCP annotation
@@ -61,6 +105,28 @@ incompatible annotation hints. Raw custom tool definitions registered through
 Use `tool_structured_result` for a successful structured response. If the tool
 publishes an output schema, its successful `structured_content` must match
 that schema.
+
+The registry compiles each output schema at registration and shares the
+validator across calls and registry clones. Direct calls, async calls, and MCP
+protocol calls all validate successful results. Invalid schemas fail definition
+construction or registration with `InvalidSchema`; missing or invalid structured
+content produces `InvalidToolOutput`. Handler error results bypass output
+validation. Error kinds and structured fields are stable; diagnostic text may
+change with the validator.
+
+Output schemas use JSON Schema Draft 2020-12 when `$schema` is absent. Explicit
+Draft 4, 6, 7, 2019-09, and 2020-12 dialects are supported; unknown dialects are
+rejected. `format` remains annotation-only, including application formats such
+as `language-tag`. References must resolve within the supplied schema, including
+bundled `$defs` and identifiers. External retrieval is disabled for every URI
+scheme, including HTTP and local files, even if another dependency enables the
+validator's retrieval features.
+
+Return the exact advertised property and enum names. The input decoder's aliases
+and `x-mcp*` metadata do not rename or normalize output. If a type serializes with
+different names from its deserialize-facing `McpJsonSchema`, supply an output
+schema that describes the serialized representation. Application data containing
+keys such as `$ref` or `$schema` remains data and is never retrieved as a schema.
 
 Handler failures remain error results and may include a structured `error`
 object. `McpToolError` supplies stable error kinds and relevant fields so

@@ -5,7 +5,7 @@ use quote::quote;
 use std::collections::BTreeMap;
 use syn::{
     Attribute, Data, DeriveInput, Expr, Fields, GenericArgument, Ident, LitBool, LitStr, Path,
-    PathArguments, Type, parse_macro_input, parse_quote, spanned::Spanned as _,
+    PathArguments, Type, ext::IdentExt as _, parse_macro_input, parse_quote, spanned::Spanned as _,
 };
 
 mod crate_paths;
@@ -20,6 +20,9 @@ use tool_input::*;
 
 /// Derive JSON Schema metadata for structs, transparent newtypes, and
 /// fieldless enums used in MCP tool schemas.
+///
+/// Serde names follow its deserialize-facing field and variant rules. Explicit
+/// MCP names take precedence and are translated back during typed decoding.
 #[proc_macro_derive(McpJsonSchema, attributes(mcp, serde))]
 pub fn derive_mcp_json_schema(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -31,6 +34,9 @@ pub fn derive_mcp_json_schema(input: TokenStream) -> TokenStream {
 
 /// Derive a top-level MCP input schema and strict MCP argument decoding for a
 /// named tool input struct.
+///
+/// Serde names follow its deserialize-facing field rules. Explicit MCP names
+/// take precedence without changing Serde's field names.
 #[proc_macro_derive(McpToolInput, attributes(mcp, serde))]
 pub fn derive_mcp_tool_input(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

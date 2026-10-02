@@ -28,7 +28,13 @@ references, `Cow<T>`, boxed values, `McpRange<T>`, and `McpAny`.
 
 The derive honors deserialize-facing serde behavior:
 
-- Renames and aliases become accepted input names.
+- Renames and aliases become accepted input names. `serde(rename_all)` follows
+  Serde's distinct field and enum-variant rules, including acronyms, digits, and
+  underscores. When serialization and deserialization names differ, the schema
+  uses the deserialization names.
+- `mcp(rename)` and `mcp(rename_all)` take precedence for MCP wire names and
+  preserve MCP's word-based case conversion. Decoding translates those names to
+  Serde's deserialization names.
 - Deserialization-skipped fields are omitted.
 - Defaulted and optional fields are not required.
 - `#[serde(flatten)]` fields are rejected; use an explicit nested field or

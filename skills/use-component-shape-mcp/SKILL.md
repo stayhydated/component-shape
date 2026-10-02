@@ -10,8 +10,9 @@ description: "Build, review, or document component-shape-mcp integrations: paire
 Use this skill for protocol-facing code built with `component-shape-mcp`.
 Coarse `McpInput` metadata belongs in `component-shape`, and GPUI declarations
 belong in `component-shape-gpui`; use their dedicated skills when available.
-Keep authorization, domain validation execution, and handler policy in the
-consumer.
+Use Koruma as the canonical domain validator. The consumer chooses rules and
+owns authorization and handler policy; the MCP registry executes chosen Koruma
+rules for validated typed registrations.
 
 Inside this repository, read `AGENTS.md` first. Keep public contracts and
 rustdoc in `crates/component-shape-mcp`, derive implementation in
@@ -70,6 +71,22 @@ ambiguous facades.
 For an untyped handler, convert `McpToolCall` with `into_arguments()`,
 consume fields through the typed `take_*` helpers, and call `finish()?` to
 reject unknown fields.
+
+## Execute domain validation
+
+Derive `koruma::Koruma` alongside `McpToolInput` for inputs with domain rules.
+Use `McpToolRegistry::add_koruma_tool` or `add_koruma_tool_async`; server builders
+provide `koruma_tool` and `koruma_tool_async`. Strict decoding precedes Koruma
+validation, and failures stop handler dispatch and async future creation.
+
+The integration uses `koruma-core::ValidateExt` and `ValidationIssues`. Add the
+Koruma facade and collection when deriving rules or choosing built-in validators.
+Use `validate_koruma(&input)` for an untyped integration's reconstructed value,
+`koruma_validation_error(&error)` for errors, or `McpValidationIssue::from(&issue)`
+to preserve canonical issue scope, source field, label, index, validator, and
+typed runtime parameters. A failed error with no issues still fails at form scope.
+Keep static schema descriptors as descriptive metadata; runtime rules execute
+through Koruma. Shared core metadata remains independent of protocol and GPUI.
 
 ## Enforce schema and result rules
 

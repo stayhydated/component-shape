@@ -2,11 +2,17 @@ use super::*;
 
 /// Build and validate an MCP tool definition.
 ///
+/// Output schemas use JSON Schema Draft 2020-12 unless `$schema` selects a
+/// supported draft (4, 6, 7, 2019-09, or 2020-12). Formats are annotations.
+/// References must resolve within the supplied schema; external retrieval is
+/// disabled. Successful output must use the advertised names, without input
+/// alias or `x-mcp*` normalization.
+///
 /// # Errors
 ///
 /// Returns [`McpToolError`] when the tool metadata is invalid or when the input
 /// schema is not an object-shaped MCP tool schema, or the output schema is not
-/// a JSON object.
+/// a valid, self-contained JSON Schema object.
 pub fn tool_definition(
     name: impl Into<String>,
     title: Option<String>,
@@ -32,6 +38,9 @@ pub fn tool_definition(
         .map(|schema| schema_object("output_schema", schema))
         .transpose()?
         .map(Arc::new);
+    if let Some(schema) = tool.output_schema.as_deref() {
+        output_schema::compile_output_schema(schema)?;
+    }
     Ok(tool)
 }
 
@@ -436,6 +445,12 @@ pub fn validate_tool_annotations(annotations: &McpToolAnnotations) -> Result<(),
 /// Returns [`McpToolError`] when the name, schemas, title, description,
 /// annotations, or icons are invalid.
 pub fn validate_tool_definition(definition: &ToolDefinition) -> Result<(), McpToolError> {
+    validate_tool_definition_with_output(definition).map(|_| ())
+}
+
+pub(crate) fn validate_tool_definition_with_output(
+    definition: &ToolDefinition,
+) -> Result<Option<jsonschema::Validator>, McpToolError> {
     validate_tool_name(definition.name.as_ref())?;
     validate_tool_input_schema("input_schema", definition.input_schema.as_ref())?;
     if let Some(title) = definition.title.as_deref() {
@@ -452,7 +467,11 @@ pub fn validate_tool_definition(definition: &ToolDefinition) -> Result<(), McpTo
             validate_icon_definition(icon)?;
         }
     }
-    Ok(())
+    definition
+        .output_schema
+        .as_deref()
+        .map(output_schema::compile_output_schema)
+        .transpose()
 }
 
 /// Validate a concrete MCP resource definition accepted by this shared server.

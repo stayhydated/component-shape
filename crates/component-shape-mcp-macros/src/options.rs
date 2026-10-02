@@ -103,7 +103,63 @@ impl RenameRule {
         }
     }
 
-    pub(crate) fn apply(self, ident: &str) -> String {
+    // Serde deliberately uses different algorithms for fields and variants.
+    // Keep these aligned with serde_derive::internals::case rather than MCP's
+    // word-based naming, especially for acronyms, digits, and underscores.
+    pub(crate) fn apply_serde_field(self, field: &str) -> String {
+        match self {
+            Self::Lower | Self::Snake => field.to_owned(),
+            Self::Upper | Self::ScreamingSnake => field.to_ascii_uppercase(),
+            Self::Pascal => {
+                let mut renamed = String::new();
+                let mut uppercase = true;
+                for ch in field.chars() {
+                    if ch == '_' {
+                        uppercase = true;
+                    } else {
+                        renamed.push(if uppercase {
+                            ch.to_ascii_uppercase()
+                        } else {
+                            ch
+                        });
+                        uppercase = false;
+                    }
+                }
+                renamed
+            },
+            Self::Camel => lowercase_first(Self::Pascal.apply_serde_field(field)),
+            Self::Kebab => field.replace('_', "-"),
+            Self::ScreamingKebab => field.to_ascii_uppercase().replace('_', "-"),
+        }
+    }
+
+    pub(crate) fn apply_serde_variant(self, variant: &str) -> String {
+        match self {
+            Self::Lower => variant.to_ascii_lowercase(),
+            Self::Upper => variant.to_ascii_uppercase(),
+            Self::Pascal => variant.to_owned(),
+            Self::Camel => lowercase_first(variant.to_owned()),
+            Self::Snake => {
+                let mut renamed = String::new();
+                for (index, ch) in variant.char_indices() {
+                    if index > 0 && ch.is_uppercase() {
+                        renamed.push('_');
+                    }
+                    renamed.push(ch.to_ascii_lowercase());
+                }
+                renamed
+            },
+            Self::ScreamingSnake => Self::Snake
+                .apply_serde_variant(variant)
+                .to_ascii_uppercase(),
+            Self::Kebab => Self::Snake.apply_serde_variant(variant).replace('_', "-"),
+            Self::ScreamingKebab => Self::ScreamingSnake
+                .apply_serde_variant(variant)
+                .replace('_', "-"),
+        }
+    }
+
+    pub(crate) fn apply_mcp(self, ident: &str) -> String {
         let words = split_words(ident);
         match self {
             Self::Lower => words.concat().to_ascii_lowercase(),
@@ -126,6 +182,13 @@ impl RenameRule {
             Self::ScreamingKebab => words.join("-").to_ascii_uppercase(),
         }
     }
+}
+
+fn lowercase_first(mut value: String) -> String {
+    if let Some(first) = value.get_mut(..1) {
+        first.make_ascii_lowercase();
+    }
+    value
 }
 
 fn split_words(ident: &str) -> Vec<String> {
@@ -673,10 +736,10 @@ mod tests {
             (RenameRule::ScreamingKebab, "HTTP-SERVER-2"),
         ];
         for (rule, expected) in cases {
-            assert_eq!(rule.apply("HTTPServer2"), expected);
+            assert_eq!(rule.apply_mcp("HTTPServer2"), expected);
         }
         assert_eq!(
-            RenameRule::Snake.apply("dash-separated value"),
+            RenameRule::Snake.apply_mcp("dash-separated value"),
             "dash_separated_value"
         );
 
