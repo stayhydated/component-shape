@@ -11,6 +11,8 @@ component-shape provides Rust contracts for library authors to describe UI
 components once and share their metadata with frameworks, code generators, and
 Model Context Protocol (MCP) integrations.
 
+Requires Rust 1.99 or newer (edition 2024).
+
 ## Crates
 
 | Package | Purpose | Source |

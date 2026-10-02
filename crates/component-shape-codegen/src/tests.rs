@@ -1,5 +1,6 @@
 use super::*;
 use quote::ToTokens as _;
+use std::assert_matches;
 use syn::parse::Parser as _;
 use syn::parse_quote;
 
@@ -873,10 +874,7 @@ fn shape_paths_and_resolved_shape_accessors_cover_error_and_metadata_paths() {
         ShapeOptions::from_shape_with_span(parse_quote!(InputShape<_>), Span::call_site());
     let _ = options.span();
     let resolved = options.resolve("input".to_string(), parse_quote!(String));
-    assert!(matches!(
-        resolved.constructor(),
-        ComponentShapeConstructor::Default
-    ));
+    assert_matches!(resolved.constructor(), ComponentShapeConstructor::Default);
     assert_eq!(resolved.field_name(), "input");
     assert_eq!(compact_type(resolved.field_type()), "String");
     let _ = resolved.span();

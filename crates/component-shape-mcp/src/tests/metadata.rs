@@ -270,6 +270,15 @@ fn tool_names_are_stable_and_mcp_friendly() {
         "example_api_http_server2"
     );
     assert_eq!(crate::tool_name("123", "", "tool_"), "tool_123");
+    assert_eq!(crate::tool_name("", "", "tool_"), "tool_");
+    assert_eq!(
+        crate::tool_name("__example::", "HTTP", "tool_"),
+        "example_http"
+    );
+    assert_eq!(
+        crate::tool_name("example", "2HTTPServer", "tool_"),
+        "example_2_http_server"
+    );
 }
 
 #[test]
