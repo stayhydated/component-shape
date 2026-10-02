@@ -1,5 +1,6 @@
 use super::*;
 use crate::McpToolValue as _;
+use std::collections::BTreeSet;
 
 macro_rules! serde_rename_contract {
     ($name:ident, $rule:literal) => {
@@ -41,8 +42,8 @@ macro_rules! serde_rename_contract {
                         .as_object()
                         .unwrap()
                         .keys()
-                        .collect::<Vec<_>>(),
-                    wire.as_object().unwrap().keys().collect::<Vec<_>>(),
+                        .collect::<BTreeSet<_>>(),
+                    wire.as_object().unwrap().keys().collect::<BTreeSet<_>>(),
                     "schema fields must follow Serde for {}",
                     $rule,
                 );
