@@ -44,6 +44,10 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --all-features
 
+      - name: Smoke MCP benchmark workloads
+        if: runner.os == 'Linux'
+        run: cargo test -p component-shape-mcp --all-features --bench output_validation --locked
+
   fmt:
     runs-on: ubuntu-latest
 
