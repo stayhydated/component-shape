@@ -597,9 +597,9 @@ dependencies = [
 
 [[package]]
 name = "attribute-dsl"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ba4ae4c97f89eaa9121d345c22dd5d8475486cf08e105b08a07ba6524e110f9"
+checksum = "3462472f8b4be0ad2698d733aea8148d286b1a816b200312977d7ff60082f586"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -894,18 +894,18 @@ dependencies = [
 
 [[package]]
 name = "bon"
-version = "3.10.1"
+version = "3.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60eafe0d77c3a2fc292c1d1346c3041b33c0a108085a2afabf672b70f69dbbc9"
+checksum = "214f5df094ce551a10a30ffb9c70243d61f121a3d985a6495933e181dee6a7d2"
 dependencies = [
  "bon-macros",
 ]
 
 [[package]]
 name = "bon-macros"
-version = "3.10.1"
+version = "3.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd0f9631d8aaaee112c41985d675ef269e02acbd4f33122836af4f0c5f699ff6"
+checksum = "2706da6c749998cc555d04184909608956a69ad3f8ab1a076fbc867b4a3c3ce5"
 dependencies = [
  "darling 0.24.1",
  "ident_case",
@@ -1397,7 +1397,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "derive_more",
  "heck 0.5.0",
@@ -1408,7 +1408,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-codegen"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "attribute-dsl",
  "component-shape",
@@ -1419,7 +1419,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-gpui"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "component-shape",
  "component-shape-gpui-macros",
@@ -1429,7 +1429,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-gpui-macros"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "component-shape",
  "component-shape-codegen",
@@ -1442,7 +1442,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-mcp"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "chrono",
  "component-shape",
@@ -1464,7 +1464,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-mcp-macros"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2987,9 +2987,9 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-build"
-version = "0.20.3"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b07171df8f1165e4dc8c26181d28950226c6b58c37308315f8fa4fc47f648319"
+checksum = "cdcc5aff663f7564897eb9d1d862065310a120f85ea7fb0aca89fb4a1920b12b"
 dependencies = [
  "es-fluent-shared",
  "es-fluent-toml",
@@ -2997,9 +2997,9 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-shared"
-version = "0.20.3"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4d906787a52194d2cce06f918392eae2d0cfff2dc22410a2cd36f065b9333a3"
+checksum = "a99228b13659e7809740d69f7b2415d4ffba773fa7d24ecf6f9fd573a4050097"
 dependencies = [
  "anyhow",
  "camino",
@@ -3021,9 +3021,9 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-toml"
-version = "0.20.3"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "573701d4f1f8a5c0120680f0823350393011fe5751912658fe215c6346c6f881"
+checksum = "b36cb1a297eff2c6798d065fa914b3fbd0e6b8d2d38262c60311c8be4b261d31"
 dependencies = [
  "bon",
  "es-fluent-shared",
@@ -5178,9 +5178,9 @@ dependencies = [
 
 [[package]]
 name = "jsonschema"
-version = "0.58.4"
+version = "0.58.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5761b0ca0a31464030d7c2a98087fde3124ebb5e09b5a112cdb815f03b8ee150"
+checksum = "ea18b8d5e1469b1bdd6b349169305141316a7c26da27f239773b65c830c0f5d6"
 dependencies = [
  "ahash",
  "bytecount",
@@ -5206,18 +5206,18 @@ dependencies = [
 
 [[package]]
 name = "jsonschema-regex"
-version = "0.58.4"
+version = "0.58.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1ffba4378a3d6ee7f1ab65a8ed95c711ccfe4a3870932bdce89d8260abed38a"
+checksum = "854e9e22c420535035e95eed240cbfb4a5f4b7da74d122d63144e0c31926dbfd"
 dependencies = [
  "regex-syntax",
 ]
 
 [[package]]
 name = "jsonschema-value"
-version = "0.58.4"
+version = "0.58.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "386121f898b560ff6aaa7974952720e9d9276a201eca31296387c2ed8707855e"
+checksum = "4e3bfac11ac357ec620880025757d38c67da8fd5b9ef5024d19f0f360002b4ca"
 dependencies = [
  "ahash",
  "bytecount",
@@ -5272,9 +5272,9 @@ checksum = "a4933f3f57a8e9d9da04db23fb153356ecaf00cbd14aee46279c33dc80925c37"
 
 [[package]]
 name = "koruma"
-version = "0.12.2"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b19dc28bbbba0c67042c04e93a291d3f4eae289a7cb66532865555c03bf6093"
+checksum = "1bb5e136f54519026549d75dfa50a4a5987c87229832d0f6ac76982ffd15af5c"
 dependencies = [
  "koruma-core",
  "koruma-derive",
@@ -5282,9 +5282,9 @@ dependencies = [
 
 [[package]]
 name = "koruma-collection"
-version = "0.12.2"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4c7d3032a9c4337f708ff37dd94b3093faf2c9f4e3c70ef6d94136681b55dac"
+checksum = "f302864703ed6c94b6ef910181f047f9155556a59f2c6f31f882f7833e11c5b2"
 dependencies = [
  "es-fluent-build",
  "koruma",
@@ -5292,15 +5292,15 @@ dependencies = [
 
 [[package]]
 name = "koruma-core"
-version = "0.12.2"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16423611346e5e0d79466f82bab27d39ccd6cc0ee93fca7dd737500c696739d9"
+checksum = "63d4f7d27f3bcd89a664db41d1eb0f4754e921f8c4a6a75c9a477221a0d05504"
 
 [[package]]
 name = "koruma-derive"
-version = "0.12.2"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7ff8ee7491ffd4f57ccd014d01b3ae32590eb8230f0130aa7b5836129e6dab9"
+checksum = "59ed35478a02d793d183f34c04b5a61bd9f3eef055942ec3a737d1893bf93dcc"
 dependencies = [
  "heck 0.5.0",
  "koruma-derive-core",
@@ -5312,9 +5312,9 @@ dependencies = [
 
 [[package]]
 name = "koruma-derive-core"
-version = "0.12.2"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a75cacb3a3cb26f6ebd1b0f0361695a5c2360d4bfe90a3b393c5bb863802fd2"
+checksum = "bb1c08cd89a0a3b6743d7757c077a7f7aadac286758857e09ddd848438bfbd68"
 dependencies = [
  "attribute-dsl",
  "heck 0.5.0",
@@ -5407,9 +5407,9 @@ checksum = "34b357333733e8260735ba5894eb928c02ecc69c78715f01a8019e7fa7f2db4c"
 
 [[package]]
 name = "libc"
-version = "0.2.189"
+version = "0.2.190"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
+checksum = "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78"
 
 [[package]]
 name = "libfuzzer-sys"
@@ -7883,9 +7883,9 @@ dependencies = [
 
 [[package]]
 name = "referencing"
-version = "0.58.4"
+version = "0.58.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cfa1c91745dbca76a406b926918d7c63e15a4525ebab939fec3e015a1fb82b1"
+checksum = "590efadb0a669f1712c1e3ab810a55d4c3d20d0127c455f7236dd0710aba0346"
 dependencies = [
  "ahash",
  "fluent-uri 0.4.1",
@@ -8884,7 +8884,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "stayhydated-dioxus"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=ab491dd907051b743033ecdae96d4668a7708f0d#ab491dd907051b743033ecdae96d4668a7708f0d"
+source = "git+https://github.com/stayhydated/shared?rev=d9c54bbb850b58b822458a6a15eb75ba64034a31#d9c54bbb850b58b822458a6a15eb75ba64034a31"
 dependencies = [
  "bon",
  "dioxus",
@@ -8898,7 +8898,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-dioxus-core"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=ab491dd907051b743033ecdae96d4668a7708f0d#ab491dd907051b743033ecdae96d4668a7708f0d"
+source = "git+https://github.com/stayhydated/shared?rev=d9c54bbb850b58b822458a6a15eb75ba64034a31#d9c54bbb850b58b822458a6a15eb75ba64034a31"
 dependencies = [
  "bytemuck",
  "derive_more",
@@ -8915,7 +8915,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-site"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=ab491dd907051b743033ecdae96d4668a7708f0d#ab491dd907051b743033ecdae96d4668a7708f0d"
+source = "git+https://github.com/stayhydated/shared?rev=d9c54bbb850b58b822458a6a15eb75ba64034a31#d9c54bbb850b58b822458a6a15eb75ba64034a31"
 dependencies = [
  "derive_more",
  "dioxus",
@@ -8925,7 +8925,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-xtask"
 version = "0.1.0"
-source = "git+https://github.com/stayhydated/shared?rev=ab491dd907051b743033ecdae96d4668a7708f0d#ab491dd907051b743033ecdae96d4668a7708f0d"
+source = "git+https://github.com/stayhydated/shared?rev=d9c54bbb850b58b822458a6a15eb75ba64034a31#d9c54bbb850b58b822458a6a15eb75ba64034a31"
 dependencies = [
  "anyhow",
  "bon",
@@ -10460,7 +10460,7 @@ dependencies = [
 
 [[package]]
 name = "web"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "dioxus",
  "stayhydated-dioxus",
@@ -11701,7 +11701,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "anyhow",
  "clap",
