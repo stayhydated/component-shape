@@ -17,27 +17,27 @@ license = "MIT OR Apache-2.0"
 publish = true
 repository = "https://github.com/stayhydated/component-shape"
 rust-version = "1.99"
-version = "0.3.3"
+version = "0.3.4"
 
 [workspace.dependencies]
 anyhow = "1.0"
-attribute-dsl = "0.2.1"
+attribute-dsl = "0.2.2"
 chrono = "0.4"
 clap = "4.6"
-component-shape = { path = "crates/component-shape", version = "0.3.3" }
-component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.3.3" }
-component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.3.3" }
-component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", version = "0.3.3" }
-component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.3.3" }
-component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.3.3" }
+component-shape = { path = "crates/component-shape", version = "0.3.4" }
+component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.3.4" }
+component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.3.4" }
+component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", version = "0.3.4" }
+component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.3.4" }
+component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.3.4" }
 derive_more = "2.1"
 dioxus = { default-features = false, version = "0.7" }
 gpui-kit = "0.7.0"
 heck = "0.5"
-jsonschema = { default-features = false, version = "0.58.4" }
-koruma = "0.12.2"
-koruma-collection = "0.12.2"
-koruma-core = { default-features = false, version = "0.12.2" }
+jsonschema = { default-features = false, version = "0.58.5" }
+koruma = "0.13.0"
+koruma-collection = "0.13.0"
+koruma-core = { default-features = false, version = "0.13.0" }
 prettyplease = "0.3"
 proc-macro-crate = "3.5"
 proc-macro2 = "1.0"
@@ -46,9 +46,9 @@ rmcp = { default-features = false, features = [ "server", "transport-io" ], vers
 rust_decimal = "1.43"
 serde = "1.0"
 serde_json = "1.0"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "ab491dd907051b743033ecdae96d4668a7708f0d" }
-stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "ab491dd907051b743033ecdae96d4668a7708f0d" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "ab491dd907051b743033ecdae96d4668a7708f0d" }
+stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "d9c54bbb850b58b822458a6a15eb75ba64034a31" }
+stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "d9c54bbb850b58b822458a6a15eb75ba64034a31" }
+stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "d9c54bbb850b58b822458a6a15eb75ba64034a31" }
 strum = "0.28"
 syn = { default-features = false, version = "3.0" }
 thiserror = "2.0"
