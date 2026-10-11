@@ -57,8 +57,8 @@ jobs:
         with:
           version: "v0.16.0"
       - uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # main
-      - name: Install the publication Dioxus CLI
-        run: cargo binstall dioxus-cli --version 0.7.9 --locked --no-confirm
+      - name: Install the locked Dioxus CLI
+        run: cargo binstall dioxus-cli --version 0.7.10 --locked --no-confirm
       - name: Build book, llms.txt, and static site
         run: |
           cargo run -p xtask --locked -- build book
