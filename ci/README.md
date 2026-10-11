@@ -4,7 +4,8 @@ Run `just quality` for non-mutating repository checks and
 `.github/scripts/check-features.sh` for the isolated consumer checks. CI uses
 project-maintained rumdl, typos and cargo-deny Actions, checksum-verified Taplo
 and ShellCheck installation, and the official actionlint image. Local checks
-use the same pinned tool versions specified in the workflow.
+use the same pinned tool versions specified in the workflow. CI selects latest
+stable Rust explicitly while preserving the repository's local toolchain file.
 
 `feature-consumer` declares its own workspace and lockfile. Each feature case
 runs separately with `--no-default-features --locked`, so workspace tests and
@@ -17,7 +18,9 @@ public schema output for primitive, derived, date/time, and Decimal types.
 
 After intentionally changing dependencies, update both the workspace lockfile
 and `feature-consumer/Cargo.lock`, then run the consumer checks again. These
-checks do not replace the existing workspace tests or their doctests.
+checks do not replace the existing workspace tests or their doctests. Dependabot
+includes both workspaces in its monthly grouped Cargo updates, preserving the
+existing major-only policy.
 
 The site job uses Dioxus CLI 0.7.9, matching the existing deployment workflow
 through the pinned shared helper, and invokes the existing book, llms.txt and
