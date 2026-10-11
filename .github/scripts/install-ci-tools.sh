@@ -22,5 +22,5 @@ fetch_archive https://github.com/koalaman/shellcheck/releases/download/v0.11.0/s
 tar -xJf "$archive_dir/shellcheck.tar.xz" -C "$archive_dir"
 cp "$archive_dir/shellcheck-v0.11.0/shellcheck" "$install_dir/"
 fetch_archive https://github.com/crate-ci/typos/releases/download/v1.42.3/typos-v1.42.3-x86_64-unknown-linux-musl.tar.gz e083bf917d840563e77b35b64f43924d98fcb77acb69691455099d39e347d67d typos.tar.gz
-tar -xzf "$archive_dir/typos.tar.gz" -C "$install_dir" typos
+tar -xzf "$archive_dir/typos.tar.gz" -C "$install_dir" ./typos
 printf '%s\n' "$install_dir" >> "${GITHUB_PATH:?}"
