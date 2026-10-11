@@ -20,12 +20,12 @@ jobs:
     env:
       RUSTC_WRAPPER: ""
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Install Taplo and ShellCheck
-        uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        uses: taiki-e/install-action@v2.87.27
         with:
           tool: "taplo@0.10.0,shellcheck@0.11.0"
           checksum: true
@@ -33,7 +33,7 @@ jobs:
       - name: Check TOML formatting
         run: taplo fmt --check
       - name: Check Markdown
-        uses: rvben/rumdl@a7a8434abe60f64239ea05624885f9bad66a1026 # action v0.2.79
+        uses: rvben/rumdl@v0.2.79
         with:
           version: "0.2.78"
           command: check
@@ -42,10 +42,10 @@ jobs:
       - name: Prevent checkout-controlled typos executable reuse
         run: test ! -e typos && test ! -L typos
       - name: Check spelling
-        uses: crate-ci/typos@06d010dfe4c84fdab1a25ea02b57b3585018ba80 # v1.42.3
+        uses: crate-ci/typos@v1.42.3
         with:
           write_changes: false
-      - uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # main
+      - uses: cargo-bins/cargo-binstall@v1.25.3
         with:
           version: "1.25.1"
       - name: Install derive sorter
@@ -53,7 +53,7 @@ jobs:
       - name: Check derive order
         run: cargo sort-derives --check
       - name: Check workflows
-        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # 1.7.12, includes ShellCheck and pyflakes
+        uses: docker://rhysd/actionlint:1.7.12 # includes ShellCheck and pyflakes
       - name: Check shell scripts
         run: git ls-files -z '*.sh' '*.bash' | xargs -0 --no-run-if-empty shellcheck
 
@@ -62,11 +62,11 @@ jobs:
     env:
       RUSTC_WRAPPER: ""
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Check dependency advisories and sources
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1, cargo-deny 0.20.2
+        uses: EmbarkStudios/cargo-deny-action@v2.1.1 # cargo-deny 0.20.2
         with:
           rust-version: "stable"
           arguments: "--workspace --all-features --locked"
@@ -76,11 +76,11 @@ jobs:
   features:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
-      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      - uses: mozilla-actions/sccache-action@v0.0.11
         with:
           version: "v0.16.0"
       - name: Run isolated consumer feature cases
@@ -89,16 +89,16 @@ jobs:
   site:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      - uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      - uses: mozilla-actions/sccache-action@v0.0.11
         with:
           version: "v0.16.0"
-      - uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # main
+      - uses: cargo-bins/cargo-binstall@v1.25.3
         with:
           version: "1.25.1"
       - name: Install publication Dioxus CLI
@@ -126,14 +126,14 @@ jobs:
           - windows-latest
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        uses: mozilla-actions/sccache-action@v0.0.11
         with:
           version: "v0.16.0"
 
@@ -152,7 +152,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -170,7 +170,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -179,7 +179,7 @@ jobs:
           components: clippy
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        uses: mozilla-actions/sccache-action@v0.0.11
         with:
           version: "v0.16.0"
 
@@ -193,14 +193,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        uses: mozilla-actions/sccache-action@v0.0.11
         with:
           version: "v0.16.0"
 
@@ -214,14 +214,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        uses: mozilla-actions/sccache-action@v0.0.11
         with:
           version: "v0.16.0"
 
@@ -236,11 +236,11 @@ jobs:
     env:
       RUSTC_WRAPPER: ""
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
-      - uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # main
+      - uses: cargo-bins/cargo-binstall@v1.25.3
         with:
           version: "1.25.1"
       - name: Install pinned dependency usage checker
@@ -252,7 +252,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -261,14 +261,14 @@ jobs:
           components: rust-analyzer, rust-src
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        uses: mozilla-actions/sccache-action@v0.0.11
         with:
           version: "v0.16.0"
 
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
 
-      - uses: cargo-bins/cargo-binstall@3be4ad2b146f3302f92e5956c54fedbb6ae8cccc # main
+      - uses: cargo-bins/cargo-binstall@v1.25.3
         with:
           version: "1.25.1"
 
@@ -283,7 +283,7 @@ jobs:
           cargo llvm-cov --workspace --all-features --locked --cobertura --output-path=target/cobertura.xml --exclude xtask --exclude web --exclude gpui-storybook-example-story --exclude gpui-storybook-example-component
 
       - name: Codecov publish
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
+        uses: codecov/codecov-action@v7
         with:
           files: target/cobertura.xml
           disable_search: true
@@ -309,7 +309,7 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -317,7 +317,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        uses: mozilla-actions/sccache-action@v0.0.11
         with:
           version: "v0.16.0"
 
@@ -325,7 +325,7 @@ jobs:
         uses: ./.github/actions/install-linux-deps
 
       - name: Publish unpublished crate versions
-        uses: release-plz/action@aec534bbd8631793b9b3b8f1ee6cd886c322e17f # v0.5.133
+        uses: release-plz/action@v0.5.133
         with:
           command: release
           version: 0.3.162
