@@ -1,7 +1,7 @@
 use super::*;
 use koruma_collection::numeric::RangeValidation;
 
-#[derive(crate::McpToolInput, ::koruma::Koruma)]
+#[derive(::koruma::Koruma, crate::McpToolInput)]
 struct BoundedArgs {
     #[koruma(RangeValidation::<_>.min(1).max(5))]
     count: u32,

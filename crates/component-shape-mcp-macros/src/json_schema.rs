@@ -127,7 +127,7 @@ pub(crate) fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_mac
             )?;
         }
         let field_name = LitStr::new(&field_name, field_ident.span());
-        let alias_lits = options
+        let alias_literals = options
             .aliases
             .iter()
             .map(|alias| LitStr::new(alias, field_ident.span()))
@@ -153,7 +153,7 @@ pub(crate) fn expand_mcp_json_schema(input: DeriveInput) -> syn::Result<proc_mac
                 }
             })
             .unwrap_or_default();
-        let alias_extension_tokens = alias_extension_tokens(&mcp_crate, &alias_lits);
+        let alias_extension_tokens = alias_extension_tokens(&mcp_crate, &alias_literals);
         let decode_name_extension_tokens =
             decode_name_extension_tokens(&mcp_crate, decode_name.as_ref());
 

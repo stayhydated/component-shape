@@ -1,6 +1,6 @@
 use super::*;
 
-/// A clonable collection of MCP tool definitions and in-process handlers.
+/// A cloneable collection of MCP tool definitions and in-process handlers.
 ///
 /// Resources, prompts, server identity, and transport lifecycle remain owned
 /// by [`McpServer`].
@@ -85,7 +85,7 @@ impl McpToolRegistry {
     /// ```
     /// use koruma_collection::numeric::RangeValidation;
     ///
-    /// #[derive(component_shape_mcp::McpToolInput, koruma::Koruma)]
+    /// #[derive(koruma::Koruma, component_shape_mcp::McpToolInput)]
     /// # #[mcp(crate = component_shape_mcp)]
     /// struct BatchArgs {
     ///     #[koruma(RangeValidation::<_>.min(1).max(5))]

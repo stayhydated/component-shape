@@ -18,7 +18,7 @@ macro_rules! serde_rename_contract {
                 r#type: String,
             }
 
-            #[derive(Debug, PartialEq, serde::Deserialize, crate::McpToolInput)]
+            #[derive(Debug, serde::Deserialize, crate::McpToolInput, PartialEq)]
             #[serde(rename_all = $rule)]
             struct Input {
                 first_name: String,
@@ -97,7 +97,7 @@ serde_rename_contract!(serde_rename_screaming_kebabcase, "SCREAMING-KEBAB-CASE")
 
 #[test]
 fn serde_rename_deserialize_overrides_and_mcp_names_are_separate() {
-    #[derive(Debug, PartialEq, serde::Deserialize, crate::McpJsonSchema)]
+    #[derive(Debug, serde::Deserialize, crate::McpJsonSchema, PartialEq)]
     #[serde(rename_all(serialize = "UPPERCASE", deserialize = "lowercase"))]
     #[mcp(rename_all = "camelCase")]
     struct Record {
@@ -128,7 +128,7 @@ fn serde_rename_deserialize_overrides_and_mcp_names_are_separate() {
         }
     );
 
-    #[derive(Debug, PartialEq, serde::Deserialize, crate::McpJsonSchema)]
+    #[derive(Debug, serde::Deserialize, crate::McpJsonSchema, PartialEq)]
     #[serde(rename_all(deserialize = "snake_case", serialize = "UPPERCASE"))]
     #[mcp(rename_all = "snake_case")]
     enum Variant {

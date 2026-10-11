@@ -1,0 +1,19 @@
+[package]
+name = "component-shape-feature-consumer"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# A separate workspace keeps dev-dependencies and GPUI out of the feature cases.
+[workspace]
+
+[dependencies]
+chrono = { optional = true, version = "0.4" }
+component-shape-mcp = { default-features = false, path = "../../crates/component-shape-mcp" }
+rust_decimal = { optional = true, version = "1.43" }
+
+[features]
+mcp-chrono = [ "component-shape-mcp/chrono", "dep:chrono" ]
+mcp-decimal = [ "component-shape-mcp/rust_decimal", "dep:rust_decimal" ]
+mcp-default = [ "component-shape-mcp/default" ]
+mcp-minimal = [  ]

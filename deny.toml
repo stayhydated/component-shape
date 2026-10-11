@@ -1,0 +1,5 @@
+# The existing lockfile uses these two Git repositories. New sources need review.
+[sources]
+allow-git = [ "https://github.com/DioxusLabs/components", "https://github.com/stayhydated/shared" ]
+unknown-git = "deny"
+unknown-registry = "deny"

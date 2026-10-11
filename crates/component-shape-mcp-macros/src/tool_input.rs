@@ -112,7 +112,7 @@ fn expand_mcp_tool_input_impl(input: DeriveInput) -> syn::Result<proc_macro2::To
             )?;
         }
         let field_name_lit = LitStr::new(&field_name, field_ident.span());
-        let alias_lits = options
+        let alias_literals = options
             .aliases
             .iter()
             .map(|alias| LitStr::new(alias, field_ident.span()))
@@ -130,7 +130,7 @@ fn expand_mcp_tool_input_impl(input: DeriveInput) -> syn::Result<proc_macro2::To
                 }
             })
             .unwrap_or_default();
-        let alias_extension_tokens = alias_extension_tokens(&mcp_crate, &alias_lits);
+        let alias_extension_tokens = alias_extension_tokens(&mcp_crate, &alias_literals);
         let decode_name_extension_tokens =
             decode_name_extension_tokens(&mcp_crate, decode_name.as_ref());
         schema_field_tokens.push(quote! {
@@ -155,7 +155,7 @@ fn expand_mcp_tool_input_impl(input: DeriveInput) -> syn::Result<proc_macro2::To
             DecodeField {
                 ty: &ty,
                 field_name: &field_name_lit,
-                aliases: &alias_lits,
+                aliases: &alias_literals,
                 required,
                 default,
                 container_defaulted: schema_options.defaulted,
