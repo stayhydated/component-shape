@@ -1,9 +1,10 @@
 # CI consumer checks
 
-Run `.github/scripts/check-quality.sh` for the non-mutating repository checks
-and `.github/scripts/check-features.sh` for the isolated consumer checks.
-The pinned tools are installed by `.github/scripts/install-ci-tools.sh` in
-GitHub Actions; the same versions can be installed locally.
+Run `just quality` for non-mutating repository checks and
+`.github/scripts/check-features.sh` for the isolated consumer checks. CI uses
+project-maintained rumdl, typos and cargo-deny Actions, checksum-verified Taplo
+and ShellCheck installation, and the official actionlint image. Local checks
+use the same pinned tool versions specified in the workflow.
 
 `feature-consumer` declares its own workspace and lockfile. Each feature case
 runs separately with `--no-default-features --locked`, so workspace tests and
@@ -18,9 +19,13 @@ After intentionally changing dependencies, update both the workspace lockfile
 and `feature-consumer/Cargo.lock`, then run the consumer checks again. These
 checks do not replace the existing workspace tests or their doctests.
 
-The site job uses Dioxus CLI 0.7.10, matching Dioxus in the workspace lockfile,
-and invokes the existing book, llms.txt, and static-site generators. It runs
-with read-only repository permissions and uploads no deployment artifacts.
+The site job uses Dioxus CLI 0.7.9, matching the existing deployment workflow
+through the pinned shared helper, and invokes the existing book, llms.txt and
+static-site generators. Locked metadata is checked before the build, and
+changes to tracked Cargo lockfiles fail the final drift check. The pinned
+helper does not expose a way to pass `--locked` into nested Dioxus commands, so
+the preflight and drift checks cover that limitation. The job uses read-only
+repository permissions and uploads no deployment artifacts.
 
 The dependency gate checks advisories and sources. Its Git allowlist mirrors
 the existing lockfile; it contains no advisory ignores or new license policy.
