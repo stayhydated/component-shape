@@ -31,12 +31,12 @@ thiserror = { workspace = true }
 tokio = { features = [ "rt-multi-thread" ], workspace = true }
 
 [dev-dependencies]
-koruma = { workspace = true }
-koruma-collection = { workspace = true }
 criterion = { default-features = false, features = [
   "async_tokio",
   "cargo_bench_support",
 ], version = "0.8.2" }
+koruma = { workspace = true }
+koruma-collection = { workspace = true }
 proptest = { default-features = false, features = [ "std" ], version = "1.11" }
 rmcp = { features = [ "client" ], workspace = true }
 
