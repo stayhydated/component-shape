@@ -39,8 +39,8 @@ The default feature set enables `derive`.
 
 ## Example
 
-With the default `derive` feature, register and call a typed echo tool in process.
-This follows the maintained [typed-tool test][example]; no transport is required.
+With the default `derive` feature, register and call a [typed echo tool][example]
+in process.
 
 ```rust
 use component_shape_mcp::{

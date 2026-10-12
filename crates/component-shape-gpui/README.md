@@ -12,9 +12,9 @@ Requires Rust 1.99 or newer and uses GPUI Kit 0.7.
 
 ## Example
 
-This state-only declaration is adapted from the maintained [compile fixture][example].
-It publishes `String` compatibility and a stable `input` suffix without opening a
-GPUI window. Omitting `component` selects the non-rendering contract.
+Declare a state-only [`InputShape`][example] to publish `String` compatibility
+and a stable `input` suffix without opening a GPUI window. Omitting `component`
+selects the non-rendering contract.
 
 ```rust
 use component_shape_gpui::{ComponentShapeFor, McpInput, component_shape};

@@ -13,8 +13,7 @@ Requires Rust 1.99 or newer.
 
 The derives follow Serde's deserialization names, aliases, skips, and defaults;
 `#[serde(flatten)]` is rejected. Use explicit nested fields or a custom schema and
-decoder instead. See the [macro API reference][api] and the
-[MCP package example][example].
+decoder instead. See the [macro API reference][api] for derive attributes.
 
 [codecov-badge]: https://codecov.io/gh/stayhydated/component-shape/branch/master/graph/badge.svg?component=component-shape-mcp-macros
 [codecov]: https://codecov.io/gh/stayhydated/component-shape
@@ -23,4 +22,3 @@ decoder instead. See the [macro API reference][api] and the
 [project]: https://github.com/stayhydated/component-shape
 [mcp]: https://crates.io/crates/component-shape-mcp
 [api]: https://docs.rs/component-shape-mcp-macros
-[example]: https://github.com/stayhydated/component-shape/blob/master/crates/component-shape-mcp/README.md

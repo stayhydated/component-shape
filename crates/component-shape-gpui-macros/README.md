@@ -11,8 +11,7 @@ when building a facade that forwards these macros and the GPUI contracts.
 
 Requires Rust 1.99 or newer.
 
-The [macro API reference][api] describes declaration syntax. The
-[GPUI package example][example] shows the supported application entry point.
+The [macro API reference][api] describes declaration syntax.
 
 [codecov-badge]: https://codecov.io/gh/stayhydated/component-shape/branch/master/graph/badge.svg?component=component-shape-gpui-macros
 [codecov]: https://codecov.io/gh/stayhydated/component-shape
@@ -21,4 +20,3 @@ The [macro API reference][api] describes declaration syntax. The
 [project]: https://github.com/stayhydated/component-shape
 [gpui]: https://crates.io/crates/component-shape-gpui
 [api]: https://docs.rs/component-shape-gpui-macros
-[example]: https://github.com/stayhydated/component-shape/blob/master/crates/component-shape-gpui/README.md
