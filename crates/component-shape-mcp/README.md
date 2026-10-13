@@ -3,52 +3,77 @@
 [![Codecov: component-shape-mcp][codecov-badge]][codecov]
 [![crates.io: component-shape-mcp][crate-badge]][crate]
 
-component-shape-mcp provides typed JSON Schema, strict argument decoding, shared
-tool registries, structured results, composed servers, and stdio support for
-Rust applications that expose component contracts through MCP. It is the
-protocol-facing crate in the [component-shape project][project]. Koruma is the
-ecosystem's canonical domain validator; applications choose its rules and own
-authorization and handler policy.
+`component-shape-mcp` provides typed JSON Schema, strict argument decoding, tool
+registries, structured results, composed servers, and stdio transport for Rust
+applications exposing MCP tools. Depend on this protocol-facing crate directly;
+this crate re-exports shared `McpInput` metadata from the
+[component-shape project][project].
+Applications choose Koruma domain rules and own authorization and handler policy.
+
+Requires Rust 1.99 or newer. The transport uses RMCP 3.5.
 
 ## Overview
 
-- Derive `McpToolInput` for named tool arguments with strict field decoding.
-- Use `McpJsonSchema` for nested schemas and `McpToolValue` for values that
-  pair a schema with a decoder.
-- Follow Serde's deserialization names or choose explicit MCP wire-name overrides.
-- Reject duplicate field spellings and unknown arguments with strict tool-input decoding.
-- Register typed handlers in `McpToolRegistry` and return structured results.
-- Use `add_koruma_tool` or `add_koruma_tool_async` to execute Koruma rules on
-  decoded inputs before their handlers run. Server builders expose `koruma_tool`
-  and `koruma_tool_async` for the same contract.
-- Validate successful output against compiled JSON Schemas, with bundled
-  references and no external retrieval. Formats remain annotations; output
-  uses the exact advertised names.
-- Install a reusable registry with `McpServer::from_tool_registry`, or compose
-  tools, resources, and prompts directly in `McpServer`.
+- Pair nested schemas with decoding through `McpJsonSchema` and `McpToolValue`;
+  derive `McpToolInput` for named top-level argument structs.
+- Register typed handlers, or execute Koruma rules before dispatch with
+  `add_koruma_tool` and `add_koruma_tool_async`.
+- Validate successful structured output against compiled schemas with bundled
+  references and no external retrieval. Formats remain annotations.
+- Compose tools, resources, and prompts through `McpServer`; serve stdio at the
+  application's synchronous or asynchronous boundary.
 
-## Validate domain input
+See the [API reference][api] for schema semantics, domain-issue conversion, and
+server lifecycle details.
 
-Derive `McpToolInput` and `koruma::Koruma` on arguments with domain rules, then
-register through `add_koruma_tool`. It requires Koruma's `ValidateExt` and
-`ValidationIssues` contracts. The runtime integration uses `koruma-core`; add the
-`koruma` facade and `koruma-collection` in applications that derive or use built-in
-validators.
+## Features
 
-Validation failures return structured form, field, or element issues, preserving
-the validator, source field, label, index, and runtime parameters. Parameter values
-keep their JSON types. Opaque values use `{ "kind": "opaque", "type_name": ... }`;
-non-finite floats use `{ "kind": "f64", "value": ... }`. A custom error with no
-issues still fails with a form-level issue. Use `McpValidationIssue::from(&issue)`
-or `koruma_validation_error(&error)` when an integration needs shared conversion,
-and `validate_koruma(&input)` after constructing an untyped tool's domain value.
+The default feature set enables `derive`.
 
-Schemas and strict decoding enforce protocol structure. Koruma executes domain
-rules; schema hints describe constraints to clients. Successful results retain
-the output-schema checks described above.
+| Feature | Default | Purpose |
+| --- | --- | --- |
+| `chrono` | No | Implements `McpJsonSchema` for `NaiveDate`, `NaiveDateTime`, and `DateTime<Tz>`. |
+| `default` | Yes | Enables `derive`. |
+| `derive` | Yes | Re-exports `McpJsonSchema` and `McpToolInput` from `component-shape-mcp-macros`. |
+| `rust_decimal` | No | Implements decimal schema metadata for `rust_decimal::Decimal`. |
+
+## Example
+
+With the default `derive` feature, register and call a [typed echo tool][example]
+in process.
+
+```rust
+use component_shape_mcp::{
+    McpServer, McpToolError, McpToolInput, serde_json::json,
+    tool_definition_for_input, tool_structured_result,
+};
+
+#[derive(McpToolInput)]
+struct EchoInput {
+    value: String,
+}
+
+fn main() -> Result<(), McpToolError> {
+    let mut server = McpServer::new("echo-server", "1.0.0");
+    server.add_typed_tool(
+        tool_definition_for_input::<EchoInput>("echo", None, None, None)?,
+        |input: EchoInput| tool_structured_result(json!({ "value": input.value })),
+    )?;
+
+    let result = server.call_tool("echo", Some(json!({ "value": "typed" })));
+    assert_eq!(result.is_error, Some(false));
+    assert_eq!(result.structured_content, Some(json!({ "value": "typed" })));
+    Ok(())
+}
+```
+
+The call returns the echoed value in structured content. Unknown arguments are
+rejected before the handler runs.
 
 [codecov-badge]: https://codecov.io/gh/stayhydated/component-shape/branch/master/graph/badge.svg?component=component-shape-mcp
 [codecov]: https://codecov.io/gh/stayhydated/component-shape
 [crate-badge]: https://img.shields.io/crates/v/component-shape-mcp.svg?label=component-shape-mcp
 [crate]: https://crates.io/crates/component-shape-mcp
 [project]: https://github.com/stayhydated/component-shape
+[api]: https://docs.rs/component-shape-mcp
+[example]: https://github.com/stayhydated/component-shape/blob/master/crates/component-shape-mcp/src/tests/registry_server.rs
