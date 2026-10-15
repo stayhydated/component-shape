@@ -33,7 +33,6 @@ The default feature set enables `derive`.
 | Feature | Default | Purpose |
 | --- | --- | --- |
 | `chrono` | No | Implements `McpJsonSchema` for `NaiveDate`, `NaiveDateTime`, and `DateTime<Tz>`. |
-| `default` | Yes | Enables `derive`. |
 | `derive` | Yes | Re-exports `McpJsonSchema` and `McpToolInput` from `component-shape-mcp-macros`. |
 | `rust_decimal` | No | Implements decimal schema metadata for `rust_decimal::Decimal`. |
 

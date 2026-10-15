@@ -291,6 +291,16 @@ fn shape_path_from_expr_accepts_path_expressions() {
 }
 
 #[test]
+fn shape_path_from_expr_rejects_qualified_self_expressions() {
+    for expr in [parse_quote!(<T as Shape>::Output), parse_quote!(<T>::Output)] {
+        let error = shape_path_from_expr(&expr, "expected shape path")
+            .expect_err("qualified self expressions must not lose their self type");
+
+        assert_eq!(error.to_string(), "expected shape path");
+    }
+}
+
+#[test]
 fn shape_path_from_expr_rejects_non_path_expressions() {
     let expr: Expr = parse_quote!(make_shape());
 

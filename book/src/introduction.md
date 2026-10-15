@@ -13,6 +13,8 @@ Choose the entry point that owns your task:
 
 - Use `component-shape` to publish framework-neutral metadata or build a
   generator or framework adapter.
+- Use `component-shape-codegen` when a procedural macro or generator needs
+  shared path, suffix, substitution, and metadata generation helpers.
 - Use `component-shape-gpui` to declare GPUI components, construction,
   rendering, and value binding.
 - Use `component-shape-mcp` to turn coarse component metadata or typed Rust

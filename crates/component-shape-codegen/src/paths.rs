@@ -37,10 +37,17 @@ pub fn normalize_shape_path(mut path: Path) -> Path {
 }
 
 /// Extract a shape path from an expression position.
+///
+/// Qualified self expressions are rejected because a `Path` cannot retain
+/// their self type and trait qualification.
 pub fn shape_path_from_expr(expr: &Expr, expected: &'static str) -> syn::Result<Path> {
     let Expr::Path(expr_path) = expr else {
         return Err(syn::Error::new(expr.span(), expected));
     };
+
+    if let Some(qself) = &expr_path.qself {
+        return Err(syn::Error::new(qself.lt_token.span, expected));
+    }
 
     Ok(normalize_shape_path(expr_path.path.clone()))
 }

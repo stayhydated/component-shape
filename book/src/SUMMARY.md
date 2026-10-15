@@ -3,6 +3,7 @@
 - [Introduction](introduction.md)
 - [Getting started](getting-started.md)
 - [Framework-neutral shapes](framework-neutral-shapes.md)
+- [Code generation](code-generation.md)
 - [GPUI shapes](gpui-shapes.md)
 - [MCP integration](mcp-integration.md)
   - [Schemas and decoding](mcp-schemas.md)
