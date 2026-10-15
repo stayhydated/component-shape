@@ -13,7 +13,7 @@ public rustdoc and tests to verify behavior before changing its documentation.
 | `crates/component-shape-codegen` | Shared generator contracts: paths, suffixes, `_` substitution, imports, spans, and emitted metadata. |
 | `crates/component-shape-gpui-macros` | GPUI declaration macro implementation; users enter through `component-shape-gpui`. |
 | `crates/component-shape-mcp-macros` | Schema and input derive implementation; users enter through the MCP crate's `derive` feature. |
-| `book/src` and `skills` | User workflows and reusable guidance for framework-neutral, GPUI, and MCP consumers. |
+| `book/src` and `skills` | User workflows and reusable guidance for framework-neutral, code-generation, GPUI, and MCP consumers. |
 | `web/src/lib.rs` | Pages project identity, destinations, and route manifest. |
 | `xtask/src/commands` | Shared book, llms.txt, Pages, and preview command integration. |
 

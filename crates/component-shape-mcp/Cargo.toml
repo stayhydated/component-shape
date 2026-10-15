@@ -37,7 +37,7 @@ criterion = { default-features = false, features = [
 ], version = "0.8.2" }
 koruma = { workspace = true }
 koruma-collection = { workspace = true }
-proptest = { default-features = false, features = [ "std" ], version = "1.11" }
+proptest = { default-features = false, features = [ "std" ], version = "1.12.0" }
 rmcp = { features = [ "client" ], workspace = true }
 
 [[bench]]
