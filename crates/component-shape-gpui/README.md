@@ -8,7 +8,7 @@ for declaring component shapes, constructing their state, rendering them, and
 binding value changes. Depend on it directly for GPUI integrations; it re-exports
 the shared metadata and both declaration macros.
 
-Requires Rust 1.99 or newer and uses GPUI Kit 0.7.
+Requires Rust 1.99 or newer and uses GPUI Kit 0.8.0.
 
 ## Example
 
