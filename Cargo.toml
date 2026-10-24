@@ -21,7 +21,7 @@ version = "0.3.4"
 
 [workspace.dependencies]
 anyhow = "1.0.104"
-attribute-dsl = "0.2.2"
+attribute-dsl = "0.2.3"
 chrono = "0.4.45"
 clap = "4.6.7"
 component-shape = { path = "crates/component-shape", version = "0.3.4" }
@@ -34,25 +34,25 @@ derive_more = "2.1.1"
 dioxus = { default-features = false, version = "0.7.10" }
 gpui-kit = "0.8.0"
 heck = "0.5.0"
-jsonschema = { default-features = false, version = "0.58.6" }
-koruma = "0.13.0"
-koruma-collection = "0.13.0"
-koruma-core = { default-features = false, version = "0.13.0" }
+jsonschema = { default-features = false, version = "0.60.1" }
+koruma = "0.13.1"
+koruma-collection = "0.13.1"
+koruma-core = { default-features = false, version = "0.13.1" }
 prettyplease = "0.3.0"
 proc-macro-crate = "3.5.0"
 proc-macro2 = "1.0.107"
 quote = "1.0.47"
-rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "3.5.1" }
+rmcp = { default-features = false, features = [ "server", "transport-io" ], version = "3.7.0" }
 rust_decimal = "1.43.0"
 serde = "1.0.229"
 serde_json = "1.0.154"
-stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "3136b369bb54312096ad83ba74735aab29109835" }
-stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "3136b369bb54312096ad83ba74735aab29109835" }
-stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "3136b369bb54312096ad83ba74735aab29109835" }
+stayhydated-dioxus = { git = "https://github.com/stayhydated/shared", rev = "b3f91071b4e61702a63f57844560f70bbc9bf623" }
+stayhydated-site = { git = "https://github.com/stayhydated/shared", rev = "b3f91071b4e61702a63f57844560f70bbc9bf623" }
+stayhydated-xtask = { git = "https://github.com/stayhydated/shared", rev = "b3f91071b4e61702a63f57844560f70bbc9bf623" }
 strum = "0.28.0"
 syn = { default-features = false, version = "3.0.9" }
 thiserror = "2.0.21"
-tokio = "1.53.3"
+tokio = "1.54.1"
 trybuild = "1.0.122"
 web = { path = "web" }
 
