@@ -17,19 +17,19 @@ license = "MIT OR Apache-2.0"
 publish = true
 repository = "https://github.com/stayhydated/component-shape"
 rust-version = "1.99"
-version = "0.3.4"
+version = "0.3.5"
 
 [workspace.dependencies]
 anyhow = "1.0.104"
 attribute-dsl = "0.2.3"
 chrono = "0.4.45"
 clap = "4.6.7"
-component-shape = { path = "crates/component-shape", version = "0.3.4" }
-component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.3.4" }
-component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.3.4" }
-component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", version = "0.3.4" }
-component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.3.4" }
-component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.3.4" }
+component-shape = { path = "crates/component-shape", version = "0.3.5" }
+component-shape-codegen = { path = "crates/component-shape-codegen", version = "0.3.5" }
+component-shape-gpui = { path = "crates/component-shape-gpui", version = "0.3.5" }
+component-shape-gpui-macros = { path = "crates/component-shape-gpui-macros", version = "0.3.5" }
+component-shape-mcp = { path = "crates/component-shape-mcp", version = "0.3.5" }
+component-shape-mcp-macros = { path = "crates/component-shape-mcp-macros", version = "0.3.5" }
 derive_more = "2.1.1"
 dioxus = { default-features = false, version = "0.7.10" }
 gpui-kit = "0.8.0"
