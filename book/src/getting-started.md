@@ -2,12 +2,14 @@
 
 Use Rust 1.99 or newer, then add the narrowest crate that owns your integration.
 All crates use edition 2024.
+These requirements target the upcoming 0.4 release. Published 0.3 GPUI crates
+use GPUI Kit 0.8.
 
 ## Framework-neutral metadata
 
 ```toml
 [dependencies]
-component-shape = "0.3"
+component-shape = "0.4"
 ```
 
 Implement `ComponentShapeMetadata` on a shape type. Add
@@ -18,8 +20,8 @@ Implement `ComponentShapeMetadata` on a shape type. Add
 
 ```toml
 [dependencies]
-component-shape-gpui = "0.3"
-gpui-kit = "0.8.0"
+component-shape-gpui = "0.4"
+gpui-kit = "0.9.0"
 ```
 
 The GPUI crate re-exports the shared framework-neutral traits and uses the
@@ -31,7 +33,7 @@ Continue with [GPUI shapes](gpui-shapes.md).
 
 ```toml
 [dependencies]
-component-shape-mcp = "0.3"
+component-shape-mcp = "0.4"
 ```
 
 The default features export the `McpJsonSchema` and `McpToolInput` derives.

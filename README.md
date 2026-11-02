@@ -9,7 +9,9 @@ components once and share their metadata with frameworks, code generators, and
 Model Context Protocol (MCP) integrations.
 
 Requires Rust 1.99 or newer across the published crates. The GPUI integration
-uses GPUI Kit 0.8.0; MCP transport uses RMCP 3.5.
+uses GPUI Kit 0.9.0; MCP transport uses RMCP 3.8.
+This source targets the upcoming 0.4 release line; published 0.3 GPUI crates
+use GPUI Kit 0.8.
 
 ## Crates
 
