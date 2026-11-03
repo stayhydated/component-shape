@@ -585,9 +585,9 @@ dependencies = [
 
 [[package]]
 name = "attribute-dsl"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ab2b9d286f4c6baca1090f55e51f0c761d4c880e6bcc11cd780d36a30708a94"
+checksum = "da248ca76d9a2d04fee0c20ebf41f1a86a04c9d3c3494b56b0f5911bbb749387"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1314,7 +1314,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape"
-version = "0.3.5"
+version = "0.4.0"
 dependencies = [
  "derive_more",
  "heck 0.5.0",
@@ -1325,7 +1325,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-codegen"
-version = "0.3.5"
+version = "0.4.0"
 dependencies = [
  "attribute-dsl",
  "component-shape",
@@ -1336,7 +1336,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-gpui"
-version = "0.3.5"
+version = "0.4.0"
 dependencies = [
  "component-shape",
  "component-shape-gpui-macros",
@@ -1346,7 +1346,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-gpui-macros"
-version = "0.3.5"
+version = "0.4.0"
 dependencies = [
  "component-shape",
  "component-shape-codegen",
@@ -1359,7 +1359,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-mcp"
-version = "0.3.5"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "component-shape",
@@ -1381,7 +1381,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-mcp-macros"
-version = "0.3.5"
+version = "0.4.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2849,9 +2849,9 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-build"
-version = "0.21.1"
+version = "0.21.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91667ae492003788701e04d6b2b46b9defdffdc87f9f3cc8010b82be9dfd2a99"
+checksum = "c55fd1e5f785ba417c55e364c5673e77be0a12f0bd9e9a2c7d0672c8dfde0ce9"
 dependencies = [
  "es-fluent-shared",
  "es-fluent-toml",
@@ -2859,9 +2859,9 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-shared"
-version = "0.21.1"
+version = "0.21.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "713238b165bf04ae1eaede72f35c7a944ecd17a91392f0f50cd8865c565389e6"
+checksum = "269426e7933c0ef0c52f47116cf813215226d1bd0006946ccb2c94ec176fbb86"
 dependencies = [
  "anyhow",
  "camino",
@@ -2883,9 +2883,9 @@ dependencies = [
 
 [[package]]
 name = "es-fluent-toml"
-version = "0.21.1"
+version = "0.21.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bec48c12e37be79fd6e3fcc21d26dcd11cc1efd3c276dcc5903a1bb6b72e80a1"
+checksum = "84cc4c004084106f0a3e75d9e22c85ccb2a34fd73a4fca636c45326ae8407e9d"
 dependencies = [
  "bon",
  "es-fluent-shared",
@@ -5410,9 +5410,9 @@ checksum = "a4933f3f57a8e9d9da04db23fb153356ecaf00cbd14aee46279c33dc80925c37"
 
 [[package]]
 name = "koruma"
-version = "0.13.1"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4184a92b9943049f3f8a52b85437eedbd2a4e38ba8d852e7d979506d5f59a09e"
+checksum = "720de5c03f371ea0ce5fc890caeefcfc515e3cfd56de50b0fb0e255c8e3207fc"
 dependencies = [
  "koruma-core",
  "koruma-derive",
@@ -5420,9 +5420,9 @@ dependencies = [
 
 [[package]]
 name = "koruma-collection"
-version = "0.13.1"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b744165739ef77723dd6a30466295a97a1c786365c1cc8f7c91938c7b504777"
+checksum = "d7b8f9c52fd2299a6171bcaf9c4f98756f0ce620b2c4f7847fb791d33674bc5c"
 dependencies = [
  "es-fluent-build",
  "koruma",
@@ -5430,15 +5430,15 @@ dependencies = [
 
 [[package]]
 name = "koruma-core"
-version = "0.13.1"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e29cb26aac16ec54210da57ffcb6683286c820fca96840d92f987757a549aa6"
+checksum = "3d1eb03a2c5eb787751184a36a6ca14c67b9122a033e6a38cd63269db59ebc71"
 
 [[package]]
 name = "koruma-derive"
-version = "0.13.1"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8dbd2401ff2ec1328f78efe1be27ace5a41c95991f1955cae4444f0fae781025"
+checksum = "28b2999809eab879783e8c1d489dfd1933cbe1d6f42a10e62e2f4ab68bba9c2b"
 dependencies = [
  "heck 0.5.0",
  "koruma-derive-core",
@@ -5450,9 +5450,9 @@ dependencies = [
 
 [[package]]
 name = "koruma-derive-core"
-version = "0.13.1"
+version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7cd3896b6d4b105e85c8ea1a47f1e4f6ae52d9df03b20b9321e8714f94f81a3"
+checksum = "64fbee39d0a5d76b04aa19dda79f57401fd4f3951eb0f8a72e82151867af98e9"
 dependencies = [
  "attribute-dsl",
  "heck 0.5.0",
@@ -9000,7 +9000,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "stayhydated-dioxus"
 version = "0.1.1"
-source = "git+https://github.com/stayhydated/shared?rev=d531bbbf740688a473e8230a90f7b6ebfaa24e70#d531bbbf740688a473e8230a90f7b6ebfaa24e70"
+source = "git+https://github.com/stayhydated/shared?rev=1569baacf4fb2a94bbf7d9f02615332407e104df#1569baacf4fb2a94bbf7d9f02615332407e104df"
 dependencies = [
  "bon",
  "dioxus",
@@ -9014,7 +9014,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-dioxus-core"
 version = "0.1.1"
-source = "git+https://github.com/stayhydated/shared?rev=d531bbbf740688a473e8230a90f7b6ebfaa24e70#d531bbbf740688a473e8230a90f7b6ebfaa24e70"
+source = "git+https://github.com/stayhydated/shared?rev=1569baacf4fb2a94bbf7d9f02615332407e104df#1569baacf4fb2a94bbf7d9f02615332407e104df"
 dependencies = [
  "bytemuck",
  "derive_more",
@@ -9031,7 +9031,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-site"
 version = "0.1.1"
-source = "git+https://github.com/stayhydated/shared?rev=d531bbbf740688a473e8230a90f7b6ebfaa24e70#d531bbbf740688a473e8230a90f7b6ebfaa24e70"
+source = "git+https://github.com/stayhydated/shared?rev=1569baacf4fb2a94bbf7d9f02615332407e104df#1569baacf4fb2a94bbf7d9f02615332407e104df"
 dependencies = [
  "derive_more",
  "dioxus",
@@ -9041,7 +9041,7 @@ dependencies = [
 [[package]]
 name = "stayhydated-xtask"
 version = "0.1.1"
-source = "git+https://github.com/stayhydated/shared?rev=d531bbbf740688a473e8230a90f7b6ebfaa24e70#d531bbbf740688a473e8230a90f7b6ebfaa24e70"
+source = "git+https://github.com/stayhydated/shared?rev=1569baacf4fb2a94bbf7d9f02615332407e104df#1569baacf4fb2a94bbf7d9f02615332407e104df"
 dependencies = [
  "anyhow",
  "bon",
@@ -10441,7 +10441,7 @@ dependencies = [
 
 [[package]]
 name = "web"
-version = "0.3.5"
+version = "0.4.0"
 dependencies = [
  "dioxus",
  "stayhydated-dioxus",
@@ -11524,7 +11524,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.3.5"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
