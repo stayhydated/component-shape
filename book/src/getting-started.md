@@ -2,8 +2,7 @@
 
 Use Rust 1.99 or newer, then add the narrowest crate that owns your integration.
 All crates use edition 2024.
-These requirements target the upcoming 0.4 release. Published 0.3 GPUI crates
-use GPUI Kit 0.8.
+The 0.4 GPUI crates use GPUI Kit 0.9; the 0.3 GPUI crates use GPUI Kit 0.8.
 
 ## Framework-neutral metadata
 

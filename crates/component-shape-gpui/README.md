@@ -9,7 +9,7 @@ binding value changes. Depend on it directly for GPUI integrations; it re-export
 the shared metadata and both declaration macros.
 
 Requires Rust 1.99 or newer and uses GPUI Kit 0.9.0.
-This source targets the upcoming 0.4 release; published 0.3 versions use GPUI Kit 0.8.
+The 0.4 release line uses GPUI Kit 0.9; the 0.3 line uses GPUI Kit 0.8.
 
 ## Example
 
