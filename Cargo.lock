@@ -1323,7 +1323,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape"
-version = "0.4.1"
+version = "0.4.0"
 dependencies = [
  "derive_more",
  "heck 0.5.0",
@@ -1334,7 +1334,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-codegen"
-version = "0.4.1"
+version = "0.4.0"
 dependencies = [
  "attribute-dsl",
  "component-shape",
@@ -1345,7 +1345,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-gpui"
-version = "0.4.1"
+version = "0.4.0"
 dependencies = [
  "component-shape",
  "component-shape-gpui-macros",
@@ -1355,7 +1355,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-gpui-macros"
-version = "0.4.1"
+version = "0.4.0"
 dependencies = [
  "component-shape",
  "component-shape-codegen",
@@ -1368,7 +1368,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-mcp"
-version = "0.4.1"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "component-shape",
@@ -1390,7 +1390,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-mcp-macros"
-version = "0.4.1"
+version = "0.4.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2853,7 +2853,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7702,7 +7702,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8346,7 +8346,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9368,10 +9368,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -10460,7 +10460,7 @@ dependencies = [
 
 [[package]]
 name = "web"
-version = "0.4.1"
+version = "0.4.0"
 dependencies = [
  "dioxus",
  "stayhydated-dioxus",
@@ -10728,7 +10728,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -11543,7 +11543,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.4.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
