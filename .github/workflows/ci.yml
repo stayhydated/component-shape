@@ -82,7 +82,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: mozilla-actions/sccache-action@v0.0.11
         with:
-          version: "v0.16.0"
+          version: "v0.20.0"
       - name: Run isolated consumer feature cases
         run: .github/scripts/check-features.sh
 
@@ -97,7 +97,7 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: mozilla-actions/sccache-action@v0.0.11
         with:
-          version: "v0.16.0"
+          version: "v0.20.0"
       - uses: cargo-bins/cargo-binstall@v1.25.3
         with:
           version: "1.25.1"
@@ -135,7 +135,7 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
         with:
-          version: "v0.16.0"
+          version: "v0.20.0"
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -181,7 +181,7 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
         with:
-          version: "v0.16.0"
+          version: "v0.20.0"
 
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
@@ -202,7 +202,7 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
         with:
-          version: "v0.16.0"
+          version: "v0.20.0"
 
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
@@ -223,7 +223,7 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
         with:
-          version: "v0.16.0"
+          version: "v0.20.0"
 
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
@@ -263,7 +263,7 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
         with:
-          version: "v0.16.0"
+          version: "v0.20.0"
 
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
@@ -319,7 +319,7 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@v0.0.11
         with:
-          version: "v0.16.0"
+          version: "v0.20.0"
 
       - name: Install Linux dependencies
         uses: ./.github/actions/install-linux-deps
