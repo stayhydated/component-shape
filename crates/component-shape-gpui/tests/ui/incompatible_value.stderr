@@ -17,7 +17,6 @@ note: required by a bound in `assert_shape_for_u64`
   --> tests/ui/incompatible_value.rs:20:12
    |
 18 | fn assert_shape_for_u64<Shape>()
-   |    -------------------- required by a bound in this function
 19 | where
 20 |     Shape: GpuiComponentShapeFor<u64>,
    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `assert_shape_for_u64`

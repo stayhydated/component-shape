@@ -8,12 +8,12 @@ publish = false
 [workspace]
 
 [dependencies]
-chrono = { optional = true, version = "0.4.45" }
 component-shape-mcp = { default-features = false, path = "../../crates/component-shape-mcp" }
+jiff = { features = [ "serde" ], optional = true, version = "1.0.3" }
 rust_decimal = { optional = true, version = "1.43.0" }
 
 [features]
-mcp-chrono = [ "component-shape-mcp/chrono", "dep:chrono" ]
 mcp-decimal = [ "component-shape-mcp/rust_decimal", "dep:rust_decimal" ]
 mcp-default = [ "component-shape-mcp/default" ]
+mcp-jiff = [ "component-shape-mcp/jiff", "dep:jiff" ]
 mcp-minimal = [  ]

@@ -606,7 +606,7 @@ fn mcp_input_shape_tokens_cover_all_shape_variants() {
 #[test]
 fn inferred_mcp_input_shape_handles_scalar_wrappers() {
     let string_ty: Type = parse_quote!(std::borrow::Cow<'static, str>);
-    let boxed_date_ty: Type = parse_quote!(Box<chrono::NaiveDate>);
+    let boxed_date_ty: Type = parse_quote!(Box<jiff::civil::Date>);
     let optional_decimal_ty: Type = parse_quote!(Option<std::sync::Arc<rust_decimal::Decimal>>);
 
     assert_eq!(
@@ -633,13 +633,13 @@ fn inferred_mcp_input_shape_handles_scalar_wrappers() {
 fn inferred_mcp_input_shape_handles_collections_and_ranges() {
     let vec_ty: Type = parse_quote!(std::collections::VecDeque<String>);
     let wrapped_vec_ty: Type = parse_quote!(Vec<Box<String>>);
-    let set_ty: Type = parse_quote!(std::collections::BTreeSet<chrono::NaiveDate>);
+    let set_ty: Type = parse_quote!(std::collections::BTreeSet<jiff::civil::Date>);
     let map_ty: Type = parse_quote!(std::collections::HashMap<String, gpui_form::mcp::McpAny>);
     let json_map_ty: Type = parse_quote!(serde_json::Map<String, gpui_form::mcp::McpAny>);
     let any_value_ty: Type = parse_quote!(gpui_form::mcp::McpAny);
     let array_ty: Type = parse_quote!([u64; 3]);
     let slice_ty: Type = parse_quote!(&[bool]);
-    let tuple_range_ty: Type = parse_quote!((Option<chrono::NaiveDate>, Option<chrono::NaiveDate>));
+    let tuple_range_ty: Type = parse_quote!((Option<jiff::civil::Date>, Option<jiff::civil::Date>));
     let mcp_range_ty: Type = parse_quote!(gpui_form::mcp::McpRange<rust_decimal::Decimal>);
 
     assert_eq!(
@@ -734,7 +734,7 @@ fn inferred_mcp_input_shape_covers_supported_and_rejected_boundaries() {
             Some(McpInputShape::List(McpPrimitiveKind::String)),
         ),
         (
-            parse_quote!(component_shape_mcp::McpRange<chrono::DateTime<Utc>>),
+            parse_quote!(component_shape_mcp::McpRange<jiff::Timestamp>),
             Some(McpInputShape::Range(McpRangeBoundKind::DateTime)),
         ),
         (

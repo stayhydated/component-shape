@@ -474,3 +474,56 @@ fn direct_server_calls_cover_argument_errors_async_duplicates_and_panics() {
             .contains("runtime panicked")
     );
 }
+
+#[cfg(all(feature = "derive", feature = "jiff"))]
+#[test]
+fn registered_typed_jiff_tool_preserves_civil_values_and_rfc3339_instants() {
+    #[derive(crate::McpToolInput)]
+    struct Input {
+        day: jiff::civil::Date,
+        local: jiff::civil::DateTime,
+        instant: jiff::Timestamp,
+    }
+
+    let mut server = crate::McpServer::new("temporal-echo", "1.0.0");
+    server
+        .add_typed_tool(
+            crate::tool_definition_for_input::<Input>("echo-time", None, None, None).unwrap(),
+            |input: Input| {
+                crate::tool_structured_result(json!({
+                    "day": input.day,
+                    "local": input.local,
+                    "instant": input.instant,
+                }))
+            },
+        )
+        .unwrap();
+
+    let result = server.call_tool(
+        "echo-time",
+        Some(json!({
+            "day": "2024-02-29",
+            "local": "2024-02-29T12:34:56",
+            "instant": "2024-02-29T12:34:56+05:30",
+        })),
+    );
+    assert_eq!(result.is_error, Some(false));
+    assert_eq!(
+        result.structured_content,
+        Some(json!({
+            "day": "2024-02-29",
+            "local": "2024-02-29T12:34:56",
+            "instant": "2024-02-29T07:04:56Z",
+        }))
+    );
+
+    let rejected = server.call_tool(
+        "echo-time",
+        Some(json!({
+            "day": "2024-02-29",
+            "local": "2024-02-29T12:34:56",
+            "instant": "2024-02-29T12:34:56",
+        })),
+    );
+    assert_eq!(rejected.is_error, Some(true));
+}

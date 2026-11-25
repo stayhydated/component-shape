@@ -459,8 +459,8 @@ fn primitive_kind_for_path_ident(ident: &str) -> Option<component_shape::McpPrim
         "String" | "str" | "Path" | "PathBuf" | "OsString" | "char" => {
             Some(component_shape::McpPrimitiveKind::String)
         },
-        "NaiveDate" | "Date" => Some(component_shape::McpPrimitiveKind::Date),
-        "NaiveDateTime" | "DateTime" | "OffsetDateTime" | "Timestamp" | "Zoned" => {
+        "Date" => Some(component_shape::McpPrimitiveKind::Date),
+        "DateTime" | "OffsetDateTime" | "Timestamp" | "Zoned" => {
             Some(component_shape::McpPrimitiveKind::DateTime)
         },
         "McpAny" => Some(component_shape::McpPrimitiveKind::Any),

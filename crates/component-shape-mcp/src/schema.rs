@@ -746,25 +746,23 @@ impl McpJsonSchema for Path {
     }
 }
 
-#[cfg(feature = "chrono")]
-impl McpJsonSchema for chrono::NaiveDate {
+#[cfg(feature = "jiff")]
+impl McpJsonSchema for jiff::civil::Date {
     fn json_schema() -> McpSchema {
         schema_for_primitive(McpPrimitiveKind::Date)
     }
 }
 
-#[cfg(feature = "chrono")]
-impl McpJsonSchema for chrono::NaiveDateTime {
+#[cfg(feature = "jiff")]
+impl McpJsonSchema for jiff::civil::DateTime {
     fn json_schema() -> McpSchema {
-        schema_for_primitive(McpPrimitiveKind::DateTime)
+        // A civil date-time has no offset, unlike RFC 3339 date-time.
+        schema_for_primitive(McpPrimitiveKind::String)
     }
 }
 
-#[cfg(feature = "chrono")]
-impl<Tz> McpJsonSchema for chrono::DateTime<Tz>
-where
-    Tz: chrono::TimeZone,
-{
+#[cfg(feature = "jiff")]
+impl McpJsonSchema for jiff::Timestamp {
     fn json_schema() -> McpSchema {
         schema_for_primitive(McpPrimitiveKind::DateTime)
     }
