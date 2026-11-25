@@ -1336,7 +1336,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "derive_more",
  "heck 0.5.0",
@@ -1347,7 +1347,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-codegen"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "attribute-dsl",
  "component-shape",
@@ -1358,7 +1358,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-gpui"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "component-shape",
  "component-shape-gpui-macros",
@@ -1368,7 +1368,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-gpui-macros"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "component-shape",
  "component-shape-codegen",
@@ -1381,7 +1381,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-mcp"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "component-shape",
  "component-shape-mcp-macros",
@@ -1403,7 +1403,7 @@ dependencies = [
 
 [[package]]
 name = "component-shape-mcp-macros"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -10538,7 +10538,7 @@ dependencies = [
 
 [[package]]
 name = "web"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "dioxus",
  "stayhydated-dioxus",
@@ -11621,7 +11621,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "clap",
