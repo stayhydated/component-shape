@@ -25,6 +25,14 @@ The common definition helpers cover static integrations:
 Use async resource, prompt, or tool handlers when the application must await
 I/O.
 
+## Exchange dates and instants
+
+Enable `component-shape-mcp/jiff` for typed temporal fields. Use
+`jiff::civil::Date` for calendar dates and `jiff::Timestamp` for RFC 3339
+instants. Timestamp output normalizes to UTC; the input offset is not retained.
+For `jiff::civil::DateTime`, send a wall-clock string without an offset.
+It has no RFC 3339 format annotation; use `jiff::Timestamp` for a real instant.
+
 ## Choose a serving boundary
 
 - Call `build()?` on a builder to obtain an `McpServer` for your transport.

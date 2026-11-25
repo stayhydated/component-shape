@@ -11,15 +11,15 @@ publish.workspace = true
 repository.workspace = true
 
 [features]
-chrono = [ "dep:chrono" ]
 default = [ "derive" ]
 derive = [ "dep:component-shape-mcp-macros" ]
+jiff = [ "dep:jiff" ]
 rust_decimal = [ "dep:rust_decimal" ]
 
 [dependencies]
-chrono = { optional = true, workspace = true }
 component-shape = { workspace = true }
 component-shape-mcp-macros = { optional = true, workspace = true }
+jiff = { optional = true, workspace = true }
 jsonschema = { workspace = true }
 koruma-core = { workspace = true }
 rmcp = { workspace = true }

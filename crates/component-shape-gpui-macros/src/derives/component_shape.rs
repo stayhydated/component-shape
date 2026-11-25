@@ -601,7 +601,7 @@ mod tests {
         let input: ComponentShapeInput = syn::parse2(quote! {
             pub struct DateRangeShape {
                 state = crate::DateRangeState;
-                value = (Option<chrono::NaiveDate>, Option<chrono::NaiveDate>);
+                value = (Option<jiff::civil::Date>, Option<jiff::civil::Date>);
             }
         })
         .unwrap();
@@ -616,7 +616,7 @@ mod tests {
         let input: ComponentShapeInput = syn::parse2(quote! {
             pub struct DateRangeShape {
                 state = crate::DateRangeState;
-                value = component_shape_mcp::McpRange<chrono::NaiveDate>;
+                value = component_shape_mcp::McpRange<jiff::civil::Date>;
             }
         })
         .unwrap();

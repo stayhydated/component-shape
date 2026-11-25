@@ -32,9 +32,14 @@ The default feature set enables `derive`.
 
 | Feature | Default | Purpose |
 | --- | --- | --- |
-| `chrono` | No | Implements `McpJsonSchema` for `NaiveDate`, `NaiveDateTime`, and `DateTime<Tz>`. |
+| `jiff` | No | Implements `McpJsonSchema` for Jiff `civil::Date`, `civil::DateTime`, and `Timestamp`. |
 | `derive` | Yes | Re-exports `McpJsonSchema` and `McpToolInput` from `component-shape-mcp-macros`. |
 | `rust_decimal` | No | Implements decimal schema metadata for `rust_decimal::Decimal`. |
+
+Use `jiff::Timestamp` for RFC 3339 instants and `jiff::civil::Date` for
+dates. For `jiff::civil::DateTime`, send a wall-clock value without an offset.
+For a real instant use `jiff::Timestamp`, which serializes in UTC; the
+original offset and named zone are not part of the timestamp wire value.
 
 ## Example
 
